@@ -135,7 +135,7 @@ Step 5D (`step5d_cohort_forecast.py`, see `README_STEP5D.md`) is a new model, no
 | 5 arbitrary group-growth offsets | Replaced by Pew global TFR ratios damped by `phi` (range is a judgement; `hindcast_phi_scan.csv` shows what the data prefer). |
 | 6 random group advantages | Removed. Uncertainty is parameter ranges plus one persistent country x group draw per run. |
 | 7 uniform one-way secularization | Replaced by country-specific net switching estimated from the hindcast, decaying over time. |
-| 8 migration as regression to the mean | Replaced by an emigrant-pool mix (global + continent). Still no origin-destination data. |
+| 8 migration as regression to the mean | Replaced: leavers carry their origin's religious mix; arrivals use a bilateral origin-destination table when supplied (`data/raw/migrant_bilateral.csv`), otherwise neighbour/continent/world pools. Still no migrant-religion data beyond origin composition. |
 | 10 modal vs mean winner | Both reported (`most_likely_dominant` and `mean_dominant`, plus both change counts). |
 | 11 clipping non-conservation | Persons are conserved in switching and migration; verified in unit tests. |
 | 12 silent defaults | Counts of WPP-default and no-Pew-2010 countries are written to `step5d_report.json`. |

@@ -31,6 +31,7 @@ SCENARIOS = ('demography_only', 'demography_plus_switching',
              'equal_fertility_counterfactual', 'no_migration_counterfactual')
 YEARS = sorted(set(range(2020, 3031, 5)) | {3026})
 HEADLINE = 'demography_plus_switching'
+K = len(CATEGORIES)
 TARGET_YEARS = [2020, 2050, 2100, 2200, 2500, 3026]
 STEP_YEARS = list(range(2025, 3031, 5))
 PEW_2050_PCT = {'Christianity': 31.4, 'Islam': 29.7, 'Hinduism': 14.9, 'Buddhism': 5.2,
@@ -47,7 +48,7 @@ def load_assumptions():
 def draw_params(rng, n, scenario, a):
     r = a['parameter_ranges']
     u = lambda k: float(rng.uniform(*r[k]['range']))
-    return dict(phi=u('phi'), psi=u('psi'), w_add=u('w_add'), lam_nb=u('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=u('Hf'), e0=u('e0'), lam=u('lam'),
+    return dict(phi=u('phi'), psi=u('psi'), w_add=u('w_add'), lam_nb=u('lam_nb'), lam_od=u('lam_od'), world_tfr=a['world_tfr_2010_15'], Hf=u('Hf'), e0=u('e0'), lam=u('lam'),
                 switch_strength=u('switch_strength'), switch_half_life=u('switch_half_life'),
                 tfr_shift=float(rng.normal(0, .13)),
                 eps=rng.normal(0, r['eps_sd']['value'], size=(n, K)),
@@ -66,7 +67,7 @@ def hindcast_rho(inp, e, dems):
 
 
 def simulate(inp, scenario, pars, rel_global, median_off):
-    e = eng.Engine(rel_global, median_off, inp['cont'], pars, inp.get('adj'))
+    e = eng.Engine(rel_global, median_off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
     dems = inp['dem_path'](pars['tfr_shift'])
     full = scenario == 'demography_plus_switching'
     rho = hindcast_rho(inp, e, dems)[0] if full else None
@@ -74,18 +75,27 @@ def simulate(inp, scenario, pars, rel_global, median_off):
                                dems[2020]['median_age'], e.median_offset)
     out = {2020: (eng.shares_of(P), P.sum((1, 2)))}
     prev, drift = dems[2020], []
+    n = len(inp['ids'])
+    led = {k: np.zeros((n, K)) for k in ('out_2050', 'in_2050', 'out_2100', 'in_2100')}
     for year in STEP_YEARS:
         cur = dems[year]
         factor = .5 * pars['switch_strength'] * 2 ** (-(year - 2020) / pars['switch_half_life']) if full else 0.
+        e.last_flows = None
         P, lg = e.step(P, prev, cur, year - 2022.5, rho, factor,
                        migration=scenario != 'no_migration_counterfactual')
         if year <= 2100:
             drift.append(float(lg.mean()))
+        if e.last_flows is not None:
+            outf, inf = e.last_flows
+            for h in (2050, 2100):
+                if year <= h:
+                    led[f'out_{h}'] += outf
+                    led[f'in_{h}'] += inf
         out[year] = (eng.shares_of(P), P.sum((1, 2)))
         prev = cur
     (s25, p25), (s30, p30) = out[3025], out[3030]
     out[3026] = (.8 * s25 + .2 * s30, np.exp(.8 * np.log(p25) + .2 * np.log(p30)))
-    return out, float(np.mean(drift)), (None if rho is None else rho)
+    return out, float(np.mean(drift)), (None if rho is None else rho), led
 
 
 # ------------------------------------------------------------------ real inputs
@@ -96,6 +106,49 @@ def wpp_slice(ids, wpp, year, fallback):
     return dict(tfr=pick('tfr', fallback['tfr']), median_age=pick('median_age', fallback['median_age']),
                 wpp_population=np.maximum(pick('wpp_population', fallback['wpp_population']), 1.),
                 net_migrations=pick('net_migrations', 0.))
+
+
+BILATERAL_FILE = ROOT / 'data' / 'raw' / 'migrant_bilateral.csv'
+
+
+def load_bilateral(ids):
+    """Optional bilateral migrant table: columns origin_iso3, dest_iso3, migrants (any positive
+    measure, e.g. UN DESA International Migrant Stock 2020 or World Bank bilateral migrants).
+    Returns a row-normalised [dest, origin] matrix over `ids` and a coverage report, or (None, {})."""
+    if not BILATERAL_FILE.exists():
+        return None, {}
+    df = pd.read_csv(BILATERAL_FILE, dtype=str)
+    need = {'origin_iso3', 'dest_iso3', 'migrants'}
+    if not need.issubset(df.columns):
+        raise ValueError(f'{BILATERAL_FILE.name} needs columns {sorted(need)}')
+    df['migrants'] = pd.to_numeric(df['migrants'].str.replace(',', ''), errors='coerce')
+    df = df.dropna(subset=['migrants'])
+    df = df[df.migrants > 0]
+    index = {cid: i for i, cid in enumerate(ids)}
+    df = df[df.origin_iso3.isin(index) & df.dest_iso3.isin(index)]
+    mat = np.zeros((len(ids), len(ids)))
+    np.add.at(mat, (df.dest_iso3.map(index).to_numpy(), df.origin_iso3.map(index).to_numpy()),
+              df.migrants.to_numpy(float))
+    rows = mat.sum(1)
+    od = mat / np.maximum(rows[:, None], 1e-300)
+    report = {'file': BILATERAL_FILE.name, 'pairs_used': int(len(df)),
+              'destinations_with_bilateral_data': int((rows > 0).sum()),
+              'destinations_total': len(ids)}
+    return od, report
+
+
+def migration_table(mig_sum, ids, runs_headline):
+    """Persons moving in and out by country and religion, mean over headline runs."""
+    rows = []
+    for period, h in (('2020-2050', 2050), ('2020-2100', 2100)):
+        inflow = mig_sum[f'in_{h}'] / runs_headline
+        outflow = mig_sum[f'out_{h}'] / runs_headline
+        for j, cid in enumerate(ids):
+            for k, cat in enumerate(CATEGORIES):
+                rows.append({'period': period, 'country_id': cid, 'religion': cat,
+                             'inflow_persons': float(inflow[j, k]), 'outflow_persons': float(outflow[j, k]),
+                             'net_persons': float(inflow[j, k] - outflow[j, k])})
+    return pd.DataFrame(rows)
 
 
 def load_inputs():
@@ -122,8 +175,9 @@ def load_inputs():
             path[year] = {k: v.copy() for k, v in state.dem.items()}
         return path
 
+    od, od_report = load_bilateral(ids)
     return dict(ids=ids, current=current, pew2010=pew2010, missing_2010=np.asarray(missing, bool),
-                cont=cont, adj=adj, dem_path=dem_path,
+                cont=cont, adj=adj, od=od, od_report=od_report, dem_path=dem_path,
                 dem_hist={y: wpp_slice(ids, wpp, y, base) for y in (2010, 2015)},
                 wpp_missing_2020=wpp_missing_2020, missing_2010_n=int(np.sum(missing)))
 
@@ -179,7 +233,7 @@ def central_diagnostics(inp, a, rel, off):
     pars = dict(phi=mid('phi'), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                 switch_strength=mid('switch_strength'), switch_half_life=mid('switch_half_life'),
                 tfr_shift=0., eps=None, equal_fertility=False)
-    e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'))
+    e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
     dems = inp['dem_path'](0.)
     rho, pred = hindcast_rho(inp, e, dems)
     pop20 = dems[2020]['wpp_population']
@@ -214,7 +268,7 @@ def phi_scan(inp, a, rel, off, grid=None):
     for phi in grid:
         pars = dict(phi=float(phi), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                     switch_strength=1., switch_half_life=60., tfr_shift=0., eps=None, equal_fertility=False)
-        e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'))
+        e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
         pred = hindcast_rho(inp, e, dems)[1]
         tv = 0.5 * np.abs(inp['current'] - pred).sum(1)
         rows.append({'phi': float(phi), 'mean_country_tv_pp': 100 * float(tv[ok].mean()),
@@ -254,10 +308,14 @@ def main():
     sh = np.lib.format.open_memmap(OUT / 'ensemble_shares_float32.npy', mode='w+', dtype='float32', shape=(args.runs, m, n, K))
     pp = np.lib.format.open_memmap(OUT / 'ensemble_populations_float32.npy', mode='w+', dtype='float32', shape=(args.runs, m, n))
     labels, params = [], []
+    mig_sum = {k: np.zeros((n, K)) for k in ('out_2050', 'in_2050', 'out_2100', 'in_2100')}
     for run in range(args.runs):
         sc = SCENARIOS[run % 4]
         par = draw_params(rng, n, sc, a)
-        res, drift, _ = simulate(inp, sc, par, rel, off)
+        res, drift, _, led = simulate(inp, sc, par, rel, off)
+        if sc == HEADLINE:
+            for key in mig_sum:
+                mig_sum[key] += led[key]
         for t, yr in enumerate(YEARS):
             sh[run, t] = res[yr][0].astype('float32'); pp[run, t] = res[yr][1].astype('float32')
         labels.append(sc)
@@ -282,6 +340,7 @@ def main():
     sc_country.to_csv(OUT / 'scenario_country_maps.csv', index=False)
     world.to_csv(OUT / 'global_share_by_run.csv', index=False)
     pd.DataFrame(params).to_csv(OUT / 'scenario_parameters.csv', index=False)
+    migration_table(mig_sum, ids, args.runs // 4).to_csv(OUT / 'migration_by_religion.csv', index=False)
     diag = central_diagnostics(inp, a, rel, off)
     diag.to_csv(OUT / 'hindcast_diagnostics.csv', index=False)
     scan = phi_scan(inp, a, rel, off)
@@ -292,12 +351,13 @@ def main():
               'years': YEARS, 'scenarios': SCENARIOS, 'headline_scenario': HEADLINE,
               'countries_with_wpp_defaults_2020': inp['wpp_missing_2020'],
               'countries_without_pew_2010_baseline_zero_switching': inp['missing_2010_n'],
-              'assumptions_file': 'step5d_assumptions.json', 'phi_calibration': phi_note, 'assumptions_status': a['status'],
+              'assumptions_file': 'step5d_assumptions.json', 'phi_calibration': phi_note,
+              'bilateral_migration': inp['od_report'] or 'none (neighbour/continent/world pools only)', 'assumptions_status': a['status'],
               'interpretation': 'Exploratory mechanism model, not a validated forecast and not outcome probabilities',
               'assumptions': [
                   'Group fertility = national WPP TFR x (Pew global ratio damped to a within-country gap, blended additive/multiplicative by w_add), gaps converge, national aggregate TFR equals WPP.',
                   'One life table for all groups; each country rescaled to WPP (to 2100) or rule-based totals every step.',
-                  'Arrivals take the religious mix of an emigrant pool (land neighbours + same continent + world) built from WPP net outflows; no origin-destination data.',
+                  'Leavers carry their origin country\'s adult religious mix. Arrivals take the religious mix of their origin countries when a bilateral migrant table is supplied (lam_od), otherwise a pool of land neighbours, same continent and world. WPP net migration sets how many move; the bilateral table only sets who arrives.',
                   'Net switching = Pew 2020 minus a no-switching 2010-2020 hindcast (absorbs all model and measurement error), capped at 10 pp/decade, decaying.',
                   'Folk/Other split is a proxy; their combined residual is split by 2020 shares.',
                   'After 2100 national demography is the Step 5 stylised rule; 3026 interpolates 3025 and 3030.',
