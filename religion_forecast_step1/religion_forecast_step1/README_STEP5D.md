@@ -24,7 +24,7 @@ Outputs: `data/forecasts_step5d/`, `outputs/maps_step5d/`. Read the DIAGNOSTICS 
 | Deaths | one model life table (group differences arise from age structure only) |
 | Population totals | every country rescaled to WPP (to 2100) or the Step 5 rule (after) each step; the size of the rescale is reported |
 | Migration - who leaves | WPP net migration sets how many leave each country (ages 15-44). Leavers carry that country's own adult religious mix, so emigrants from a Muslim-majority country are mostly Muslim. |
-| Migration - who arrives | If `data/raw/migrant_bilateral.csv` is present, arrivals take the religious mix of their actual origin countries (weight `lam_od`, sampled 0.6-1.0). Destinations without bilateral data use land neighbours (`lam_nb`), the same continent (`lam`) and the world, weighted by origin outflows. WPP sets how many arrive; the bilateral table sets who arrives. |
+| Migration - who arrives | If `data/raw/migrant_bilateral.csv` is present, arrivals take the religious mix of their actual origin countries (weight `lam_od`, sampled 0.6-1.0, the rest from the pools). Without a table, the gravity matrix is used on its own (`lam_od` = 1, as in the Step 5E tests); blending it with the pools would bring back the continent bias. WPP sets how many arrive; the matrix sets who arrives. |
 | Migration - ledger | `migration_by_religion.csv` records inflow and outflow by country and religion for 2020-2050 and 2020-2100 (headline scenario, mean over runs). Persons are counted before the rescale to WPP totals, so they are approximate to about 1-2%. |
 | Switching (sensitivity only) | NET switching = Pew 2020 minus a no-switching 2010->2020 hindcast, capped at 10 pp/decade, decaying (30-120 yr half-life); zero for countries lacking a Pew 2010 baseline. Not in the headline. |
 
@@ -66,3 +66,20 @@ All four scenarios are in the `*_by_scenario.csv` files. Counterfactuals are not
 - Post-2100 national demography is the stylised Step 5 rule; 2200-3026 are mechanism explorations, not predictions.
 - The hindcast table (`hindcast_diagnostics.csv`) compares demography-only 2020 with persistence. If demography does not beat persistence for a religion, trust that religion's projection less.
 - Monte Carlo spread comes from parameter ranges and one persistent country x group draw per run, not from calibrated errors.
+
+## Checks before trusting the headline (`demography_only`)
+Run `verify_step5d.py` and read these in its output:
+0. **Decomposition.** `unaffiliated_decomposition.csv` (and the DECOMPOSITION block) runs four single deterministic
+   projections, switching off fertility gaps, then migration, then age offsets. If the unaffiliated share still falls
+   with no fertility gaps and no migration, the cause is the starting age structure. Report that result: it means
+   the headline decline is not a fertility assumption.
+1. **Sensitivity table.** The correlation of each 2050 world share with each parameter, across the headline runs.
+   If the unaffiliated share is driven by `psi`, that is an age-structure assumption, not evidence.
+2. **Headline shares.** The unaffiliated share has fallen by more than 3 points in earlier runs of the headline. History
+   shows the unaffiliated rising since 1990, so treat any large fall as a sign of a modelling problem until explained.
+3. **Christianity.** The headline has no switching, so Christianity can rise. History shows it falling since 1990 through
+   switching, which demography cannot reproduce.
+4. **Migration matrix.** Without a bilateral table, check the destinations you care about. The USA result is not credible
+   (see the limits above).
+5. **Within-country gap.** The Pew 2010-2020 hindcast and the Step 5E history tests both show the gap is not identified.
+

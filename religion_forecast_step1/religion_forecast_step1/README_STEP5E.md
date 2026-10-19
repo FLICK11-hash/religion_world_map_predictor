@@ -44,7 +44,8 @@ What this says:
    (1990: 5.89 to 6.11; 2000: 3.37 to 3.95 at lam 0.25). The Step 5D switching scenario assumed recent
    switching would continue, so it is now a sensitivity only.
 5. **Age-structure offsets (psi)** are preferred at 0 on TRAIN (4.08 vs 4.28 at psi 1) and flat on TEST.
-   Step 5D's psi range is narrowed to 0-0.5.
+   Step 5D's psi range is narrowed to 0-0.2 (and, on the unaffiliated share, larger offsets were
+   consistently worse in the 1960-1980 decades).
 6. **Signs of change are weak for the unaffiliated.** Demography predicts the direction of the unaffiliated share
    correctly in only 24% of countries that moved. Historical gains of the unaffiliated come from switching, which
    demography cannot produce.
@@ -64,3 +65,22 @@ What this says:
 - WRP is noisy, and its population definitions differ from WPP in 90 country-years.
 - 10-year hindcasts with 1950s-1960s data are weak (only about 60-90 countries).
 - The test uses decades, not single years, so short shocks are averaged out.
+
+## Sending results back, so they can be checked
+From the step folder, after the runs:
+```powershell
+.\.venv\Scripts\python.exe export_results.py
+```
+This writes `results_step5\` (about 2 MB): the summary tables, the output of `verify_step5d.py`, the
+headline shares by country, and `RESULTS_INDEX.md`, which records the git commit the results came from.
+`data\` and `outputs\` stay out of git. Then push only that folder:
+```powershell
+git status
+git add results_step5
+git commit -m "Step 5 results from a local run"
+git push -u origin audit/static-review
+```
+Check `git status` first: it should list only `results_step5/`. If `git push` says permission denied,
+your Windows login may not have write access to the repository. In that case, zip the `results_step5`
+folder and send it to the chat instead.
+

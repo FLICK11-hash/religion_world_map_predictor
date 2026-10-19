@@ -72,6 +72,7 @@ def hindcast_rho(inp, e, dems):
 
 
 def simulate(inp, scenario, pars, rel_global, median_off):
+    pars = pin_od_weight(pars, inp)
     e = eng.Engine(rel_global, median_off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
     od_for = inp.get('od_for', lambda year: inp.get('od'))
     dems = inp['dem_path'](pars['tfr_shift'])
@@ -157,6 +158,15 @@ def migration_table(mig_sum, ids, runs_headline):
     return pd.DataFrame(rows)
 
 
+def pin_od_weight(pars, inp):
+    """Gravity matrices are used on their own (lam_od = 1), as tested in Step 5E. Blending them with the
+    neighbour/continent/world pools would bring back the continent bias. A bilateral table keeps the
+    drawn lam_od (0.6-1.0), which hedges against stock-vs-flow mismatch."""
+    if inp.get('od_is_gravity'):
+        return dict(pars, lam_od=1.0)
+    return pars
+
+
 def net_series(ids, wpp, year):
     f = wpp[wpp.year.eq(year)].set_index('country_id').reindex(ids)
     return np.nan_to_num(f.net_migrations.to_numpy(float))
@@ -232,7 +242,7 @@ def load_inputs():
         od_report = dict(source='gravity, WPP-balanced (geography only; no bilateral table)',
                          countries_with_geometry=n_geo, gravity=gravity)
     return dict(ids=ids, current=current, pew2010=pew2010, missing_2010=np.asarray(missing, bool),
-                cont=cont, adj=adj, od=od, od_for=od_for, od_report=od_report, dem_path=dem_path,
+                cont=cont, adj=adj, od=od, od_for=od_for, od_report=od_report, od_is_gravity=od is None, dem_path=dem_path,
                 dem_hist={y: wpp_slice(ids, wpp, y, base) for y in (2010, 2015)},
                 wpp_missing_2020=wpp_missing_2020, missing_2010_n=int(np.sum(missing)))
 
@@ -246,6 +256,7 @@ def summarize(shares, pops, ids, labels, years):
     for sc in SCENARIOS:
         take = np.flatnonzero(labels == sc)
         c, w = prior.group_outputs(shares[take], pops[take], ids, [sc] * len(take), years)
+        w['run'] = take[w['run'].to_numpy(int)]          # local index -> global run number
         c.insert(0, 'scenario', sc)
         w['scenario'] = sc
         country_all.append(c); world_all.append(w)
@@ -288,6 +299,7 @@ def central_diagnostics(inp, a, rel, off):
     pars = dict(phi=mid('phi'), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                 switch_strength=mid('switch_strength'), switch_half_life=mid('switch_half_life'),
                 tfr_shift=0., eps=None, equal_fertility=False)
+    pars = pin_od_weight(pars, inp)
     e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
     dems = inp['dem_path'](0.)
     rho, pred = hindcast_rho(inp, e, dems)
@@ -323,6 +335,7 @@ def phi_scan(inp, a, rel, off, grid=None):
     for phi in grid:
         pars = dict(phi=float(phi), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                     switch_strength=1., switch_half_life=60., tfr_shift=0., eps=None, equal_fertility=False)
+        pars = pin_od_weight(pars, inp)
         e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
         pred = hindcast_rho(inp, e, dems)[1]
         tv = 0.5 * np.abs(inp['current'] - pred).sum(1)
@@ -337,6 +350,31 @@ def calibrated_phi_range(scan, half_width=0.15):
     """Narrow the sampled phi range around the hindcast-best value (optional, --calibrate-phi)."""
     best = float(scan.loc[scan.mean_country_tv_pp.idxmin(), 'phi'])
     return best, [max(0.0, best - half_width), min(1.0, best + half_width)]
+
+
+def decomposition(inp, rel, off, a):
+    """Four deterministic runs that switch mechanisms off one at a time. Shows where a fall or rise in a
+    religion's world share comes from: age offsets, fertility gaps or migration."""
+    base = dict(phi=0.5, psi=0.1, w_add=0.0, lam_nb=0.1, lam_od=1.0, world_tfr=a['world_tfr_2010_15'], Hf=50.0,
+                e0=72.0, lam=0.4, switch_strength=0.0, switch_half_life=60.0, tfr_shift=0.0, eps=None,
+                equal_fertility=False)
+    cases = [
+        ("central: fertility gaps, age offsets 0.1, migration", "demography_only", base),
+        ("no fertility gaps", "equal_fertility_counterfactual", dict(base, equal_fertility=True)),
+        ("no fertility gaps, no migration", "no_migration_counterfactual", dict(base, equal_fertility=True)),
+        ("no fertility gaps, no migration, no age offsets", "no_migration_counterfactual",
+         dict(base, equal_fertility=True, psi=0.0)),
+    ]
+    rows = []
+    for label, scenario, pars in cases:
+        res, _, _, _ = simulate(inp, scenario, pars, rel, off)
+        row = {"setting": label}
+        for year in (2020, 2050):
+            pop = np.asarray(res[year][1], float)
+            share = (np.asarray(res[year][0], float) * (pop / pop.sum())[:, None]).sum(axis=0)
+            row.update({f"{c}_{year}": float(share[k]) for k, c in enumerate(CATEGORIES)})
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def main():
@@ -398,6 +436,7 @@ def main():
     migration_table(mig_sum, ids, args.runs // 4).to_csv(OUT / 'migration_by_religion.csv', index=False)
     diag = central_diagnostics(inp, a, rel, off)
     diag.to_csv(OUT / 'hindcast_diagnostics.csv', index=False)
+    decomposition(inp, rel, off, a).to_csv(OUT / 'unaffiliated_decomposition.csv', index=False)
     scan = phi_scan(inp, a, rel, off)
     scan.to_csv(OUT / 'hindcast_phi_scan.csv', index=False)
     cmp50 = global_vs_pew2050(world)
