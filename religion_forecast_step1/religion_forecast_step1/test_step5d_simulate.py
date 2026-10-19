@@ -39,7 +39,7 @@ def dem_path(shift_):
 
 missing = np.zeros(n, bool); missing[3] = True
 adj = np.zeros((n, n)); [adj.__setitem__((i, (i + 1) % n), 1) or adj.__setitem__(((i + 1) % n, i), 1) for i in range(n)]
-inp = dict(ids=ids, adj=adj, current=current, pew2010=pew2010, missing_2010=missing, cont=np.arange(n) % 3,
+inp = dict(ids=ids, adj=adj, od=None, od_report={}, current=current, pew2010=pew2010, missing_2010=missing, cont=np.arange(n) % 3,
            dem_path=dem_path, dem_hist={2010: dict(dem_at(2010), wpp_population=pop0 * .93),
                                         2015: dict(dem_at(2015), wpp_population=pop0 * .965)},
            wpp_missing_2020=0, missing_2010_n=1)
@@ -51,7 +51,8 @@ sh = np.zeros((R, len(S.YEARS), n, K)); pp = np.zeros((R, len(S.YEARS), n)); lab
 for r in range(R):
     sc = S.SCENARIOS[r % 4]
     par = S.draw_params(rng, n, sc, a)
-    res, drift, rho = S.simulate(inp, sc, par, rel, off)
+    res, drift, rho, led = S.simulate(inp, sc, par, rel, off)
+    assert led['in_2100'].shape == (n, K) and (led['in_2100'] >= -1e-9).all() and (led['out_2050'] >= -1e-9).all()
     assert (rho is not None) == (sc == 'demography_plus_switching')
     if rho is not None:
         assert np.allclose(rho.sum(1), 0, atol=1e-9) and (rho[3] == 0).all()
@@ -83,9 +84,9 @@ assert scan.persistence_mean_country_tv_pp.nunique() == 1
 j = int(np.argmax(pew2010[:, 1] * (tfr0 > 3)))
 ctl = S.draw_params(np.random.default_rng(1), n, 'demography_only', a)
 ctl['eps'] = np.zeros((n, K)); ctl['phi'] = .7; ctl['Hf'] = 80.
-dem_res, _, _ = S.simulate(inp, 'demography_only', ctl, rel, off)
+dem_res, _, _, _ = S.simulate(inp, 'demography_only', ctl, rel, off)
 ctl2 = dict(ctl, equal_fertility=True)
-eq_res, _, _ = S.simulate(inp, 'equal_fertility_counterfactual', ctl2, rel, off)
+eq_res, _, _, _ = S.simulate(inp, 'equal_fertility_counterfactual', ctl2, rel, off)
 print('country', j, 'Islam share 2100: gaps', round(dem_res[2100][0][j, 1], 4), 'equal', round(eq_res[2100][0][j, 1], 4))
 assert dem_res[2100][0][j, 1] > eq_res[2100][0][j, 1]
 print('PASS: step5d synthetic end-to-end (simulate, hindcast calibration, summaries, diagnostics)')

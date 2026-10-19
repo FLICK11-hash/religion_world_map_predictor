@@ -20,6 +20,7 @@
     "switch_strength": {"range": [0.5, 1.0], "meaning": "Share of the calibrated 2010-2020 net switching that continues."},
     "switch_half_life": {"range": [30, 120], "meaning": "Years for continuing net switching to halve."},
     "lam_nb": {"range": [0.0, 0.3], "meaning": "Weight of the land-border-neighbour emigrant pool in the religion of arrivals (migrants often come from next door). Judgement; no origin-destination data."},
+    "lam_od": {"range": [0.6, 1.0], "meaning": "When a bilateral migrant table is supplied, the weight on the actual origin countries' religious mix for arrivals (rest goes to the neighbour/continent/world fallback). High values trust the bilateral table; the range keeps some hedge against stock-vs-flow mismatch. Judgement."},
     "w_add": {"range": [0.0, 1.0], "meaning": "Weight on an ADDITIVE fertility gap (same number of children in every country) versus a MULTIPLICATIVE one (same ratio). Within-country gaps in low-fertility countries look closer to additive; the blend is a judgement."},
     "eps_sd": {"value": 0.06, "meaning": "SD of a persistent country-by-group draw added to the within-country fertility multiplier (drawn once per run)."}
   }

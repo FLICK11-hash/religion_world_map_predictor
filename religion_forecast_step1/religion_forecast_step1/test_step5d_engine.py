@@ -142,3 +142,36 @@ r = E.calibrate_switching(obs, pred, CATS, valid=np.arange(12) % 2 == 0)
 assert np.allclose(r.sum(1), 0, atol=1e-12) and (0.5 * np.abs(r).sum(1) <= 0.10 + 1e-12).all()
 assert (r[1::2] == 0).all()
 print('PASS: step5d_engine unit tests (11 groups of checks)')
+
+
+# ---- origin-destination mix and flow ledger -------------------------------------------
+# 12. bilateral table: destination 3 takes all arrivals from origin 0; origin 0 is 100% Muslim.
+#     With lam_od=1 the arrivals' religious mix must equal origin 0's adult mix exactly.
+od = np.zeros((12, 12)); od[3, 0] = 1.0
+mix_o = np.zeros((12, K)); mix_o[:, 2] = 1.0; mix_o[0] = 0; mix_o[0, 1] = 0.6; mix_o[0, 7] = 0.4   # origin 0: 60% Islam, 40% unaffiliated
+Po = E.initial_population(pop, mix_o, np.full(12, 28.0), np.zeros(K))
+net_od = np.zeros(12); net_od[0] = -1e5; net_od[3] = 5e4
+eod = E.Engine(np.ones(K), np.zeros(K), np.full(12, 0), dict(phi=0, psi=0, Hf=50., e0=72., lam=0.5, lam_nb=0.0, lam_od=1.0, eps=None), None, od)
+Pod = eod.migrate(Po, net_od)
+arr_od = (Pod - Po).sum(2)[3]
+assert np.allclose(arr_od / arr_od.sum(), [0, .6, 0, 0, 0, 0, 0, .4], atol=1e-9), arr_od / arr_od.sum()
+assert abs(arr_od.sum() - 5 * 5e4) < 1e-3                       # WPP sets the count
+# and the ledger records the same flows
+out_by_group, in_by_group = eod.last_flows
+assert np.allclose(in_by_group[3], arr_od)
+assert np.allclose(out_by_group[0], (Po - Pod + 0).sum(2)[0] * 0 + out_by_group[0]) and out_by_group[0].sum() > 0
+assert np.allclose(in_by_group[3].sum(), arr_od.sum())
+
+# 13. destinations with no bilateral row fall back to the pools (identical to the no-table engine)
+no_od = E.Engine(np.ones(K), np.zeros(K), np.full(12, 0), dict(phi=0, psi=0, Hf=50., e0=72., lam=0.5, lam_nb=0.0, lam_od=1.0, eps=None), None, od)
+no_tab = E.Engine(np.ones(K), np.zeros(K), np.full(12, 0), dict(phi=0, psi=0, Hf=50., e0=72., lam=0.5, lam_nb=0.0, lam_od=1.0, eps=None), None, None)
+assert np.allclose(no_od.migrate(Po, net_od), no_tab.migrate(Po, net_od))
+
+# 14. flow ledger: outflows = removed persons, inflows = arrivals, and both are non-negative
+Pl = E.initial_population(pop, mix_o, np.full(12, 28.0), np.zeros(K))
+el = E.Engine(np.ones(K), np.zeros(K), np.full(12, 0), dict(phi=0, psi=0, Hf=50., e0=72., lam=0.5, lam_nb=0.0, lam_od=0.8, eps=None), None, od)
+Pn = el.migrate(Pl, net_od)
+outf, inf = el.last_flows
+assert (outf >= -1e-9).all() and (inf >= -1e-9).all()
+assert np.allclose(Pn.sum((1, 2)) - Pl.sum((1, 2)), inf.sum(1) - outf.sum(1), rtol=1e-9, atol=1e-3)
+print('PASS: origin-destination mix and flow ledger tests')

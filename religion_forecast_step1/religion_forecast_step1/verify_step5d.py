@@ -45,4 +45,21 @@ print(f"- Hindcast prefers phi={best.phi:.1f} (mean country TV {best.mean_countr
       f"{best.persistence_mean_country_tv_pp:.2f} pp for 'nothing changes'). Sampled phi range is 0.3-0.7; "
       'if the best phi sits outside it, or demography does not beat persistence, revisit step5d_assumptions.json.')
 print(pd.read_csv(OUT / 'global_vs_pew2015_2050.csv').to_string(index=False))
+print('\nMIGRATION (headline scenario, mean over runs, 2020-2100)')
+print(f"- Bilateral origin-destination table: {report.get('bilateral_migration')}")
+mig = pd.read_csv(OUT / 'migration_by_religion.csv')
+m = mig[mig.period.eq('2020-2100')]
+glob = m.groupby('religion')[['inflow_persons', 'outflow_persons', 'net_persons']].sum()
+glob = (glob / 1e6).round(2).sort_values('net_persons')
+print('Global net migration by religion (millions of persons; negative = net emigration):')
+print(glob.to_string())
+per_country = m.groupby('country_id').net_persons.sum().sort_values()
+print('Largest net emigration (persons, all religions):')
+print(per_country[per_country < 0].head(8).round(-3).to_string())
+print('Largest net immigration (persons, all religions):')
+print(per_country[per_country > 0].tail(8).round(-3).to_string())
+print('Religion most often leaving each country (top 8 by outflow):')
+losers = per_country[per_country < 0].head(8).index
+top = m.loc[m.groupby('country_id').outflow_persons.idxmax()].set_index('country_id').loc[losers]
+print(top[['religion', 'outflow_persons']].round(-3).to_string())
 print('WARNING: exploratory mechanism model, not a validated 3026 forecast.')

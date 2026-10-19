@@ -108,7 +108,7 @@ def initial_population(total, shares, country_median, group_median_offset):
 
 # ----------------------------------------------------------------- the step
 class Engine:
-    def __init__(self, relative_tfr, median_offset, continent_index, params, adjacency=None):
+    def __init__(self, relative_tfr, median_offset, continent_index, params, adjacency=None, od=None):
         """relative_tfr [K]: group TFR / world TFR (global ratios, composition included).
         median_offset [K]: group median age - world median age (global).
         continent_index [n] int, -1 = unknown. params: dict (see step5d_cohort_forecast)."""
@@ -122,6 +122,9 @@ class Engine:
         self.ncont = int(self.cont.max()) + 1 if (self.cont >= 0).any() else 0
         self.s, self.s_last, self.s_birth, _ = life_table(self.p['e0'])
         self.adj = None if adjacency is None else np.asarray(adjacency, float)   # [n, n] 0/1 land borders
+        # [n, n] bilateral migrant table, rows = destination, columns = origin, rows sum to 1 where known
+        self.od = None if od is None else np.asarray(od, float)
+        self.last_flows = None
         self.eps = self.p.get('eps')          # [n, K] persistent country x group draw
 
     # ---- fertility multipliers at `years_since_2020` (gaps converge over time)
@@ -154,9 +157,16 @@ class Engine:
         return new
 
     def migrate(self, P, net_annual):
-        """Arrivals take the religious mix of an emigrant pool built from WPP net outflows:
-        land-border neighbours (weight lam_nb), same continent (lam) and the whole world (rest).
-        A pool with no emigrants is skipped and the other weights are renormalised."""
+        """Who moves and who arrives.
+
+        Leavers: the same share of each origin's adults leaves, so leavers carry the origin's own
+        religious mix (the 'who is losing citizens' side).
+        Arrivals: the religious mix of an origin-destination pool. Where a bilateral migrant table
+        (self.od, row-normalised [dest, origin]) covers the destination, arrivals come from its
+        actual origin countries, weighted by lam_od. The rest comes from land neighbours (lam_nb),
+        the same continent (lam) and the world, using origins' outflows as weights.
+        WPP net migration sets HOW MANY move; the origin-destination table only sets WHO arrives.
+        Records self.last_flows = (outflow_by_group, inflow_by_group), each [n, K] persons."""
         n, K, _ = P.shape
         adults = P[:, :, M0:M1].sum((1, 2))
         out5 = 5.0 * np.maximum(-net_annual, 0.0)
@@ -164,12 +174,12 @@ class Engine:
         frac = np.minimum(out5 / np.maximum(adults, 1.0), 0.4)
         removed = np.zeros_like(P)
         removed[:, :, M0:M1] = P[:, :, M0:M1] * frac[:, None, None]
-        by_group = removed.sum(2)                                   # [n, K]
+        by_group = removed.sum(2)                                   # [n, K] leavers by religion
         pool_g = by_group.sum(0)
         pool_g = pool_g / pool_g.sum() if pool_g.sum() > 0 else \
             P.sum((0, 2)) / max(P.sum(), 1e-300)
+        # Fallback pools (no bilateral data for this destination)
         comp = np.zeros((n, K)); weight = np.zeros(n)
-        # continent pool (includes the country's own emigrants, as before)
         pc = np.zeros((n, K))
         for c in range(self.ncont):
             m = self.cont == c
@@ -184,9 +194,22 @@ class Engine:
             comp += w_n[:, None] * pn / np.maximum(pn.sum(1, keepdims=True), 1e-300); weight += w_n
         w_g = 1.0 - weight
         comp += w_g[:, None] * pool_g[None, :]
-        mix = comp / np.maximum(comp.sum(1, keepdims=True), 1e-300)
+        fallback = comp / np.maximum(comp.sum(1, keepdims=True), 1e-300)
+        # Bilateral origin-destination mix (who actually arrives), where available
+        if self.od is not None:
+            adult_by_group = P[:, :, M0:M1].sum(2)                  # [n, K] origin adults by religion
+            origin_comp = adult_by_group / np.maximum(adult_by_group.sum(1, keepdims=True), 1e-300)
+            od_mix = self.od @ origin_comp                          # [n, K]
+            has_od = self.od.sum(1) > 0
+            w_od = np.where(has_od, float(self.p.get('lam_od', 0.8)), 0.0)
+            mix = w_od[:, None] * od_mix + (1 - w_od)[:, None] * fallback
+            # destinations with no bilateral row keep the fallback mix
+            mix = np.where(has_od[:, None], mix, fallback)
+        else:
+            mix = fallback
         arrivals = np.zeros_like(P)
         arrivals[:, :, M0:M1] = (in5[:, None, None] * mix[:, :, None]) * MIGRANT_AGE[None, None, :]
+        self.last_flows = (by_group, arrivals.sum(2))
         return P - removed + arrivals
 
     def switch(self, P, rho, factor):
