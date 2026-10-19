@@ -76,6 +76,17 @@ e4.rel_within = np.linspace(.7, 1.4, K)
 g0 = np.abs(e4.rel_tfr(0, 12) - 1).max(); g300 = np.abs(e4.rel_tfr(300, 12) - 1).max()
 assert g300 < 0.01 * g0 + 1e-3 and g0 > .3
 
+# 7b. additive gaps: bigger ratio where national TFR is low, smaller where high; TFR identity holds
+e5 = engine(w_add=1.0, world_tfr=2.5, phi=1.0)
+e5.rel_within = np.full(K, 1.0); e5.rel_within[1] = 1.24
+lo = e5.rel_tfr(0, 12, np.full(12, 1.4))[0, 1]; hi = e5.rel_tfr(0, 12, np.full(12, 5.0))[0, 1]
+assert lo > 1.24 > hi > 1.0, (lo, hi)
+em = engine(w_add=0.0); em.rel_within = e5.rel_within.copy()
+assert np.allclose(em.rel_tfr(0, 12, np.full(12, 1.4)), em.rel_tfr(0, 12))
+bb = e5.project(P0, np.full(12, 1.4), e5.rel_tfr(0, 12, np.full(12, 1.4)))[:, :, 0].sum(1)
+b0 = em.project(P0, np.full(12, 1.4), np.ones((12, K)))[:, :, 0].sum(1)
+assert np.allclose(bb, b0, rtol=1e-9)      # national births still equal the WPP-implied births
+
 # 8. migration: totals added match inflow, removal matches outflow, groups non-negative
 net = np.zeros(12); net[:3] = -2e5; net[3:6] = 1e5
 Pm = e.migrate(P0, net)
@@ -89,6 +100,23 @@ Pm2 = e.migrate(Pone, net)
 gain = E.shares_of(Pm2)[3:6, 1]
 expected = 5e5 / (pop[3:6] + 5e5)      # all 5-year arrivals are Muslim, none lived there before
 assert np.allclose(gain, expected, rtol=1e-6), (gain, expected)
+
+# 8b. neighbour pool: with lam=0, lam_nb=1 arrivals mirror the emigrants of land neighbours
+adj = np.zeros((12, 12)); adj[3, 0] = adj[0, 3] = 1; adj[4, 1] = adj[1, 4] = 1
+mix2 = np.zeros((12, K)); mix2[:, 0] = 1; mix2[0, 0] = 0; mix2[0, 1] = 1      # country 0: Muslim; country 1: Hindu below
+mix2[1, 0] = 0; mix2[1, 2] = 1
+Pnb = E.initial_population(pop, mix2, np.full(12, 28.0), np.zeros(K))
+net2 = np.zeros(12); net2[0] = net2[1] = -1e5; net2[3] = net2[4] = 5e4
+enb = E.Engine(np.ones(K), np.zeros(K), np.full(12, 0), dict(phi=0, psi=0, Hf=50., e0=72., lam=0.0, lam_nb=1.0, eps=None), adj)
+Pm3 = enb.migrate(Pnb, net2)
+arr3 = (Pm3 - Pnb).sum(2)
+assert arr3[3, 1] > 0 and abs(arr3[3, 0]) < 1e-6 and arr3[4, 2] > 0 and abs(arr3[4, 1]) < 1e-6   # 3 gets Muslims, 4 gets Hindus
+# conservation of arrivals: total added to a receiver equals its 5-year net inflow
+assert abs(arr3[3].sum() - 5 * 5e4) < 1e-3 and abs(arr3[4].sum() - 5 * 5e4) < 1e-3
+# no neighbours with emigrants -> falls back to the other pools (still adds the full inflow)
+net3 = np.zeros(12); net3[0] = -1e5; net3[7] = 5e4
+Pm4 = enb.migrate(Pnb, net3)
+assert abs((Pm4 - Pnb).sum(2)[7].sum() - 5 * 5e4) < 1e-3
 
 # 9. switching conserves persons and moves the requested share
 rho = np.zeros((12, K)); rho[:, 0] = -0.02; rho[:, 7] = 0.02

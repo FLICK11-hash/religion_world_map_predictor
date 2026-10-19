@@ -19,12 +19,15 @@ Outputs: `data/forecasts_step5d/`, `outputs/maps_step5d/`. Read the DIAGNOSTICS 
 
 | Mechanism | How |
 |---|---|
-| Fertility | group TFR = national WPP TFR x relative multiplier (Pew global TFR ratio, damped by `phi` to a within-country gap); gaps converge with half-life-like `Hf`; renormalised so the national aggregate TFR equals WPP |
+| Fertility | group TFR = national WPP TFR x relative multiplier (Pew global TFR ratio, damped by `phi` to a within-country gap); the gap is applied as a ratio, as a fixed number of children, or a blend (`w_add`, sampled) because gaps look closer to additive where fertility is low; gaps converge with time scale `Hf`; renormalised so the national aggregate TFR equals WPP |
 | Age structure | stable-population-like pyramid at the WPP median age; group medians offset by Pew global median ages (damped by `psi`); one common shift per country so the national median matches WPP |
 | Deaths | one model life table (group differences arise from age structure only) |
 | Population totals | every country rescaled to WPP (to 2100) or the Step 5 rule (after) each step; the size of the rescale is reported |
-| Migration | WPP net migrants; arrivals take the religious mix of an emigrant pool (global, blended with same-continent) built from WPP net outflows, not an unweighted continental mean |
+| Migration | WPP net migrants; arrivals take the religious mix of an emigrant pool built from WPP net outflows: land-border neighbours (`lam_nb`), same continent (`lam`) and the world (rest); pools with no emigrants are skipped. Replaces 5B's unweighted continental mean |
 | Switching | NET switching = Pew 2020 minus a no-switching 2010->2020 hindcast, capped at 10 pp/decade, decaying (30-120 yr half-life); zero for countries lacking a Pew 2010 baseline |
+
+## Optional: calibrate the fertility gap
+`step5d_cohort_forecast.py --calibrate-phi` samples `phi` within +/-0.15 of the value that best reproduces Pew 2010->2020 (from the hindcast scan), instead of the 0.3-0.7 judgement range. It fits one decade, so it can overfit; the chosen range is stored in `step5d_report.json`. `hindcast_phi_scan.csv` is written on every run.
 
 ## Scenarios (equal run counts)
 1. `demography_only` - fertility, age, migration; no switching.
