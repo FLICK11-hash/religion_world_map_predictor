@@ -74,6 +74,10 @@ cmp50 = S.global_vs_pew2050(world); assert 'Pew 2015 projection' in set(cmp50.sc
 diag = S.central_diagnostics(inp, a, rel, off)
 assert len(diag) == K and np.isfinite(diag.drop(columns='religion').to_numpy(float)).all()
 
+scan = S.phi_scan(inp, a, rel, off, grid=np.array([0., .5, 1.]))
+assert len(scan) == 3 and np.isfinite(scan.drop(columns='phi').to_numpy(float)).all()
+assert scan.persistence_mean_country_tv_pp.nunique() == 1
+
 # the Islam-rich, high-TFR country should gain Islam share in demography_only relative to equal fertility
 j = int(np.argmax(pew2010[:, 1] * (tfr0 > 3)))
 ctl = S.draw_params(np.random.default_rng(1), n, 'demography_only', a)

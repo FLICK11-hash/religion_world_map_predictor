@@ -124,6 +124,25 @@ were NOT available, so nothing downstream was re-run.
 Still unverified: Pew country matching, the COW crosswalk, Muslim-plurality outcomes, validation tables and the
 Pew 2050 comparison on actual outputs.
 
+## How Step 5D relates to these findings
+
+Step 5D (`step5d_cohort_forecast.py`, see `README_STEP5D.md`) is a new model, not a patch. Mapping:
+
+| Audit item | In 5D |
+|---|---|
+| 2 population never feeds shares | Fixed: shares are computed from group populations (births, deaths, migration). |
+| 4 double counting of Pew momentum | Reduced: demography is explicit, and only the part Pew 2020 shows beyond a no-switching hindcast is treated as switching. |
+| 5 arbitrary group-growth offsets | Replaced by Pew global TFR ratios damped by `phi` (range is a judgement; `hindcast_phi_scan.csv` shows what the data prefer). |
+| 6 random group advantages | Removed. Uncertainty is parameter ranges plus one persistent country x group draw per run. |
+| 7 uniform one-way secularization | Replaced by country-specific net switching estimated from the hindcast, decaying over time. |
+| 8 migration as regression to the mean | Replaced by an emigrant-pool mix (global + continent). Still no origin-destination data. |
+| 10 modal vs mean winner | Both reported (`most_likely_dominant` and `mean_dominant`, plus both change counts). |
+| 11 clipping non-conservation | Persons are conserved in switching and migration; verified in unit tests. |
+| 12 silent defaults | Counts of WPP-default and no-Pew-2010 countries are written to `step5d_report.json`. |
+| 1, 3, 9, 13 | Not changed: 5D has no LightGBM, no pooled persistence run, and post-2100 demography is still the stylised rule. |
+
+Not yet verified on real data: country matching of the new loaders, the hindcast fit, and whether the cohort engine tracks WPP growth (reported as the rescale size).
+
 ## Needed to proceed
 1. Allow outbound access to `correlatesofwar.org`, `population.un.org`,
    `naturalearth.s3.amazonaws.com` (or supply those files), and supply
