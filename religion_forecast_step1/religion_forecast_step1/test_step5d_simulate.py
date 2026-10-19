@@ -38,7 +38,8 @@ def dem_path(shift_):
 
 
 missing = np.zeros(n, bool); missing[3] = True
-inp = dict(ids=ids, current=current, pew2010=pew2010, missing_2010=missing, cont=np.arange(n) % 3,
+adj = np.zeros((n, n)); [adj.__setitem__((i, (i + 1) % n), 1) or adj.__setitem__(((i + 1) % n, i), 1) for i in range(n)]
+inp = dict(ids=ids, adj=adj, current=current, pew2010=pew2010, missing_2010=missing, cont=np.arange(n) % 3,
            dem_path=dem_path, dem_hist={2010: dict(dem_at(2010), wpp_population=pop0 * .93),
                                         2015: dict(dem_at(2015), wpp_population=pop0 * .965)},
            wpp_missing_2020=0, missing_2010_n=1)

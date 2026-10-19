@@ -108,7 +108,7 @@ def initial_population(total, shares, country_median, group_median_offset):
 
 # ----------------------------------------------------------------- the step
 class Engine:
-    def __init__(self, relative_tfr, median_offset, continent_index, params):
+    def __init__(self, relative_tfr, median_offset, continent_index, params, adjacency=None):
         """relative_tfr [K]: group TFR / world TFR (global ratios, composition included).
         median_offset [K]: group median age - world median age (global).
         continent_index [n] int, -1 = unknown. params: dict (see step5d_cohort_forecast)."""
@@ -121,15 +121,25 @@ class Engine:
         self.cont = np.asarray(continent_index, int)
         self.ncont = int(self.cont.max()) + 1 if (self.cont >= 0).any() else 0
         self.s, self.s_last, self.s_birth, _ = life_table(self.p['e0'])
+        self.adj = None if adjacency is None else np.asarray(adjacency, float)   # [n, n] 0/1 land borders
         self.eps = self.p.get('eps')          # [n, K] persistent country x group draw
 
     # ---- fertility multipliers at `years_since_2020` (gaps converge over time)
-    def rel_tfr(self, years_since_2020, n):
+    def rel_tfr(self, years_since_2020, n, tfr=None):
+        """Group TFR / national TFR. Two ways to apply a gap: multiplicative (same RATIO in every
+        country) and additive (same number of CHILDREN, so a bigger ratio where fertility is low).
+        Evidence on within-country gaps (e.g. Europe) leans additive, so the run blends them with
+        weight `w_add`. Both reduce to 1 when gaps are zero."""
         eps = 0.0 if self.eps is None else self.eps
         gap = (self.rel_within[None, :] - 1.0 + eps) * np.exp(-max(years_since_2020, 0.0) / self.p['Hf'])
         if self.p.get('equal_fertility'):
             gap = gap * 0.0
-        return np.clip(1.0 + gap, 0.4, 2.0) * np.ones((n, 1))
+        rel = 1.0 + gap
+        w = float(self.p.get('w_add', 0.0))
+        if w > 0 and tfr is not None:
+            add = gap * float(self.p.get('world_tfr', 2.5)) / np.maximum(np.asarray(tfr, float), 0.8)[:, None]
+            rel = (1 - w) * rel + w * (1.0 + add)
+        return np.clip(rel, 0.4, 2.0) * np.ones((n, 1))
 
     def project(self, P, tfr, rel):
         W = 0.5 * P[:, :, F0:F1]
@@ -144,7 +154,9 @@ class Engine:
         return new
 
     def migrate(self, P, net_annual):
-        """Arrivals come from the emigrant pool (global, blended with continent pool)."""
+        """Arrivals take the religious mix of an emigrant pool built from WPP net outflows:
+        land-border neighbours (weight lam_nb), same continent (lam) and the whole world (rest).
+        A pool with no emigrants is skipped and the other weights are renormalised."""
         n, K, _ = P.shape
         adults = P[:, :, M0:M1].sum((1, 2))
         out5 = 5.0 * np.maximum(-net_annual, 0.0)
@@ -156,12 +168,23 @@ class Engine:
         pool_g = by_group.sum(0)
         pool_g = pool_g / pool_g.sum() if pool_g.sum() > 0 else \
             P.sum((0, 2)) / max(P.sum(), 1e-300)
-        mix = np.tile(pool_g, (n, 1))
-        lam = self.p['lam']
+        comp = np.zeros((n, K)); weight = np.zeros(n)
+        # continent pool (includes the country's own emigrants, as before)
+        pc = np.zeros((n, K))
         for c in range(self.ncont):
-            pc = by_group[self.cont == c].sum(0)
-            if pc.sum() > 0:
-                mix[self.cont == c] = lam * pc / pc.sum() + (1 - lam) * pool_g
+            m = self.cont == c
+            pc[m] = by_group[m].sum(0)
+        has_c = pc.sum(1) > 0
+        w_c = self.p['lam'] * has_c
+        comp += w_c[:, None] * pc / np.maximum(pc.sum(1, keepdims=True), 1e-300); weight += w_c
+        if self.adj is not None and self.p.get('lam_nb', 0.0) > 0:
+            pn = self.adj @ by_group
+            has_n = pn.sum(1) > 0
+            w_n = self.p['lam_nb'] * has_n
+            comp += w_n[:, None] * pn / np.maximum(pn.sum(1, keepdims=True), 1e-300); weight += w_n
+        w_g = 1.0 - weight
+        comp += w_g[:, None] * pool_g[None, :]
+        mix = comp / np.maximum(comp.sum(1, keepdims=True), 1e-300)
         arrivals = np.zeros_like(P)
         arrivals[:, :, M0:M1] = (in5[:, None, None] * mix[:, :, None]) * MIGRANT_AGE[None, None, :]
         return P - removed + arrivals
@@ -185,7 +208,7 @@ class Engine:
              migration=True):
         n = P.shape[0]
         tfr = 0.5 * (dem_prev['tfr'] + dem_cur['tfr'])
-        Q = self.project(P, tfr, self.rel_tfr(years_since_2020, n))
+        Q = self.project(P, tfr, self.rel_tfr(years_since_2020, n, tfr))
         if migration:
             Q = self.migrate(Q, 0.5 * (dem_prev['net_migrations'] + dem_cur['net_migrations']))
         if rho is not None and switch_factor > 0:

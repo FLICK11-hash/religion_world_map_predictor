@@ -47,7 +47,7 @@ def load_assumptions():
 def draw_params(rng, n, scenario, a):
     r = a['parameter_ranges']
     u = lambda k: float(rng.uniform(*r[k]['range']))
-    return dict(phi=u('phi'), psi=u('psi'), Hf=u('Hf'), e0=u('e0'), lam=u('lam'),
+    return dict(phi=u('phi'), psi=u('psi'), w_add=u('w_add'), lam_nb=u('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=u('Hf'), e0=u('e0'), lam=u('lam'),
                 switch_strength=u('switch_strength'), switch_half_life=u('switch_half_life'),
                 tfr_shift=float(rng.normal(0, .13)),
                 eps=rng.normal(0, r['eps_sd']['value'], size=(n, K)),
@@ -66,7 +66,7 @@ def hindcast_rho(inp, e, dems):
 
 
 def simulate(inp, scenario, pars, rel_global, median_off):
-    e = eng.Engine(rel_global, median_off, inp['cont'], pars)
+    e = eng.Engine(rel_global, median_off, inp['cont'], pars, inp.get('adj'))
     dems = inp['dem_path'](pars['tfr_shift'])
     full = scenario == 'demography_plus_switching'
     rho = hindcast_rho(inp, e, dems)[0] if full else None
@@ -104,8 +104,10 @@ def load_inputs():
         prior.load_sources()
     ids = anchor.country_id.astype(str).tolist()
     by_year = prior.wpp_arrays(ids, wpp)
+    border, border_n, continent, continent_n = prior.spatial_matrices(ids, continents, neighbors)
     initial = prior.GeographyState(anchor, current, lag5, pew2010, by_year,
-                                   *prior.spatial_matrices(ids, continents, neighbors), predictors)
+                                   border, border_n, continent, continent_n, predictors)
+    adj = (np.asarray(border.todense()) > 0).astype(float)
     base = initial.dem
     wpp_missing_2020 = int(by_year[2020][['wpp_population', 'tfr']].isna().any(axis=1).sum())
     names = sorted({v for v in continents.values() if isinstance(v, str)})
@@ -121,7 +123,7 @@ def load_inputs():
         return path
 
     return dict(ids=ids, current=current, pew2010=pew2010, missing_2010=np.asarray(missing, bool),
-                cont=cont, dem_path=dem_path,
+                cont=cont, adj=adj, dem_path=dem_path,
                 dem_hist={y: wpp_slice(ids, wpp, y, base) for y in (2010, 2015)},
                 wpp_missing_2020=wpp_missing_2020, missing_2010_n=int(np.sum(missing)))
 
@@ -174,10 +176,10 @@ def central_diagnostics(inp, a, rel, off):
     """One run at the midpoint of every range: how well does demography alone explain Pew 2010-2020?"""
     r = a['parameter_ranges']
     mid = lambda k: float(np.mean(r[k]['range']))
-    pars = dict(phi=mid('phi'), psi=mid('psi'), Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
+    pars = dict(phi=mid('phi'), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                 switch_strength=mid('switch_strength'), switch_half_life=mid('switch_half_life'),
                 tfr_shift=0., eps=None, equal_fertility=False)
-    e = eng.Engine(rel, off, inp['cont'], pars)
+    e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'))
     dems = inp['dem_path'](0.)
     rho, pred = hindcast_rho(inp, e, dems)
     pop20 = dems[2020]['wpp_population']
@@ -210,9 +212,9 @@ def phi_scan(inp, a, rel, off, grid=None):
     base = 0.5 * np.abs(inp['current'] - inp['pew2010']).sum(1)
     rows = []
     for phi in grid:
-        pars = dict(phi=float(phi), psi=mid('psi'), Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
+        pars = dict(phi=float(phi), psi=mid('psi'), w_add=mid('w_add'), lam_nb=mid('lam_nb'), world_tfr=a['world_tfr_2010_15'], Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
                     switch_strength=1., switch_half_life=60., tfr_shift=0., eps=None, equal_fertility=False)
-        e = eng.Engine(rel, off, inp['cont'], pars)
+        e = eng.Engine(rel, off, inp['cont'], pars, inp.get('adj'))
         pred = hindcast_rho(inp, e, dems)[1]
         tv = 0.5 * np.abs(inp['current'] - pred).sum(1)
         rows.append({'phi': float(phi), 'mean_country_tv_pp': 100 * float(tv[ok].mean()),
@@ -222,10 +224,18 @@ def phi_scan(inp, a, rel, off, grid=None):
     return pd.DataFrame(rows)
 
 
+def calibrated_phi_range(scan, half_width=0.15):
+    """Narrow the sampled phi range around the hindcast-best value (optional, --calibrate-phi)."""
+    best = float(scan.loc[scan.mean_country_tv_pp.idxmin(), 'phi'])
+    return best, [max(0.0, best - half_width), min(1.0, best + half_width)]
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--runs', type=int, default=120)
     p.add_argument('--seed', type=int, default=62)
+    p.add_argument('--calibrate-phi', action='store_true',
+                   help='sample phi around the value that best reproduces Pew 2010->2020 (risk: overfits one decade)')
     p.add_argument('--test-small', action='store_true', help=argparse.SUPPRESS)
     args = p.parse_args()
     if args.runs % 4 or (args.runs < 100 and not args.test_small):
@@ -234,6 +244,12 @@ def main():
     a, rel, off = load_assumptions()
     inp = load_inputs()
     ids, n, m = inp['ids'], len(inp['ids']), len(YEARS)
+    phi_note = None
+    if args.calibrate_phi:
+        best, rng_phi = calibrated_phi_range(phi_scan(inp, a, rel, off, grid=np.linspace(0, 1, 21)))
+        a['parameter_ranges']['phi']['range'] = rng_phi
+        phi_note = {'hindcast_best_phi': best, 'sampled_range': rng_phi}
+        print(f'Calibrated phi: best {best:.2f}, sampling {rng_phi}')
     rng = np.random.default_rng(args.seed)
     sh = np.lib.format.open_memmap(OUT / 'ensemble_shares_float32.npy', mode='w+', dtype='float32', shape=(args.runs, m, n, K))
     pp = np.lib.format.open_memmap(OUT / 'ensemble_populations_float32.npy', mode='w+', dtype='float32', shape=(args.runs, m, n))
@@ -276,12 +292,12 @@ def main():
               'years': YEARS, 'scenarios': SCENARIOS, 'headline_scenario': HEADLINE,
               'countries_with_wpp_defaults_2020': inp['wpp_missing_2020'],
               'countries_without_pew_2010_baseline_zero_switching': inp['missing_2010_n'],
-              'assumptions_file': 'step5d_assumptions.json', 'assumptions_status': a['status'],
+              'assumptions_file': 'step5d_assumptions.json', 'phi_calibration': phi_note, 'assumptions_status': a['status'],
               'interpretation': 'Exploratory mechanism model, not a validated forecast and not outcome probabilities',
               'assumptions': [
-                  'Group fertility = national WPP TFR x (Pew global ratio damped to a within-country gap), gaps converge, national aggregate TFR equals WPP.',
+                  'Group fertility = national WPP TFR x (Pew global ratio damped to a within-country gap, blended additive/multiplicative by w_add), gaps converge, national aggregate TFR equals WPP.',
                   'One life table for all groups; each country rescaled to WPP (to 2100) or rule-based totals every step.',
-                  'Arrivals take the religious mix of a global/continental emigrant pool built from WPP net outflows; no origin-destination data.',
+                  'Arrivals take the religious mix of an emigrant pool (land neighbours + same continent + world) built from WPP net outflows; no origin-destination data.',
                   'Net switching = Pew 2020 minus a no-switching 2010-2020 hindcast (absorbs all model and measurement error), capped at 10 pp/decade, decaying.',
                   'Folk/Other split is a proxy; their combined residual is split by 2020 shares.',
                   'After 2100 national demography is the Step 5 stylised rule; 3026 interpolates 3025 and 3030.',
