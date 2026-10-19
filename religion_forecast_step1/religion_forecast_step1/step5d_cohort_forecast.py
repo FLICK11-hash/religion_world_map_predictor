@@ -197,6 +197,31 @@ def central_diagnostics(inp, a, rel, off):
     return pd.DataFrame(rows)
 
 
+def phi_scan(inp, a, rel, off, grid=None):
+    """Does the 2010->2020 hindcast prefer a particular within-country fertility gap (phi)?
+    Error = total variation between hindcast and Pew 2020 shares, averaged over countries
+    that have a Pew 2010 baseline. phi=0 means no within-country fertility differences."""
+    grid = np.linspace(0, 1, 11) if grid is None else grid
+    r = a['parameter_ranges']
+    mid = lambda k: float(np.mean(r[k]['range']))
+    dems = inp['dem_path'](0.)
+    ok = ~inp['missing_2010']
+    pop20 = dems[2020]['wpp_population']
+    base = 0.5 * np.abs(inp['current'] - inp['pew2010']).sum(1)
+    rows = []
+    for phi in grid:
+        pars = dict(phi=float(phi), psi=mid('psi'), Hf=mid('Hf'), e0=mid('e0'), lam=mid('lam'),
+                    switch_strength=1., switch_half_life=60., tfr_shift=0., eps=None, equal_fertility=False)
+        e = eng.Engine(rel, off, inp['cont'], pars)
+        pred = hindcast_rho(inp, e, dems)[1]
+        tv = 0.5 * np.abs(inp['current'] - pred).sum(1)
+        rows.append({'phi': float(phi), 'mean_country_tv_pp': 100 * float(tv[ok].mean()),
+                     'pop_weighted_tv_pp': 100 * float((tv[ok] * pop20[ok]).sum() / pop20[ok].sum()),
+                     'persistence_mean_country_tv_pp': 100 * float(base[ok].mean()),
+                     'persistence_pop_weighted_tv_pp': 100 * float((base[ok] * pop20[ok]).sum() / pop20[ok].sum())})
+    return pd.DataFrame(rows)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--runs', type=int, default=120)
@@ -243,6 +268,8 @@ def main():
     pd.DataFrame(params).to_csv(OUT / 'scenario_parameters.csv', index=False)
     diag = central_diagnostics(inp, a, rel, off)
     diag.to_csv(OUT / 'hindcast_diagnostics.csv', index=False)
+    scan = phi_scan(inp, a, rel, off)
+    scan.to_csv(OUT / 'hindcast_phi_scan.csv', index=False)
     cmp50 = global_vs_pew2050(world)
     cmp50.to_csv(OUT / 'global_vs_pew2015_2050.csv', index=False)
     report = {'generated_utc': datetime.now(timezone.utc).isoformat(), 'runs': args.runs, 'countries': n,
@@ -262,6 +289,8 @@ def main():
     (OUT / 'step5d_report.json').write_text(json.dumps(report, indent=2), encoding='utf8')
     print('\nSTEP 5D - hindcast: how much of Pew 2010->2020 does demography alone explain?')
     print(diag.round(3).to_string(index=False))
+    print('\nHindcast fit by within-country fertility-gap fraction phi (lower is better; sampled range 0.3-0.7)')
+    print(scan.round(3).to_string(index=False))
     print('\nGlobal 2050 shares (%) vs Pew 2015 projection')
     print(cmp50.to_string(index=False))
     print('\nCountries whose dominant group changes (modal), selected years')

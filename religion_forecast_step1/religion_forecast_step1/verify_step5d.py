@@ -39,5 +39,10 @@ print(diag[['religion', 'persistence_error_pp', 'demography_only_error_pp',
             'countries_where_demography_gets_sign_right']].round(3).to_string(index=False))
 better = (diag.demography_only_error_pp.abs() < diag.persistence_error_pp.abs()).sum()
 print(f'  demography-only beats persistence for {better} of {len(diag)} religions at the global level.')
+scan = pd.read_csv(OUT / 'hindcast_phi_scan.csv')
+best = scan.loc[scan.mean_country_tv_pp.idxmin()]
+print(f"- Hindcast prefers phi={best.phi:.1f} (mean country TV {best.mean_country_tv_pp:.2f} pp vs "
+      f"{best.persistence_mean_country_tv_pp:.2f} pp for 'nothing changes'). Sampled phi range is 0.3-0.7; "
+      'if the best phi sits outside it, or demography does not beat persistence, revisit step5d_assumptions.json.')
 print(pd.read_csv(OUT / 'global_vs_pew2015_2050.csv').to_string(index=False))
 print('WARNING: exploratory mechanism model, not a validated 3026 forecast.')
