@@ -65,6 +65,23 @@ def median_age_of(pop):
     return 5.0 * j + width * np.clip((0.5 - before) / np.maximum(inbin, 1e-300), 0, 1)
 
 
+_LIFE_CACHE = {}
+
+
+def life_tables(e0):
+    """Survival arrays for one or many countries: S [m, A-1], s_last [m], s_birth [m].
+    Life expectancy is clipped to 45-85 years, the range the one-parameter table can fit.
+    Results are cached by life expectancy to 0.01 years, because the hindcast calls this often."""
+    e0 = np.atleast_1d(np.asarray(e0, float))
+    out = []
+    for e in e0:
+        key = round(float(np.clip(e, 45.0, 85.0)), 2)
+        if key not in _LIFE_CACHE:
+            _LIFE_CACHE[key] = life_table(key)
+        out.append(_LIFE_CACHE[key])
+    return (np.array([o[0] for o in out]), np.array([o[1] for o in out]), np.array([o[2] for o in out]))
+
+
 def _pyramid_table():
     _, _, _, S = life_table(72.0)
     r_grid = np.linspace(-0.03, 0.07, 201)
@@ -120,7 +137,7 @@ class Engine:
         self.median_offset = self.p['psi'] * np.asarray(median_offset, float)
         self.cont = np.asarray(continent_index, int)
         self.ncont = int(self.cont.max()) + 1 if (self.cont >= 0).any() else 0
-        self.s, self.s_last, self.s_birth, _ = life_table(self.p['e0'])
+        self.s, self.s_last, self.s_birth = life_tables(self.p['e0'])
         self.adj = None if adjacency is None else np.asarray(adjacency, float)   # [n, n] 0/1 land borders
         # [n, n] bilateral migrant table, rows = destination, columns = origin, rows sum to 1 where known
         self.od = None if od is None else np.asarray(od, float)
@@ -151,12 +168,12 @@ class Engine:
         k = np.where(denom > 0, B0.sum(1) / np.maximum(denom, 1e-300), 1.0)
         births5 = tfr[:, None] * k[:, None] * rel * B0
         new = np.zeros_like(P)
-        new[:, :, 0] = births5 * self.s_birth
-        new[:, :, 1:] = P[:, :, :-1] * self.s[None, None, :]
-        new[:, :, -1] += P[:, :, -1] * self.s_last
+        new[:, :, 0] = births5 * self.s_birth[:, None]
+        new[:, :, 1:] = P[:, :, :-1] * self.s[:, None, :]
+        new[:, :, -1] += P[:, :, -1] * self.s_last[:, None]
         return new
 
-    def migrate(self, P, net_annual):
+    def migrate(self, P, net_annual, od=None):
         """Who moves and who arrives.
 
         Leavers: the same share of each origin's adults leaves, so leavers carry the origin's own
@@ -196,11 +213,12 @@ class Engine:
         comp += w_g[:, None] * pool_g[None, :]
         fallback = comp / np.maximum(comp.sum(1, keepdims=True), 1e-300)
         # Bilateral origin-destination mix (who actually arrives), where available
-        if self.od is not None:
+        od = self.od if od is None else od
+        if od is not None:
             adult_by_group = P[:, :, M0:M1].sum(2)                  # [n, K] origin adults by religion
             origin_comp = adult_by_group / np.maximum(adult_by_group.sum(1, keepdims=True), 1e-300)
-            od_mix = self.od @ origin_comp                          # [n, K]
-            has_od = self.od.sum(1) > 0
+            od_mix = od @ origin_comp                               # [n, K]
+            has_od = od.sum(1) > 0
             w_od = np.where(has_od, float(self.p.get('lam_od', 0.8)), 0.0)
             mix = w_od[:, None] * od_mix + (1 - w_od)[:, None] * fallback
             # destinations with no bilateral row keep the fallback mix
@@ -228,12 +246,12 @@ class Engine:
         return P - removed + gain[:, :, None] * pooled[:, None, :]
 
     def step(self, P, dem_prev, dem_cur, years_since_2020, rho=None, switch_factor=0.0,
-             migration=True):
+             migration=True, od=None):
         n = P.shape[0]
         tfr = 0.5 * (dem_prev['tfr'] + dem_cur['tfr'])
         Q = self.project(P, tfr, self.rel_tfr(years_since_2020, n, tfr))
         if migration:
-            Q = self.migrate(Q, 0.5 * (dem_prev['net_migrations'] + dem_cur['net_migrations']))
+            Q = self.migrate(Q, 0.5 * (dem_prev['net_migrations'] + dem_cur['net_migrations']), od)
         if rho is not None and switch_factor > 0:
             Q = self.switch(Q, rho, switch_factor)
         scale = dem_cur['wpp_population'] / np.maximum(Q.sum((1, 2)), 1e-300)

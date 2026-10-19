@@ -20,7 +20,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import migration_od as mod
 import step5d_engine as eng
+import wrp_history as H
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / 'data' / 'forecasts_step5d'
@@ -30,7 +32,9 @@ K = len(CATEGORIES)
 SCENARIOS = ('demography_only', 'demography_plus_switching',
              'equal_fertility_counterfactual', 'no_migration_counterfactual')
 YEARS = sorted(set(range(2020, 3031, 5)) | {3026})
-HEADLINE = 'demography_plus_switching'
+# Headline = fertility, age and migration with no switching. Step 5E hindcasts show that extrapolating
+# recent switching hurt 1990-2010 (see README_STEP5E.md), so switching is a labelled sensitivity only.
+HEADLINE = 'demography_only'
 K = len(CATEGORIES)
 TARGET_YEARS = [2020, 2050, 2100, 2200, 2500, 3026]
 STEP_YEARS = list(range(2025, 3031, 5))
@@ -58,9 +62,10 @@ def draw_params(rng, n, scenario, a):
 def hindcast_rho(inp, e, dems):
     """Net switching = Pew 2020 minus a no-switching demographic hindcast from Pew 2010."""
     h10, h15 = inp['dem_hist'][2010], inp['dem_hist'][2015]
+    od_for = inp.get('od_for', lambda year: inp.get('od'))
     P = eng.initial_population(h10['wpp_population'], inp['pew2010'], h10['median_age'], e.median_offset)
-    P, _ = e.step(P, h10, h15, -7.5)
-    P, _ = e.step(P, h15, dems[2020], -2.5)
+    P, _ = e.step(P, h10, h15, -7.5, od=od_for(2015))
+    P, _ = e.step(P, h15, dems[2020], -2.5, od=od_for(2020))
     pred = eng.shares_of(P)
     rho = eng.calibrate_switching(inp['current'], pred, CATEGORIES, valid=~inp['missing_2010'])
     return rho, pred
@@ -68,6 +73,7 @@ def hindcast_rho(inp, e, dems):
 
 def simulate(inp, scenario, pars, rel_global, median_off):
     e = eng.Engine(rel_global, median_off, inp['cont'], pars, inp.get('adj'), inp.get('od'))
+    od_for = inp.get('od_for', lambda year: inp.get('od'))
     dems = inp['dem_path'](pars['tfr_shift'])
     full = scenario == 'demography_plus_switching'
     rho = hindcast_rho(inp, e, dems)[0] if full else None
@@ -82,7 +88,7 @@ def simulate(inp, scenario, pars, rel_global, median_off):
         factor = .5 * pars['switch_strength'] * 2 ** (-(year - 2020) / pars['switch_half_life']) if full else 0.
         e.last_flows = None
         P, lg = e.step(P, prev, cur, year - 2022.5, rho, factor,
-                       migration=scenario != 'no_migration_counterfactual')
+                       migration=scenario != 'no_migration_counterfactual', od=od_for(year))
         if year <= 2100:
             drift.append(float(lg.mean()))
         if e.last_flows is not None:
@@ -151,6 +157,46 @@ def migration_table(mig_sum, ids, runs_headline):
     return pd.DataFrame(rows)
 
 
+def net_series(ids, wpp, year):
+    f = wpp[wpp.year.eq(year)].set_index('country_id').reindex(ids)
+    return np.nan_to_num(f.net_migrations.to_numpy(float))
+
+
+def gravity_od_by_year(ids, wpp, years, geo, nbrs, gravity):
+    """Gravity origin-destination matrices [dest, origin] over `ids`, one per 5-year step ending in
+    each of `years`, balanced to WPP net migration (migration_od.balanced_od). Countries without
+    Natural Earth geometry get no row or column; the engine then uses its neighbour/continent/world
+    pools for them."""
+    n = len(ids)
+    gi = np.array([k for k, i in enumerate(ids) if i in geo.index], dtype=int)
+    sub = [ids[k] for k in gi]
+    g = geo.loc[sub]
+    lat, lon = g.lat.to_numpy(float), g.lon.to_numpy(float)
+    dist = H.haversine_km(lat[:, None], lon[:, None], lat[None, :], lon[None, :])
+    adj = np.array([[1.0 if j in nbrs.get(i, set()) else 0.0 for j in sub] for i in sub])
+    cont = g.continent.to_numpy()
+    same = (cont[:, None] == cont[None, :]).astype(float)
+    kernel = mod.gravity_kernel(dist, adj, same, gamma=gravity['gamma'], b_adj=gravity['b_adj'],
+                                b_cont=gravity['b_cont'])
+    out = {}
+    for y in years:
+        # 5-year average of annual WPP flows: single years swing a lot (e.g. USA 1.7M, 0.3M, 1.2M)
+        net5 = 5.0 * np.mean([net_series(ids, wpp, t) for t in range(y - 4, y + 1)], axis=0)
+        _, share, _ = mod.balanced_od(net5[gi], kernel)
+        full = np.zeros((n, n))
+        full[np.ix_(gi, gi)] = share
+        out[y] = full
+    return out, len(gi)
+
+
+def od_lookup(od_by_year):
+    """Matrix for a step ending in `year`: the 5-year grid from 2015, held at 2100 after that."""
+    def od_for(year):
+        key = int(min(max(year, 2015), 2100))
+        return od_by_year[key - (key - 2015) % 5]
+    return od_for
+
+
 def load_inputs():
     import step5_forecast_scenarios as prior
     anchor, current, lag5, pew2010, missing, wpp, bundle, predictors, resid, continents, neighbors = \
@@ -175,9 +221,18 @@ def load_inputs():
             path[year] = {k: v.copy() for k, v in state.dem.items()}
         return path
 
+    gravity = json.loads((ROOT / 'step5d_assumptions.json').read_text(encoding='utf8'))['gravity']
+    geo, nbrs_geo = H.load_geography(ROOT / 'data' / 'raw' / 'ne_50m_admin_0_countries.zip')
+    od_by_year, n_geo = gravity_od_by_year(ids, wpp, range(2015, 2101, 5), geo, nbrs_geo, gravity)
     od, od_report = load_bilateral(ids)
+    if od is not None:
+        od_for = lambda year: od
+    else:
+        od_for = od_lookup(od_by_year)
+        od_report = dict(source='gravity, WPP-balanced (geography only; no bilateral table)',
+                         countries_with_geometry=n_geo, gravity=gravity)
     return dict(ids=ids, current=current, pew2010=pew2010, missing_2010=np.asarray(missing, bool),
-                cont=cont, adj=adj, od=od, od_report=od_report, dem_path=dem_path,
+                cont=cont, adj=adj, od=od, od_for=od_for, od_report=od_report, dem_path=dem_path,
                 dem_hist={y: wpp_slice(ids, wpp, y, base) for y in (2010, 2015)},
                 wpp_missing_2020=wpp_missing_2020, missing_2010_n=int(np.sum(missing)))
 

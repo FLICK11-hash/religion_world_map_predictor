@@ -143,6 +143,16 @@ Step 5D (`step5d_cohort_forecast.py`, see `README_STEP5D.md`) is a new model, no
 
 Not yet verified on real data: country matching of the new loaders, the hindcast fit, and whether the cohort engine tracks WPP growth (reported as the rescale size).
 
+## Step 5E history tests (WRP 1950-2010; see religion_forecast_step1/README_STEP5E.md)
+
+Out of sample (chosen on 1960-1980, scored on 1990 and 2000), population-weighted error in points:
+persistence 4.62; demographic fertility gaps 4.57 (small gain); pools 4.65; gravity migration 4.63;
+momentum in switching 5.03 (worse). Consequences for the audit:
+- Item 3 (LightGBM) and item 4 (double counting): the history supports demography only weakly, and it does not
+  support extrapolating recent switching. The Step 5D headline is now demography-only, with switching a sensitivity.
+- Item 5 (arbitrary group growth): within-country fertility gaps cannot be identified from history (flat on test).
+- Item 12 (silent defaults): the history test drops 90 WRP country-years that fail the population check.
+
 ## Needed to proceed
 1. Allow outbound access to `correlatesofwar.org`, `population.un.org`,
    `naturalearth.s3.amazonaws.com` (or supply those files), and supply
