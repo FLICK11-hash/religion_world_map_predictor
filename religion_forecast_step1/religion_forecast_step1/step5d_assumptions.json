@@ -34,9 +34,9 @@
     "psi": {
       "range": [
         0.0,
-        0.5
+        0.2
       ],
-      "meaning": "Median-age offset between religious groups inside a country, as a share of the global offset. Narrowed to 0-0.5 by Step 5E: the 1960-1980 hindcasts prefer 0 and the 1990-2000 hindcasts are flat between 0 and 1."
+      "meaning": "Median-age offset between religious groups inside a country, as a share of the global offset. Narrowed to 0-0.2 by Step 5E: in the 1960-1980 hindcasts larger offsets push the unaffiliated share down more (error -0.69 at psi 0, -0.85 at 0.5, -1.00 at 1.0), and history shows them rising."
     },
     "Hf": {
       "range": [

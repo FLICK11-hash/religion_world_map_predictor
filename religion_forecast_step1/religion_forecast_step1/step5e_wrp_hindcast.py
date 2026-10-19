@@ -263,7 +263,7 @@ def main():
             pred = add_momentum(cache[("grav", _key(g), y)], inp, prev_inp, prev_base, lam)
             mom_rows.append(dict(decade=y, mechanism="momentum", lam=lam, **g, **score(pred, inp)))
     mom = pd.DataFrame(mom_rows)
-    res = pd.concat([res, mom], ignore_index=True)
+    res = pd.DataFrame(rows + mom_rows)
     res.to_csv(OUT / "hindcast_by_decade.csv", index=False)
 
     def window(df, years):
@@ -297,8 +297,9 @@ def main():
     summary.to_csv(OUT / "hindcast_summary.csv", index=False)
     print("Population-weighted total-variation error (pp), lower is better; chosen on TRAIN, scored on TEST")
     print(summary.round(3).to_string(index=False))
-    lam_table = mom.groupby("lam").apply(lambda d: pd.Series(dict(
-        train_popw=window(d, TRAIN).popw_tv_pp.mean(), test_popw=window(d, TEST).popw_tv_pp.mean()))).round(3)
+    lam_table = pd.DataFrame({lam: dict(train_popw=window(mom[mom.lam == lam], TRAIN).popw_tv_pp.mean(),
+                                        test_popw=window(mom[mom.lam == lam], TEST).popw_tv_pp.mean())
+                              for lam in LAMBDAS}).T.round(3)
     print("\nMomentum weight lam (on top of the chosen gravity model):")
     print(lam_table.to_string())
     gravity = json.loads((ROOT / "step5d_assumptions.json").read_text(encoding="utf8"))["gravity"]
