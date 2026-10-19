@@ -94,6 +94,36 @@ Country matching (Kosovo `XKX` is user-assigned; Taiwan/Palestine/W. Sahara
 WPP gaps), WPP units for `net_migrations`, the Muslim-plurality question (Sec. 6
 of the task), validation tables, Pew 2050 comparison on the actual outputs.
 
+## Data checks run (WRP, WPP2024, Natural Earth only)
+
+Run read-only on the supplied raw files (checksums: WRP `ba1f3b73...`, WPP `286ac36b...`,
+NE `5fed4333...`). geopandas was unavailable, so the Natural Earth `.dbf` attribute table was
+read directly (no geometry). Pew, the COW->ISO crosswalk (needs network) and `data/processed|features|models|forecasts*`
+were NOT available, so nothing downstream was re-run.
+
+- **WPP units:** `NetMigrations` is in thousands (2020: `NetMigrations / (CNMR*pop/1000)` has median 1.000,
+  range 0.993-1.077). `TPopulation1July` is also in thousands. Step 2's `*1000` conversions are correct.
+- **WPP coverage:** 237 ISO3 country rows, 1950-2101, Medium only, no duplicates. Taiwan (TWN), Palestine (PSE),
+  Western Sahara (ESH), Hong Kong, Macao and Kosovo (XKX) are all **present** in WPP2024 with full series, so
+  the "Taiwan/Palestine/W. Sahara WPP gaps" worry above does not apply to this file. 2101 is empty for every country
+  (TFR, population, net migration, median age are NaN); the forecast code must not read 2101.
+- **WPP vs map:** 9 WPP codes have no Natural Earth polygon: BES, GIB, GLP, GUF, MTQ, MYT, REU, TKL, XKX
+  (about 4.0M people in 2020 of 7.89B, 0.05%). Five are French overseas departments that NE 50m folds into France,
+  so Step 5 would carry them as countries but they cannot be drawn.
+- **Kosovo:** NE `ISO_A3` is -99 and `ADM0_A3` is `KOS`; WPP and Step 2 use `XKX`. Step 6 fixes this with
+  `MAP_CODE_FIXES`, but `step2_clean_merge.load_map()` yields `KOS`, so any Step 2 join of WPP/Pew to `map_iso3`
+  would miss Kosovo. Not confirmed against actual Step 2 output.
+- **Map polygons with no WPP data:** Somaliland (SOL), N. Cyprus (CYN), Kosovo (KOS, alias issue above), Åland (ALA),
+  Pitcairn, Norfolk Is., plus uninhabited/ocean territories. Those draw as blank.
+- **NE -99 ISO codes:** France and Norway have `ISO_A3 = -99`; the `ADM0_A3` fallback (FRA, NOR) is correct.
+- **WRP 2010:** 194 states, no missing population. A crude check `sumrelig/pop` falls outside 0.99-1.01 for 60 of 194
+  states (Japan 1.66, Haiti 1.37, Cuba 1.29 above; Barbados 0.86 to Paraguay 0.99 below). This is only a proxy,
+  because Step 2 validates the sum of the share columns and `sumrelig` can include dual affiliation. The real number
+  of WRP 2010 rows dropped by `quality_pass` still needs Step 2's output.
+
+Still unverified: Pew country matching, the COW crosswalk, Muslim-plurality outcomes, validation tables and the
+Pew 2050 comparison on actual outputs.
+
 ## Needed to proceed
 1. Allow outbound access to `correlatesofwar.org`, `population.un.org`,
    `naturalearth.s3.amazonaws.com` (or supply those files), and supply
