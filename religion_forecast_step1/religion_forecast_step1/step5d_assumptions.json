@@ -1,0 +1,24 @@
+{
+  "status": "VERIFY EVERY NUMBER BEFORE CITING. Values were entered from memory of the cited Pew report, not downloaded or re-read in this environment (no access to pewresearch.org).",
+  "source": "Pew Research Center, 'The Future of World Religions: Population Growth Projections, 2010-2050' (2015), global figures for 2010-15 (fertility) and 2010 (median age).",
+  "world_tfr_2010_15": 2.5,
+  "world_median_age_2010": 28,
+  "group_tfr_2010_15": {
+    "Christianity": 2.7, "Islam": 3.1, "Hinduism": 2.4, "Buddhism": 1.7,
+    "Judaism": 2.3, "Folk_Traditional": 1.8, "Other": 1.7, "Unaffiliated": 1.7
+  },
+  "group_median_age_2010": {
+    "Christianity": 30, "Islam": 23, "Hinduism": 26, "Buddhism": 34,
+    "Judaism": 36, "Folk_Traditional": 28, "Other": 30, "Unaffiliated": 34
+  },
+  "parameter_ranges": {
+    "phi": {"range": [0.3, 0.7], "meaning": "Fraction of the GLOBAL fertility gap that applies INSIDE a country. Global gaps partly reflect where groups live (Muslims in high-fertility countries), so within-country gaps are smaller. Range is a judgement, not an estimate."},
+    "psi": {"range": [0.3, 0.7], "meaning": "Same idea for median-age offsets between groups inside a country."},
+    "Hf": {"range": [30, 80], "meaning": "Years for within-country fertility gaps to shrink by 63%. Pew 2015 reports gaps narrowing; the speed is a judgement."},
+    "e0": {"range": [66, 78], "meaning": "Life expectancy of the single model life table. Only group DIFFERENCES matter, because each country is rescaled to WPP totals every step."},
+    "lam": {"range": [0.3, 0.6], "meaning": "Weight of the same-continent emigrant pool vs the global pool when assigning the religion of arrivals. No origin-destination data are used."},
+    "switch_strength": {"range": [0.5, 1.0], "meaning": "Share of the calibrated 2010-2020 net switching that continues."},
+    "switch_half_life": {"range": [30, 120], "meaning": "Years for continuing net switching to halve."},
+    "eps_sd": {"value": 0.06, "meaning": "SD of a persistent country-by-group draw added to the within-country fertility multiplier (drawn once per run)."}
+  }
+}
