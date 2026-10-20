@@ -501,7 +501,8 @@ def card_hindcast_decades(ctx):
                      x_name='Decade starting ')
     table = pd.DataFrame({'Decade start': years, **{s['name']: s['y'] for s in series}})
     note = ('Each point is a 10-year hindcast from that decade. Momentum (carrying the last decade\'s unexplained change '
-            'forward) helps in 1960–1970 and hurts from 1980 on. That is why it is not in the headline.')
+            'forward) helps in 1960–1970, is about even in 1980, and hurts from 1990 on. That is why it is not in the '
+            'headline.')
     return card('History tests: error by decade', note, svg, legend=[(s['cls'], s['name']) for s in series],
                 table=table), None
 
