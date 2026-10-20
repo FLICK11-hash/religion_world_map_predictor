@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from step5d_cohort_forecast import OUT, ROOT, YEARS, CATEGORIES, SCENARIOS
+from step5d_diagnostics import holders, shift_share
 
 report = json.loads((OUT / 'step5d_report.json').read_text(encoding='utf8'))
 R, N = int(report['runs']), int(report['countries'])
@@ -80,18 +81,41 @@ if decomp is not None:
               f"   Christianity {r.Christianity_2020 * 100:5.1f}% -> {r.Christianity_2050 * 100:5.1f}%")
     print('  If the unaffiliated share still falls with no fertility gaps and no migration, the cause is the starting '
           'age structure, not a fertility assumption.')
-print('\nHEADLINE SHARES (global, population-weighted mean over runs)')
-gu = pd.read_csv(OUT / 'global_share_uncertainty.csv')
-mean = gu.pivot(index='year', columns='religion', values='mean')
-change = (mean.loc[2050] - mean.loc[2020]) * 100
-for c in ['Christianity', 'Islam', 'Hinduism', 'Unaffiliated']:
-    print(f'  {c:13s} 2020 {mean.loc[2020, c] * 100:5.1f}%   2050 {mean.loc[2050, c] * 100:5.1f}%   change {change[c]:+5.1f} pp')
-if change['Unaffiliated'] < -3:
-    print('  WARNING: the headline unaffiliated share falls by more than 3 pp by 2050. History shows the unaffiliated '
-          'rising since 1990, so this decline needs a clear cause. Check the sensitivity table above.')
-if change['Christianity'] > 0:
-    print('  NOTE: the headline has no switching, so Christianity rises here. Between 1990 and 2010 history shows '
-          'Christianity falling through switching, not demography.')
+print('\nHEADLINE: WHERE THE WORLD SHARE CHANGES COME FROM, 2020 to 2050 (percentage points)')
+cu = pd.read_csv(OUT / 'country_year_uncertainty.csv')          # headline scenario, with mean_population
+ss, _ = shift_share(cu, CATEGORIES, 2020, 2050)
+gmean = pd.read_csv(OUT / 'global_share_uncertainty.csv').pivot(index='year', columns='religion', values='mean')
+for _, r in ss.iterrows():
+    level20, level50 = gmean.loc[2020, r.religion] * 100, gmean.loc[2050, r.religion] * 100
+    if abs((level50 - level20) - r.change_pp) > 0.1:
+        print(f'  CHECK: the decomposition differs from the model by {abs((level50 - level20) - r.change_pp):.2f} pp for {r.religion}')
+    print(f'  {r.religion:16s} {level20:5.1f}% -> {level50:5.1f}%   change {r.change_pp:+6.2f}   '
+          f'within countries {r.within_country_pp:+6.2f}   population weighting {r.population_weighting_pp:+6.2f}')
+un = ss.set_index('religion').loc['Unaffiliated']
+if un.change_pp < -3:
+    share = un.population_weighting_pp / un.change_pp
+    if share > 0.5:
+        print(f'  WARNING: {share * 100:.0f}% of the unaffiliated decline is population weighting: the countries that hold '
+              'most unaffiliated people shrink in the WPP projection. It is not religious change inside countries.')
+        print('           This headline assumes no conversion, so it shows what population growth alone does. See README_STEP5D.')
+    else:
+        print('  WARNING: most of the unaffiliated decline happens inside countries. Check the sensitivity table above.')
+if ss.set_index('religion').loc['Christianity'].change_pp > 0:
+    print('  NOTE: the headline has no switching, so Christianity can rise here. History since 1990 shows it falling through switching.')
+
+print('\nWHO HOLDS THE WORLD\'S PEOPLE IN EACH RELIGION (2020 start state, share of the world total)')
+for c in ['Unaffiliated', 'Folk_Traditional', 'Buddhism', 'Christianity']:
+    h = holders(cu, 2020, c)
+    print(f'  {c:16s} ' + ', '.join(f'{i} {v * 100:.0f}%' for i, v in h.head(3).items()))
+s20 = cu[cu.year.eq(2020)].set_index('country_id')
+if 'CHN' in s20.index:
+    chn = s20.loc['CHN']
+    print(f'  China, 2020 start state: unaffiliated {chn.mean_Unaffiliated * 100:.0f}%, folk religion '
+          f'{chn.mean_Folk_Traditional * 100:.0f}%, Buddhism {chn.mean_Buddhism * 100:.0f}%')
+    if chn.mean_Unaffiliated > 0.75:
+        print('  CHECK: Pew 2020 puts most of China in "religiously unaffiliated". WRP history classifies much of the same')
+        print('         population as folk religion. The two classifications differ by roughly 10 points of world population.')
+        print('         Decide which start state you want before reading the unaffiliated headline. See README_STEP5D.')
 
 print('\nMIGRATION (headline scenario, mean over runs, 2020-2100)')
 od = report.get('bilateral_migration')
@@ -99,7 +123,7 @@ if isinstance(od, dict) and 'file' in od:
     print(f"- Migration matrix: bilateral table {od['file']} ({od['pairs_used']} pairs; "
           f"{od['destinations_with_bilateral_data']} of {od['destinations_total']} destinations covered)")
 elif isinstance(od, dict):
-    print(f"- Migration matrix: {od.get('source')} (geography only; read the README_STEP5D limits before using destination results)")
+    print(f"- Migration matrix: {od.get('source')}. Read the README_STEP5D limits before using destination results.")
 else:
     print(f'- Migration matrix: {od}')
 mig = pd.read_csv(OUT / 'migration_by_religion.csv')
