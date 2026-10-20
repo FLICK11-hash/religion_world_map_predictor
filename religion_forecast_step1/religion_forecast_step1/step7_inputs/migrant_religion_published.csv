@@ -1,0 +1,10 @@
+# Published religious composition of international migrant STOCKS (Pew 2024, built on UN migrant stock 2020).
+# Used to estimate how selective emigration is by religion (step7_estimate.calibrate_selectivity).
+# Pew groups: other = folk + other religions in this project.
+scope,Christianity,Islam,Unaffiliated,Hinduism,Buddhism,other,Judaism,url,evidence_type
+world_migrants_2020,47.0,29.0,13.0,5.0,4.0,2.0,1.0,https://www.pewresearch.org/religion/2024/08/19/the-religious-composition-of-the-worlds-migrants/,pew_page_text (search excerpt; check against the report)
+migrants_living_in_Europe_2020,56.0,18.0,20.0,,,,,https://www.pewresearch.org/religion/2024/08/19/migrants-living-in-each-region/,pew_page_text (search excerpt; check against the report)
+migrants_living_in_MENA_2020,12.0,75.0,,8.0,,,,https://www.pewresearch.org/religion/2024/08/19/migrants-living-in-each-region/,pew_page_text (search excerpt; check against the report); Muslim share stated as about 75
+india_born_migrants_2020,16.0,,,,,,,https://www.pewresearch.org/religion/2024/08/19/the-religious-composition-of-the-worlds-migrants/,pew_page_text (search excerpt; check against the report); India population 2% Christian
+india_born_migrants_2020,,33.0,,41.0,,,,https://www.newslaundry.com/2024/08/19/most-hindu-migrants-in-gcc-countries-indian-emigrants-disproportionately-from-minorities-pew,secondary_news (not used for calibration)
+us_foreign_born_adults_2023,58.0,4.0,25.0,4.0,3.0,,,https://www.pewresearch.org/religion/2025/02/26/religious-landscape-study-executive-summary/,pew_page_text (search excerpt; check against the report)
