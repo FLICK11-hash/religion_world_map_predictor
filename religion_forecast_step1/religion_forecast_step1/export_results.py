@@ -40,7 +40,7 @@ PURPOSE = {
     "scenario_parameters.csv": "Step 5D: the drawn parameters for every run",
     "unaffiliated_decomposition.csv": "Step 5D: headline mechanisms switched off one at a time (where a share change comes from)",
     "migration_by_religion.csv": "Step 5D: inflow, outflow and net by country and religion, 2020-2050 and 2020-2100",
-    "headline_country_shares.csv": "Step 5D headline: country shares in selected years (mean over runs)",
+    "headline_country_shares.csv": "Step 5D headline: country shares and population in selected years (mean over runs)",
     "verify_step5d_output.txt": "Output of verify_step5d.py on this run (integrity checks and diagnostics)",
 }
 
@@ -59,7 +59,7 @@ def headline_shares(dest: Path):
         return False
     df = pd.read_csv(src, low_memory=False)
     df = df[df.year.isin([2020, 2050, 2100, 2200, 3026])]
-    cols = ["country_id", "year", "most_likely_dominant", "dominant_agreement_fraction"]
+    cols = ["country_id", "year", "most_likely_dominant", "dominant_agreement_fraction", "mean_population"]
     cols += [c for c in df.columns if c.startswith("mean_")]
     df[cols].to_csv(dest / "headline_country_shares.csv", index=False)
     return True

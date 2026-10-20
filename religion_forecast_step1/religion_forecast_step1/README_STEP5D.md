@@ -83,3 +83,48 @@ Run `verify_step5d.py` and read these in its output:
    (see the limits above).
 5. **Within-country gap.** The Pew 2010-2020 hindcast and the Step 5E history tests both show the gap is not identified.
 
+## Reading the headline: what moves the world shares
+A world share is an average of country shares, weighted by population. So a change in the world share has two parts:
+- **within countries**: fertility gaps, age structure and migration change a group's share inside each country;
+- **population weighting**: countries that hold more or fewer of a group's people grow or shrink relative to the world.
+
+`verify_step5d.py` prints this split for every religion. From the run of commit 72fd808 (headline, 2020 to 2050):
+
+| religion | 2020 -> 2050 | within countries | population weighting |
+|---|---|---|---|
+| Unaffiliated | 24.2% -> 18.0% (-6.2 pp) | -0.6 | -5.6 |
+| Islam | 25.6% -> 31.2% (+5.6 pp) | +1.0 | +4.6 |
+| Christianity | 28.8% -> 30.6% (+1.9 pp) | -0.2 | +2.1 |
+
+- **The unaffiliated decline is almost all population weighting, and most of that is China.** In the 2020 start state China
+  has 90% unaffiliated and holds 67% of the world's unaffiliated people. WPP projects China to fall 12% by 2050, so its
+  weight drops and the world share falls with it. China alone accounts for -4.5 of the -5.6 pp.
+- **Islam's rise is mostly population growth in Pakistan, Nigeria, Ethiopia, Afghanistan and Sudan** (+4.6 pp of weighting),
+  not conversion or higher fertility inside countries (+1.0 pp).
+- **The headline has no conversion.** Religion changes only through fertility gaps and migration, so the headline is
+  what population growth does on its own. It is not a forecast of belief.
+
+### Decision needed: which folk-religion classification
+Pew and WRP divide religion into different categories, and the gap is large:
+
+| | Pew 2010 | Pew 2020 | WRP 2010 |
+|---|---|---|---|
+| World unaffiliated | 22.0% | 24.2% | 11.5% |
+| World folk religion | 1.4% | 1.4% | 11.4% |
+| China unaffiliated | - | 89.6% | 32.5% |
+| China folk religion | - | 3.0% | 46.3% |
+
+The 1950-2010 history tests (Step 5E) use WRP's categories, while the forecast starts from Pew's. So the
+unaffiliated findings from history do not carry over to the forecast as it stands.
+
+- **Option A, Pew as published (current default).** The start state is Pew's 2020 data. The unaffiliated headline is
+  24.2% in 2020 and 18.0% in 2050 under the no-conversion assumption, and it is driven by China.
+- **Option B, WRP-consistent folk.** Where WRP measures more folk religion than Pew 2020, move the difference out of
+  Pew's unaffiliated into folk, capped at the unaffiliated share. This affects 83 countries and 0.66 billion people,
+  mostly China (43 points moved). It gives unaffiliated 15.8% and folk 9.7% in 2020. The 2050 population-weighting effect
+  for the unaffiliated falls from -5.6 to -3.6 points, so the decline shrinks but does not disappear.
+- Option B agrees with the history tests; Option A agrees with Pew's published 2020 figures.
+
+To check the source yourself, open `pew_2010_2020.xlsx`, sheet "Unrounded counts", and find China for 2010 and 2020.
+Compare `Religiously_unaffiliated` and `Other_religions` with `Population`.
+
