@@ -160,3 +160,26 @@ momentum in switching 5.03 (worse). Consequences for the audit:
 2. Supply the existing `data/processed`, `data/features`, `data/models` and
    `data/forecasts*` folders (or let Step 2-5 regenerate them), so earlier
    results can be backed up before anything is replaced.
+
+## How Step 7 relates to these findings (see religion_forecast_step1/README_STEP7.md)
+
+Step 7 builds on the Step 5D cohort engine and is a new model, not a patch. Earlier steps and their outputs are unchanged.
+
+| Audit item / 5D gap | In Step 7 |
+|---|---|
+| 1 changes freeze after 2100; bands shrink | No decaying tilt. After 2100, national demography follows stated long-run rules, and switching and migration keep working. The reference scenario lets switching fade by assumption (half-life 150 years); other scenarios do not. Within-scenario bands widen with horizon. |
+| 2 population never feeds shares | Shares are computed from persons by religion × generation × age. |
+| 4 double counting | Switching is fitted only to what a demographic + migration hindcast leaves unexplained, plus survey cells. The remaining residual gets weight 0, because history tests did not support it. |
+| 5, 6 arbitrary group growth, random advantages | Fertility uses damped Pew global ratios (φ is still an assumption) plus an optional observed-by-country file. There are no random growth drifts. |
+| 7 uniform one-way secularization | Gross switching in both directions: disaffiliation, conversion and affiliation. Rates are country- and religion-specific from a hierarchical model, and differ by generation. Lifetime outflows are capped at the highest survey values. |
+| 8 migration as regression to the mean; 5D did not conserve migrants by religion | Explicit origin-destination flows: Sinkhorn fit to WPP margins (softened where WPP's projected margins conflict with the migrant network), UN bilateral stocks plus gravity. The same persons leave and arrive, conserved exactly by religion and age (verify_step7 check 3). The religion of each corridor's migrants (minority effect and destination affinity) is calibrated to Pew's published composition of migrants. Two-way circulation scales with each country's observed migrant stock. |
+| 9, 10 pooled persistence; modal vs mean winner | Every run is a real model run. Both modal and mean dominant groups are reported. |
+| 11 clipping non-conservation | Engine sub-steps conserve persons; components add up exactly (verify_step7 check 2). |
+| 12 silent defaults | Missing inputs are listed in step7_report.json (`inputs`). Channel Islands are dropped (no WPP series). French overseas regions borrow a neighbour's coordinates for distances. |
+| 13 iid noise, unjustified ranges | Each range in step7_assumptions.json carries a status (observed, estimated, assumption, unverified). parameter_provenance.csv lists them. |
+| Continent names (new finding) | `wrp_history.load_geography` keeps the .dbf NUL padding in continent names. Step 5D only compared them with each other, so it was unaffected. Step 7 strips the padding. |
+
+Still open:
+- Within-country fertility by religion needs observed data (template: `step7_inputs/religion_fertility_observed.csv`).
+- Pew's corridor-level migrant religion data needs a free account.
+- The Pew 2010-2020 window needs `data/processed/pew_harmonized.csv` (Step 2) to be fitted and tested.

@@ -1,0 +1,5 @@
+window,switch_strength_used,residual_alpha_used,residual_weight_used
+WRP 1970-1980,1.0,10.0,0.0
+WRP 1980-1990,0.5,100.0,0.25
+WRP 1990-2000,0.0,100.0,0.0
+WRP 2000-2010,0.0,100.0,0.0
