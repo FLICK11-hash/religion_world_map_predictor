@@ -1,0 +1,6 @@
+scenario,Christianity,Islam,Hinduism,Buddhism,Judaism,Folk_Traditional,Other,Unaffiliated
+demography_only,30.65,31.23,14.68,3.31,0.18,1.25,0.71,17.99
+demography_plus_switching,27.74,31.23,14.51,2.74,0.18,1.37,0.8,21.44
+equal_fertility_counterfactual,30.48,30.91,14.78,3.35,0.18,1.29,0.75,18.27
+no_migration_counterfactual,31.05,30.64,14.55,3.32,0.19,1.24,0.72,18.29
+Pew 2015 projection,31.4,29.7,14.9,5.2,0.2,4.8,0.7,13.2
