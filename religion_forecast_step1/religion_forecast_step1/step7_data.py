@@ -139,6 +139,9 @@ def wrp_and_geography():
 
 
 # ------------------------------------------------------------------ bilateral stocks
+_IMS_MEMO = {}
+
+
 def ims_bilateral(wpp):
     """Bilateral migrant stocks: DataFrame(origin_iso3, dest_iso3, year, migrants) or None.
     Reads the UN DESA IMS 2024 workbook (both-sexes block) or a tidy CSV."""
@@ -158,6 +161,20 @@ def ims_bilateral(wpp):
     if not xl:
         _note('bilateral_stock', 'missing', 'migration pattern = gravity (geography only)')
         return None
+    # Parsing the workbook takes minutes on some machines and validation builds many contexts, so the
+    # parsed table is kept in memory and in a cache file that is rebuilt whenever the workbook is newer.
+    cache = RAW7 / 'ims_bilateral_parsed.csv.gz'
+    key = (str(xl[-1]), xl[-1].stat().st_mtime)
+    if _IMS_MEMO.get('key') == key:
+        _note('bilateral_stock', 'used', _IMS_MEMO['note'])
+        return _IMS_MEMO['df'].copy()
+    if cache.exists() and cache.stat().st_mtime >= xl[-1].stat().st_mtime:
+        df = pd.read_csv(cache)
+        note = f'{xl[-1].name}: {len(df)} country pairs x years, years {sorted(df.year.unique().astype(int))} (cached parse)'
+        _IMS_MEMO.update(key=key, df=df, note=note)
+        _note('bilateral_stock', 'used', note)
+        return df.copy()
+    print(f'Reading {xl[-1].name} (slow the first time; the parsed table is cached) ...', flush=True)
     raw = pd.read_excel(xl[-1], sheet_name=None, header=None)
     sheet = next((s for s in raw.values() if s.astype(str).apply(
         lambda c: c.str.contains('code of destination', case=False, na=False)).any().any()), None)
@@ -185,7 +202,10 @@ def ims_bilateral(wpp):
         rows.append(pd.DataFrame({'origin_iso3': orig, 'dest_iso3': dest, 'year': y, 'migrants': v}))
     df = pd.concat(rows, ignore_index=True).dropna()
     df = df[df.migrants > 0]
-    _note('bilateral_stock', 'used', f'{xl[-1].name}: {len(df)} country pairs x years, years {sorted(seen)}')
+    note = f'{xl[-1].name}: {len(df)} country pairs x years, years {sorted(seen)}'
+    df.to_csv(cache, index=False, compression='gzip')
+    _IMS_MEMO.update(key=key, df=df, note=note)
+    _note('bilateral_stock', 'used', note)
     return df
 
 
