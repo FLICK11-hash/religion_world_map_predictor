@@ -12,8 +12,13 @@ read off the resulting populations.
 .\.venv\Scripts\python.exe verify_step5d.py
 .\.venv\Scripts\python.exe step5d_make_maps.py
 .\.venv\Scripts\python.exe step5d_make_scenario_maps.py
+.\.venv\Scripts\python.exe make_step5_charts.py
 ```
 Outputs: `data/forecasts_step5d/`, `outputs/maps_step5d/`. Read the DIAGNOSTICS block that `verify_step5d.py` prints first.
+
+`make_step5_charts.py` writes one page of charts, `outputs/charts_step5/index.html`, from the latest outputs (the
+forecast folder, else `results_step5/`). Open it in a browser. Every chart has a table view under it. It needs only
+numpy and pandas.
 
 ## What is modelled
 
