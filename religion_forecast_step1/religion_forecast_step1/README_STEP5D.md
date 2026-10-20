@@ -70,9 +70,9 @@ All four scenarios are in the `*_by_scenario.csv` files. Counterfactuals are not
 ## Checks before trusting the headline (`demography_only`)
 Run `verify_step5d.py` and read these in its output:
 0. **Decomposition.** `unaffiliated_decomposition.csv` (and the DECOMPOSITION block) runs four single deterministic
-   projections, switching off fertility gaps, then migration, then age offsets. If the unaffiliated share still falls
-   with no fertility gaps and no migration, the cause is the starting age structure. Report that result: it means
-   the headline decline is not a fertility assumption.
+   projections, switching off fertility gaps, then migration, then age offsets. The last row keeps every country's
+   shares fixed, so any change there is population weighting. It falls, so the headline decline is population weighting
+   (see "Reading the headline" below).
 1. **Sensitivity table.** The correlation of each 2050 world share with each parameter, across the headline runs.
    If the unaffiliated share is driven by `psi`, that is an age-structure assumption, not evidence.
 2. **Headline shares.** The unaffiliated share has fallen by more than 3 points in earlier runs of the headline. History
@@ -101,6 +101,8 @@ A world share is an average of country shares, weighted by population. So a chan
   weight drops and the world share falls with it. China alone accounts for -4.5 of the -5.6 pp.
 - **Islam's rise is mostly population growth in Pakistan, Nigeria, Ethiopia, Afghanistan and Sudan** (+4.6 pp of weighting),
   not conversion or higher fertility inside countries (+1.0 pp).
+- **Correction to an earlier note:** I first said the unaffiliated fall would come from the starting age structure. The
+  decomposition shows otherwise: with fixed within-country shares the fall remains, so it is population weighting.
 - **The headline has no conversion.** Religion changes only through fertility gaps and migration, so the headline is
   what population growth does on its own. It is not a forecast of belief.
 
@@ -123,7 +125,8 @@ unaffiliated findings from history do not carry over to the forecast as it stand
   Pew's unaffiliated into folk, capped at the unaffiliated share. This affects 83 countries and 0.66 billion people,
   mostly China (43 points moved). It gives unaffiliated 15.8% and folk 9.7% in 2020. The 2050 population-weighting effect
   for the unaffiliated falls from -5.6 to -3.6 points, so the decline shrinks but does not disappear.
-- Option B agrees with the history tests; Option A agrees with Pew's published 2020 figures.
+- Option A uses the Pew file as it is. Option B agrees with the WRP categories used by the history tests.
+- The WRP world figures cover the 184 countries that WRP covers with geometry, not every country.
 
 To check the source yourself, open `pew_2010_2020.xlsx`, sheet "Unrounded counts", and find China for 2010 and 2020.
 Compare `Religiously_unaffiliated` and `Other_religions` with `Population`.

@@ -79,8 +79,8 @@ if decomp is not None:
     for _, r in decomp.iterrows():
         print(f"  {r.setting:52s} unaffiliated {r.Unaffiliated_2020 * 100:5.1f}% -> {r.Unaffiliated_2050 * 100:5.1f}%"
               f"   Christianity {r.Christianity_2020 * 100:5.1f}% -> {r.Christianity_2050 * 100:5.1f}%")
-    print('  If the unaffiliated share still falls with no fertility gaps and no migration, the cause is the starting '
-          'age structure, not a fertility assumption.')
+    print('  The last row keeps every country\'s shares fixed (no fertility gaps, no migration, no age offsets), so any change')
+    print('  in it is population weighting: countries that hold more or fewer of the religion\'s people grow or shrink.')
 print('\nHEADLINE: WHERE THE WORLD SHARE CHANGES COME FROM, 2020 to 2050 (percentage points)')
 cu = pd.read_csv(OUT / 'country_year_uncertainty.csv')          # headline scenario, with mean_population
 ss, _ = shift_share(cu, CATEGORIES, 2020, 2050)
