@@ -111,3 +111,23 @@ for religion in data_2024:
     average_religion_change_per_year[religion] = total_change / (len(years) - 1)
 
 print(average_religion_change_per_year)
+
+prediction_2100 = data_2024.copy()
+prediction_2100["year"] = 2100
+
+prediction_2500 = data_2024.copy()
+prediction_2500["year"] = 2500
+
+prediction_3026 = data_2024.copy()
+prediction_3026["year"] = 3026
+
+for religion in average_religion_change_per_year:
+    prediction_2100[religion] += average_religion_change_per_year[religion] * 76
+    prediction_2500[religion] += average_religion_change_per_year[religion] * 476
+    prediction_3026[religion] += average_religion_change_per_year[religion] * 1002
+
+print(average_religion_change_per_year)
+print(prediction_2100)
+print(prediction_2500)
+print(prediction_3026)
+
