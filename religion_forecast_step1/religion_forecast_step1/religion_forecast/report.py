@@ -66,7 +66,7 @@ def export_results():
     EXPORT.mkdir(exist_ok=True)
     made = []
     for old in EXPORT.glob('*'):
-        old.unlink()
+        shutil.rmtree(old) if old.is_dir() else old.unlink()
     for name in SMALL:
         if (F / name).exists():
             if name == 'global_share_by_scenario.csv':
@@ -102,6 +102,12 @@ def export_results():
     if OUT.exists():
         shutil.copy2(OUT, EXPORT / 'comparison_report.md')
         made.append('comparison_report.md')
+    # Figures travel with the results. outputs/ is git-ignored because it is rewritten on every
+    # run, but a shared run is unreadable without its maps, so the exported copy is tracked.
+    if config.FIGURES.exists():
+        shutil.copytree(config.FIGURES, EXPORT / 'figures')
+        n = sum(1 for _ in (EXPORT / 'figures').rglob('*.svg'))
+        made.append(f'figures/ ({n} SVG figures, open figures/index.html)')
     # reproducibility stamp: the commit the run was made at, and the integrity checks it passed
     import subprocess
     stamp = {}
@@ -131,7 +137,7 @@ def export_results():
         '# Results of one run\n\nSmall copies of one complete run, written by `run.py report --export`, so a '
         'reader can check the numbers without re-running anything. The full outputs stay in data/ and are '
         'git-ignored.\n\nStart with `comparison_report.md`. `run_stamp.json` records the commit the run was made '
-        'at and whether the integrity checks passed; `integrity_checks.txt` is their captured output.\n\n' + '\n'.join(f'- {m}' for m in made) + '\n', encoding='utf8')
+        'at and whether the integrity checks passed; `integrity_checks.txt` is their captured output. Open `figures/index.html` to browse every figure.\n\n' + '\n'.join(f'- {m}' for m in made) + '\n', encoding='utf8')
     print(f'Exported {len(made)} files to {EXPORT}')
 
 

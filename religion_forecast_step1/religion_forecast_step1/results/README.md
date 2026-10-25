@@ -2,7 +2,7 @@
 
 Small copies of one complete run, written by `run.py report --export`, so a reader can check the numbers without re-running anything. The full outputs stay in data/ and are git-ignored.
 
-Start with `comparison_report.md`. `run_stamp.json` records the commit the run was made at and whether the integrity checks passed; `integrity_checks.txt` is their captured output.
+Start with `comparison_report.md`. `run_stamp.json` records the commit the run was made at and whether the integrity checks passed; `integrity_checks.txt` is their captured output. Open `figures/index.html` to browse every figure.
 
 - global_share_by_scenario.csv
 - components_world_period.csv
@@ -39,5 +39,6 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - country_target_years_reference_with_bands.csv
 - components_country_2020_2100_reference.csv
 - comparison_report.md
+- figures/ (56 SVG figures, open figures/index.html)
 - integrity_checks.txt
 - run_stamp.json
