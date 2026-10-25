@@ -1,6 +1,6 @@
 # Step 7 comparison report
 
-Generated 2026-10-25 00:35 UTC from `data/validation/` and `data/projections/`.
+Generated 2026-10-25 00:41 UTC from `data/validation/` and `data/projections/`.
 
 ## 1. Inputs used in this run
 
