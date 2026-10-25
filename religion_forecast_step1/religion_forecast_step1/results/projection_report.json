@@ -1,0 +1,213 @@
+{
+  "timestamp_utc": "2026-10-25T00:26:33.725705+00:00",
+  "runtime_seconds": 2090.2,
+  "countries": 200,
+  "dropped_countries": [
+    "CHI_ISLANDS"
+  ],
+  "start_state": "results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)",
+  "inputs": {
+    "wpp_indicators": {
+      "status": "used",
+      "detail": "237 countries, 1950-2100"
+    },
+    "start_state": {
+      "status": "fallback",
+      "detail": "results_step5 2020 start state (201 countries); Pew 2010 unavailable"
+    },
+    "wrp": {
+      "status": "used",
+      "detail": "1730 usable country-years of 1995"
+    },
+    "natural_earth": {
+      "status": "used",
+      "detail": "242 map units"
+    },
+    "wpp_age": {
+      "status": "used",
+      "detail": "200 of 200 countries, 1950-2100 (5-year points)"
+    },
+    "bilateral_stock": {
+      "status": "used",
+      "detail": "undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx: 68941 country pairs x years, years [np.int64(1990), np.int64(1995), np.int64(2000), np.int64(2005), np.int64(2010), np.int64(2015), np.int64(2020), np.int64(2024)] (cached parse)"
+    },
+    "migrant_religion": {
+      "status": "missing",
+      "detail": "no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv)"
+    },
+    "switching_survey": {
+      "status": "used",
+      "detail": "67 verified cells, 33 countries"
+    },
+    "religion_fertility": {
+      "status": "used",
+      "detail": "8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back"
+    },
+    "unhcr": {
+      "status": "used",
+      "detail": "64809 rows 2010-2022"
+    },
+    "pew_2015_projection": {
+      "status": "used",
+      "detail": "5 years, 234 countries"
+    }
+  },
+  "runs_per_scenario": 40,
+  "seed": 2026,
+  "scenarios": {
+    "stabilising": "Historical trends gradually stabilising (reference): after 2100 switching fades (half-life 150 years) to 30% of its 2100 level",
+    "continued_secularization": "Continued switching and secularization",
+    "high_retention": "High religious retention and slower conversion",
+    "rising_migration": "Increasing international migration and religious diversity",
+    "low_migration": "Lower migration",
+    "changing_migration": "Changing migration patterns (networks fade; geography and demographic pressure dominate)",
+    "persistent_fertility_gaps": "Changing fertility differences: within-country religious fertility gaps persist",
+    "combined_dispersal": "Combined: secularization continues, migration rises, fertility gaps persist"
+  },
+  "reference_scenario": "stabilising",
+  "switching_fit": {
+    "delta": 0.0,
+    "beta_d": 0.8,
+    "tau_u": 0.8,
+    "net_noise_scale_pp": [
+      2.62,
+      0.574,
+      0.2,
+      0.2,
+      0.2,
+      0.272,
+      0.701,
+      0.655
+    ],
+    "median_posterior_ess": 222.91897379649424,
+    "latent_draws": 256
+  },
+  "switching_survey_level": {
+    "logit_shift_by_religion": {
+      "Christianity": 0.5517031438175763,
+      "Islam": -0.523313060610235,
+      "Hinduism": -0.24077197003862238,
+      "Buddhism": 0.7550657696738199,
+      "Judaism": 0.0,
+      "Folk_Traditional": 0.0,
+      "Other": 0.0,
+      "Unaffiliated": -0.08852507585470448
+    },
+    "note": "survey level = fitted rates shifted so adults 18-54 match Pew 2025 (117 countries); runs mix the two levels"
+  },
+  "emigration_selectivity": {
+    "model": "affinity",
+    "kappa": 0.5,
+    "lam": 0.65,
+    "rmse_pp": 2.213315558805887,
+    "rmse_if_mirror_origin_pp": 5.928812458194395,
+    "residuals_pp": [
+      [
+        "world_migrants_2020",
+        "Christianity",
+        -5.140140071675319
+      ],
+      [
+        "world_migrants_2020",
+        "Islam",
+        1.099755772032399
+      ],
+      [
+        "world_migrants_2020",
+        "Unaffiliated",
+        3.210517265912465
+      ],
+      [
+        "world_migrants_2020",
+        "Hinduism",
+        -0.8423307074088395
+      ],
+      [
+        "world_migrants_2020",
+        "Buddhism",
+        -0.22314165513465767
+      ],
+      [
+        "world_migrants_2020",
+        "other",
+        1.394175001109888
+      ],
+      [
+        "world_migrants_2020",
+        "Judaism",
+        -0.4988356048359388
+      ],
+      [
+        "migrants_living_in_Europe_2020",
+        "Christianity",
+        -1.2013047043835456
+      ],
+      [
+        "migrants_living_in_Europe_2020",
+        "Islam",
+        1.0219695897604453
+      ],
+      [
+        "migrants_living_in_Europe_2020",
+        "Unaffiliated",
+        0.38944912012258825
+      ],
+      [
+        "migrants_living_in_MENA_2020",
+        "Christianity",
+        -3.0830228122249004
+      ],
+      [
+        "migrants_living_in_MENA_2020",
+        "Islam",
+        2.98587484447917
+      ],
+      [
+        "migrants_living_in_MENA_2020",
+        "Hinduism",
+        0.30585858922503206
+      ],
+      [
+        "india_born_migrants_2020",
+        "Christianity",
+        4.06993365415493
+      ],
+      [
+        "us_foreign_born_adults_2023",
+        "Christianity",
+        3.2624261504700485
+      ],
+      [
+        "us_foreign_born_adults_2023",
+        "Islam",
+        0.8442888679939342
+      ],
+      [
+        "us_foreign_born_adults_2023",
+        "Unaffiliated",
+        -0.7444752318639125
+      ],
+      [
+        "us_foreign_born_adults_2023",
+        "Hinduism",
+        -1.57373481601639
+      ],
+      [
+        "us_foreign_born_adults_2023",
+        "Buddhism",
+        -0.2863663807001009
+      ]
+    ]
+  },
+  "diagnostics": {
+    "mean_abs_log_rescale_to_2100": 0.007473484359038167,
+    "migration_shortfall_persons_mean": 45167420.4398046
+  },
+  "cautions": [
+    "Shares after 2100 rest on stated long-run assumptions; 2500 and 3026 are speculative scenarios.",
+    "Within-scenario bands are parameter and model uncertainty under that scenario, not calibrated probabilities.",
+    "The Folk/Traditional vs Other split of Pew data is a WRP-based proxy; WRP and Pew classify China differently.",
+    "Fertility gaps come from published world, regional or country figures (fertility_evidence.csv); the world and regional tiers are damped because a ratio measured across countries is not a within-country ratio.",
+    "The religion of migrants comes from a two-parameter model (minority effect, destination affinity) calibrated to Pew aggregates; corridor-level religion of migrants is not observed."
+  ]
+}

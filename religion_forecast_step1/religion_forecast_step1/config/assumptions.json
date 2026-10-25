@@ -1,0 +1,615 @@
+{
+  "read_me": "Every number the Step 7 model uses that is not read from a data file. status: observed = taken from a cited dataset; estimated = fitted by Step 7 from data (the value here is only a prior or search range); assumption = researcher choice with the stated reasoning; unverified = a published figure that could not be re-checked in the build environment (verify before citing).",
+  "random_seed": 2026,
+  "runs_per_scenario": 40,
+  "fertility": {
+    "group_fertility_source": {
+      "status": "observed (published figures, tracked with citations)",
+      "file": "inputs/fertility_by_religion.csv",
+      "note": "Published total fertility by religious group at three levels: world (Pew 2015, eight groups), region (Pew 2015: Europe and sub-Saharan Africa) and country (India NFHS-5, Israel CBS, Nigeria IIASA reconstruction, United States Pew completed fertility). The file is the only source of these numbers; the model uses each figure as a RATIO to the same source's own reference TFR. The most local tier available wins for each country and religion."
+    },
+    "reference_world_tfr": {
+      "status": "observed",
+      "value": 2.5,
+      "source": "Pew Research Center (2015), world TFR 2010-15, all women",
+      "note": "Used only to convert a ratio gap into an additive gap when w_add > 0."
+    },
+    "phi": {
+      "status": "assumption",
+      "range": [
+        0.3,
+        0.7
+      ],
+      "note": "Fraction of a WORLD ratio that applies inside a country. Global ratios mostly reflect where each group lives rather than within-country differences. Step 5E: history cannot identify it (error flat in phi). Note the United States figures imply an unaffiliated ratio of 0.86, which the world ratio 0.68 reproduces at phi close to 0.5, the middle of this range."
+    },
+    "phi_region": {
+      "status": "assumption",
+      "range": [
+        0.6,
+        1.0
+      ],
+      "note": "Fraction of a REGIONAL ratio that applies inside a country. Higher than phi because a regional ratio carries much less composition bias, below 1 because some remains (within sub-Saharan Africa, Muslims live in the higher-fertility Sahel)."
+    },
+    "unexplained_gap_sd": {
+      "status": "assumption",
+      "value": 0.06,
+      "note": "Country-level noise on a gap taken from a world or regional figure (ratio points)."
+    },
+    "observed_gap_sd": {
+      "status": "assumption",
+      "value": 0.03,
+      "note": "Noise on a gap taken from a country figure: the survey period rarely matches the projection period exactly, and completed fertility lags a period rate. Smaller than unexplained_gap_sd because the quantity was measured in that country."
+    },
+    "w_add": {
+      "status": "assumption",
+      "range": [
+        0.0,
+        0.5
+      ],
+      "note": "Weight on an additive gap (same number of extra children) versus a multiplicative gap (same ratio)."
+    },
+    "gap_half_life_years": {
+      "status": "assumption",
+      "range": [
+        30,
+        80
+      ],
+      "note": "Within-country fertility gaps shrink by half over this many years (scenario persistent_fertility_gaps sets 10000)."
+    },
+    "first_generation_multiplier": {
+      "status": "assumption",
+      "range": [
+        1.0,
+        1.3
+      ],
+      "note": "Foreign-born women's fertility relative to natives of the same religion in the destination."
+    },
+    "second_generation_multiplier": {
+      "status": "assumption",
+      "range": [
+        1.0,
+        1.1
+      ]
+    },
+    "observed_override": "Country rows in inputs/fertility_by_religion.csv with verified=yes replace the modelled gap for that country and religion; add rows there to extend coverage."
+  },
+  "age_structure": {
+    "pew_global_median_age_2010": {
+      "status": "unverified",
+      "source": "Pew (2015) median age by religion, 2010; copied from step5d_assumptions.json (entered from memory).",
+      "world": 28,
+      "by_group": {
+        "Christianity": 30,
+        "Islam": 23,
+        "Hinduism": 26,
+        "Buddhism": 34,
+        "Judaism": 36,
+        "Folk_Traditional": 28,
+        "Other": 30,
+        "Unaffiliated": 34
+      }
+    },
+    "psi": {
+      "status": "assumption",
+      "range": [
+        0.0,
+        0.2
+      ],
+      "note": "Fraction of the global median-age gap applied inside countries; Step 5E preferred 0 on training decades."
+    }
+  },
+  "switching": {
+    "status": "estimated (delta, beta_d, tau_u and every country's effect are fitted by empirical Bayes); the mu_* centres, beta_a and the tau_* below are assumption priors",
+    "mu_d": {
+      "Christianity": 0.08,
+      "Islam": 0.015,
+      "Hinduism": 0.015,
+      "Buddhism": 0.1,
+      "Judaism": 0.08,
+      "Folk_Traditional": 0.08,
+      "Other": 0.06
+    },
+    "mu_d_note": "Prior centre of LIFETIME disaffiliation (raised in r, now unaffiliated) at development index z = 0 (about e0 72.5 and TFR 2.3). Ordering follows Pew (2025): Christianity and Buddhism lose most to disaffiliation; Muslims and Hindus are retained at very high rates. The level is re-estimated (delta) from the data.",
+    "mu_v": {
+      "Christianity": 0.01,
+      "Islam": 0.005,
+      "Hinduism": 0.005,
+      "Buddhism": 0.015,
+      "Judaism": 0.01,
+      "Folk_Traditional": 0.02,
+      "Other": 0.02
+    },
+    "mu_v_note": "Prior centre of lifetime conversion to ANOTHER religion; destinations in proportion to local prevalence.",
+    "mu_a": 0.12,
+    "mu_a_note": "Prior centre of lifetime affiliation of people raised unaffiliated (any religion).",
+    "beta_a": -0.3,
+    "tau_e": 0.5,
+    "tau_a": 0.8,
+    "tau_v": 0.7,
+    "grid": {
+      "delta": [
+        -1.5,
+        -1.0,
+        -0.5,
+        0.0,
+        0.5,
+        1.0,
+        1.5
+      ],
+      "beta_d": [
+        -0.5,
+        0.0,
+        0.4,
+        0.8,
+        1.2,
+        1.6,
+        2.0,
+        2.4
+      ],
+      "tau_u": [
+        0.4,
+        0.8,
+        1.2,
+        1.6,
+        2.0
+      ]
+    },
+    "latent_draws": 256,
+    "generation_intensity": {
+      "status": "assumption informed by published retention",
+      "first": [
+        0.3,
+        0.6
+      ],
+      "second": [
+        0.4,
+        0.8
+      ],
+      "note": "Switching of foreign-born and second-generation residents relative to natives of the same religion. Published: second-generation Christian-origin immigrants in 33 European countries disaffiliate at 17.75% (first generation 14.27%; Molteni and van Tubergen 2022), against roughly 35-45% among native-born Christians in Western Europe (Pew 2018, 2025). France (Ined): second-generation Muslims keep their religion at 91%. See step7_inputs/second_generation_published.csv."
+    },
+    "net_evidence_weight": {
+      "status": "assumption",
+      "value": 0.5,
+      "note": "Down-weights each decade of net-change evidence (definition changes and measurement noise make decades less than independent)."
+    },
+    "strength_range": {
+      "status": "sensitivity hook (fixed at 1)",
+      "range": [
+        1.0,
+        1.0
+      ],
+      "note": "Multiplier on all switching rates. Kept at 1; the evidence about the LEVEL of switching enters through survey_level_weight. History tests of strength 0, 0.5 and 1 are in data/validation_step7/."
+    },
+    "survey_level_weight": {
+      "status": "evidence mixture (both ends are estimated)",
+      "range": [
+        0.0,
+        1.0
+      ],
+      "note": "Two sources disagree on the level of switching. 0 = rates fitted to net share changes (WRP 1950-2010, Pew 2010-2020 when available) and survey cells; 1 = the same rates shifted (by religion) to reproduce Pew 2025 survey figures for adults 18-54 in 117 countries (left per 100 raised: Christians 17.1, Buddhists 22.1, unaffiliated 7.5, Muslims and Hindus about 1). The fit to net changes gives Christians about 10 and Buddhists about 13. Each run draws a weight between them, so the bands span the disagreement. History tests favoured switching fitted on four or more earlier decades over none for 1990-2010."
+    },
+    "lifetime_outflow_cap": {
+      "status": "assumption anchored on the highest survey values",
+      "by_group": {
+        "Christianity": 0.5,
+        "Islam": 0.25,
+        "Hinduism": 0.2,
+        "Buddhism": 0.61,
+        "Judaism": 0.25,
+        "Folk_Traditional": 0.5,
+        "Other": 0.5,
+        "Unaffiliated": 0.45
+      },
+      "note": "No country is given more lifetime outflow than the highest observed in surveys: raised Christian 49% left (South Korea, Pew 2025), raised Buddhist 61% (South Korea), raised Muslim about 25%, raised Hindu about 20%, raised Jewish about 24% (US RLS); raised unaffiliated who join a religion 45% (US 2014 RLS). Folk/Other: assumption."
+    }
+  },
+  "development_index": {
+    "status": "assumption (scaling only)",
+    "e0_mean": 72.5,
+    "e0_sd": 7.5,
+    "neglogtfr_mean": -0.83,
+    "neglogtfr_sd": 0.45,
+    "z_min": -3.0,
+    "z_max": 1.8,
+    "note": "z = mean of standardised WPP life expectancy and -log(TFR). Capped at 1.8 (about the most developed countries in 2020) so development effects are not extrapolated beyond observed levels."
+  },
+  "generations": {
+    "second_generation_initial_ratio": {
+      "status": "assumption",
+      "range": [
+        0.3,
+        0.8
+      ],
+      "note": "Second-generation stock in 2020 as a multiple of the first-generation stock (no global data)."
+    },
+    "foreign_born_proxy_attrition_years": {
+      "status": "assumption",
+      "value": 45,
+      "note": "Without UN migrant stocks, foreign-born residents in 2020 are approximated by positive WPP net migration 1950-2019, decayed with this mean residence time (deaths and return)."
+    }
+  },
+  "migration": {
+    "turnover_per_year": {
+      "status": "estimated range (calibrated to UN foreign-born stocks 1990-2020)",
+      "range": [
+        0.0,
+        0.0004
+      ],
+      "note": "Two-way circulation beyond WPP net migration, fraction of population per year, scaled by each country's mobility. step7_validate.py (foreign_born_check) starts from the UN 1990 foreign-born stocks and simulates 1990-2020: the UN 2020 world total (252 million in the modelled countries) is matched at about 0.0001, the population-weighted country error is lowest at 0.0002 and the country-mean error at 0.0003; above 0.0004 every error grows (0.0011, the old central value, gives 407 million; these figures are with exact margins, margin_rho = 1, and change little at 0.75). Gross flow estimates (Abel & Cohen, about 0.0016 per year) are higher because many movers return: the model counts a returning emigrant as foreign-born in their own country, so it needs the lower, stock-consistent rate. Gross churn is therefore understated; foreign-born stocks are not."
+    },
+    "margin_rho": {
+      "status": "estimated centre (history), assumed range",
+      "range": [
+        0.5,
+        1.0
+      ],
+      "note": "How strictly the flow solver enforces WPP's net migration against the observed migrant network: flows F = a K b with a = (E / K b)^rho and b = (I / K' a)^rho. rho = 1 enforces both WPP margins exactly; WPP's projected margins are partly inconsistent with the network (for example Pakistan keeps emigrating about 0.5-1 million a year while Gulf net immigration falls to almost zero after 2030), which then forces emigrants into whichever countries have positive net immigration (Pakistan would supply 46% of UK immigrants in 2020-2050 against 8% of its 2020 foreign-born). Lower rho lets both margins give way. The 1990-2020 corridor test in step7_validate.py (migration_corridor_check.csv) fits destinations' origin mixes best near 0.75; the range spans that uncertainty."
+    },
+    "omega_gravity_weight": {
+      "status": "assumption",
+      "range": [
+        0.15,
+        0.4
+      ],
+      "note": "Weight of geography versus existing migrant networks in new flows, when bilateral stocks exist. 1.0 = gravity only (used without the UN table)."
+    },
+    "gravity": {
+      "status": "assumption (Step 5D/5E values)",
+      "gamma": 1.5,
+      "b_adj": 2.0,
+      "b_cont": 0.5
+    },
+    "cell_cap": {
+      "status": "assumption",
+      "value": 0.5,
+      "note": "At most half of any origin cell (religion x generation x age) can leave in 5 years."
+    },
+    "minority_selectivity_lambda": {
+      "status": "assumption, used only when selectivity cannot be calibrated",
+      "range": [
+        0.0,
+        0.15
+      ],
+      "note": "When UN bilateral stocks and step7_inputs/migrant_religion_published.csv are present, step7_estimate.calibrate_selectivity estimates the minority effect and religion propensities instead (reported in the forecast report)."
+    },
+    "post2100_congestion_theta": {
+      "status": "assumption",
+      "range": [
+        0.5,
+        1.5
+      ]
+    },
+    "note": "To 2100 the WPP medium net migration fixes each country's net; scenarios multiply both net and circulation."
+  },
+  "long_run_demography": {
+    "status": "assumption (after 2100 there are no UN projections)",
+    "tfr_long_run": [
+      1.6,
+      2.1
+    ],
+    "tfr_half_life_years": [
+      50,
+      150
+    ],
+    "e0_gain_per_year": [
+      0.02,
+      0.06
+    ],
+    "e0_cap": [
+      90,
+      95
+    ],
+    "note": "National TFR converges from its 2100 value to a long-run level; life expectancy keeps rising slowly to a cap. Under-5 mortality falls with life expectancy (held at the 2100 value scaled to the e0 gain).",
+    "country_deviation_sd": {
+      "status": "assumption",
+      "range": [
+        0.05,
+        0.15
+      ],
+      "note": "Spread of countries' long-run TFR around the global long-run level after 2100 (children per woman). Was a hardcoded 0.1 in the code."
+    },
+    "country_deviation_half_life_years": {
+      "status": "assumption",
+      "range": [
+        100,
+        400
+      ],
+      "note": "Country deviations from the long-run level halve over this many years. Earlier versions made them permanent, which over 900 years compounded a 0.1-child difference into the dominant source of spread at 2500-3026 (the 5-95% band for Islam at 3026 was 22 points with a permanent deviation against 5-6 points with any half-life in this range). No country is assumed to hold a fertility advantage for centuries."
+    }
+  },
+  "residual": {
+    "status": "estimated weight (chosen by forward-chaining validation in step7_validate.py); 0 unless it improves out-of-sample error",
+    "default_weight": 0.0
+  },
+  "scenarios": {
+    "stabilising": {
+      "label": "Historical trends gradually stabilising (reference): after 2100 switching fades (half-life 150 years) to 30% of its 2100 level",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": 0.0,
+        "retention_shift": 0.0,
+        "affiliation_shift": 0.0,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 150,
+        "post2100_floor": 0.3
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            1.0
+          ],
+          [
+            2200,
+            1.0
+          ],
+          [
+            3030,
+            1.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "continued_secularization": {
+      "label": "Continued switching and secularization",
+      "switching": {
+        "dev_link_until": 3030,
+        "trend_logit_per_century": 0.6,
+        "trend_until": 2300,
+        "retention_shift": 0.0,
+        "affiliation_shift": -0.3,
+        "drift_sd_per_century": 0.2
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            1.0
+          ],
+          [
+            2200,
+            1.0
+          ],
+          [
+            3030,
+            1.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "high_retention": {
+      "label": "High religious retention and slower conversion",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": -0.3,
+        "trend_until": 2300,
+        "retention_shift": -0.7,
+        "affiliation_shift": 0.4,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 100,
+        "post2100_floor": 0.2
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            1.0
+          ],
+          [
+            2200,
+            1.0
+          ],
+          [
+            3030,
+            1.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "rising_migration": {
+      "label": "Increasing international migration and religious diversity",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": 0.0,
+        "retention_shift": 0.0,
+        "affiliation_shift": 0.0,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 150,
+        "post2100_floor": 0.3
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            2.0
+          ],
+          [
+            2200,
+            3.0
+          ],
+          [
+            3030,
+            4.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "low_migration": {
+      "label": "Lower migration",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": 0.0,
+        "retention_shift": 0.0,
+        "affiliation_shift": 0.0,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 150,
+        "post2100_floor": 0.3
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            0.5
+          ],
+          [
+            2200,
+            0.35
+          ],
+          [
+            3030,
+            0.25
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "changing_migration": {
+      "label": "Changing migration patterns (networks fade; geography and demographic pressure dominate)",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": 0.0,
+        "retention_shift": 0.0,
+        "affiliation_shift": 0.0,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 150,
+        "post2100_floor": 0.3
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            1.2
+          ],
+          [
+            2200,
+            1.5
+          ],
+          [
+            3030,
+            1.5
+          ]
+        ],
+        "omega_drift_to_gravity_by": 2100,
+        "pressure_pull": true
+      },
+      "fertility": {
+        "gap_half_life": null
+      }
+    },
+    "persistent_fertility_gaps": {
+      "label": "Changing fertility differences: within-country religious fertility gaps persist",
+      "switching": {
+        "dev_link_until": 2100,
+        "trend_logit_per_century": 0.0,
+        "retention_shift": 0.0,
+        "affiliation_shift": 0.0,
+        "drift_sd_per_century": 0.15,
+        "post2100_half_life": 150,
+        "post2100_floor": 0.3
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            1.0
+          ],
+          [
+            2200,
+            1.0
+          ],
+          [
+            3030,
+            1.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": 10000
+      }
+    },
+    "combined_dispersal": {
+      "label": "Combined: secularization continues, migration rises, fertility gaps persist",
+      "switching": {
+        "dev_link_until": 3030,
+        "trend_logit_per_century": 0.6,
+        "trend_until": 2300,
+        "retention_shift": 0.0,
+        "affiliation_shift": -0.3,
+        "drift_sd_per_century": 0.2
+      },
+      "migration": {
+        "multiplier_knots": [
+          [
+            2020,
+            1.0
+          ],
+          [
+            2100,
+            2.0
+          ],
+          [
+            2200,
+            3.0
+          ],
+          [
+            3030,
+            4.0
+          ]
+        ],
+        "omega_drift_to_gravity_by": null
+      },
+      "fertility": {
+        "gap_half_life": 10000
+      }
+    }
+  },
+  "reference_scenario": "stabilising"
+}

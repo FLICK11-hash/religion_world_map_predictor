@@ -1,0 +1,95 @@
+{
+  "timestamp_utc": "2026-10-24T23:51:43.533480+00:00",
+  "start_state": "results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)",
+  "inputs": {
+    "wpp_indicators": {
+      "status": "used",
+      "detail": "237 countries, 1950-2100"
+    },
+    "start_state": {
+      "status": "fallback",
+      "detail": "results_step5 2020 start state (201 countries); Pew 2010 unavailable"
+    },
+    "wrp": {
+      "status": "used",
+      "detail": "1730 usable country-years of 1995"
+    },
+    "natural_earth": {
+      "status": "used",
+      "detail": "242 map units"
+    },
+    "wpp_age": {
+      "status": "used",
+      "detail": "200 of 200 countries, 1950-2100 (5-year points)"
+    },
+    "bilateral_stock": {
+      "status": "used",
+      "detail": "undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx: 68941 country pairs x years, years [np.int64(1990), np.int64(1995), np.int64(2000), np.int64(2005), np.int64(2010), np.int64(2015), np.int64(2020), np.int64(2024)] (cached parse)"
+    },
+    "migrant_religion": {
+      "status": "missing",
+      "detail": "no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv)"
+    },
+    "switching_survey": {
+      "status": "used",
+      "detail": "67 verified cells, 33 countries"
+    },
+    "religion_fertility": {
+      "status": "used",
+      "detail": "8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back"
+    },
+    "unhcr": {
+      "status": "used",
+      "detail": "64809 rows 2010-2022"
+    }
+  },
+  "history_test_choices": {
+    "switching_strength_best_all_windows": 0.0,
+    "switching_strength_scores_popw_tv_pp": {
+      "0.0": 4.381163054211865,
+      "0.5": 4.502920279283002,
+      "1.0": 4.796813488880641
+    },
+    "switching_strength_best_1990_2010": 1.0,
+    "switching_strength_scores_1990_2010_popw_tv_pp": {
+      "0.0": 4.580264460980635,
+      "0.5": 4.488675292831494,
+      "1.0": 4.4870548473696745
+    },
+    "residual": {
+      "alpha": 100.0,
+      "weight": 0.0
+    },
+    "residual_scores_popw_tv_pp": {
+      "alpha=1,weight=1": 6.44774782052862,
+      "alpha=10,weight=1": 6.350382841153776,
+      "alpha=100,weight=0.5": 5.071207580238816,
+      "alpha=100,weight=0": 4.569562116264183,
+      "alpha=100,weight=0.25": 4.704365355075105,
+      "alpha=1,weight=0.5": 5.289441701822897,
+      "alpha=1,weight=0": 4.569562116264183,
+      "alpha=10,weight=0": 4.569562116264183,
+      "alpha=10,weight=0.25": 4.787212871912084,
+      "alpha=10,weight=0.5": 5.257069084833732,
+      "alpha=1,weight=0.25": 4.80072151940592,
+      "alpha=100,weight=1": 5.932945539328639
+    }
+  },
+  "used_by_forecast": {
+    "switching_strength": "fixed at 1 (config/assumptions.json, switching.strength_range), not taken from the history tests. Over all four windows no switching scores best, because the two earliest folds were fitted on only two or three noisy WRP decades (see switching_fit_by_fold.csv); on 1990-2010, where the fit had four or five decades, full strength scores best; and surveys observe switching directly. The level of switching is uncertain and enters each run through survey_level_weight.",
+    "residual_weight": 0.0,
+    "residual_note": "The forecast runs without the residual learner. If history_test_choices.residual.weight is above 0 (for example with the Pew 2010-2020 window), that is reported, not applied."
+  },
+  "emigration_selectivity": {
+    "model": "affinity",
+    "kappa": 0.5,
+    "lambda": 0.65,
+    "rmse_pp": 2.213315558805887,
+    "rmse_if_migrants_mirror_origin_pp": 5.928812458194395
+  },
+  "notes": [
+    "history_test_choices are the options with the lowest mean population-weighted error over the test windows; the per-window choices in out_of_sample_choices.csv use earlier windows only.",
+    "WPP 2024 estimates are used for each historical window (retrospective, not real-time).",
+    "WRP and Pew classify some populations differently (notably folk religion vs unaffiliated in China); windows never mix sources."
+  ]
+}
