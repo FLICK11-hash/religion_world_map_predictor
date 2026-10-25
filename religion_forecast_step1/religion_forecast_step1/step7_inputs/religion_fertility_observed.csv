@@ -1,6 +1,0 @@
-# Observed total fertility by religion WITHIN countries. Empty: add verified rows to replace the damped Pew global ratios.
-# Columns: country_iso3, religion (one of the eight categories), tfr, period, source, url, verified (yes/no).
-# Suggested sources (not transcribed here because they could not be checked in the build environment):
-#   India NFHS-5 2019-21 (TFR by religion), Israel CBS Statistical Abstract (TFR by religion), Nigeria/Kenya/Ethiopia DHS
-#   (TFR by religion of woman), Pew Research Center 2017 Europe's Growing Muslim Population (Muslim vs non-Muslim TFR 2010-15).
-country_iso3,religion,tfr,period,source,url,verified
