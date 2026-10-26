@@ -143,9 +143,9 @@ for religion in average_religion_change_per_year:
     year_3026_sum = prediction_3026[religion]
 
 for religion in average_religion_change_per_year:
-    prediction_2100[religion] = prediction_2100[religion]/year_2100_sum
-    prediction_2500[religion] = prediction_2500[religion]/year_2500_sum
-    prediction_3026[religion] = prediction_3026[religion]/year_3026_sum
+    prediction_2100[religion] = (prediction_2100[religion])/year_2100_sum
+    prediction_2500[religion] = (prediction_2500[religion])/year_2500_sum
+    prediction_3026[religion] = (prediction_3026[religion])/year_3026_sum
     
     
 
