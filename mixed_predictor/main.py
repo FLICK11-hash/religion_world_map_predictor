@@ -137,9 +137,20 @@ def report(args) -> int:
     _write_csv("forecast_by_strategy.csv", spread_rows)
 
     longest = max(r["horizon_years"] for r in horizon_rows)
-    print(f"\nThe longest horizon ever tested here is {longest} years, with a mean error of "
+    print(f"\nThe longest horizon ever tested here is {longest} years, scored by "
+          f"{horizon_rows[-1]['forecasts']} forecast(s), mean error "
           f"{horizon_rows[-1]['mean_error_pp']:.2f} pp.")
     print(f"Every figure past {years[-1] + longest} is extrapolation beyond anything measured.")
+    spread = max(100 * abs(model.predict(trends, years[-1], 2100, None)[g]
+                           - model.predict(trends, years[-1], 2100, half_life)[g])
+                 for g in groups)
+    print(f"\nREAD THE FLAT ROWS AS 'NO INFORMATION', NOT 'NO CHANGE'. The rows above barely move "
+          f"because\nthe selected half-life is short, and it is short because nine observations "
+          f"cannot settle it:\nfour strategies score within "
+          f"{max(r['cv_mean_error_pp'] for r in summary) - min(r['cv_mean_error_pp'] for r in summary):.2f} pp "
+          f"of each other yet disagree by up to {spread:.1f} pp at 2100.\nThis model has no "
+          f"mechanism -- no births, deaths, migration or conversion -- so a flat answer is what a\n"
+          f"trend fitted to {len(years)} global aggregates can support, not a claim about the world.")
 
     _write_csv("forecast.csv", forecast_rows)
     _write_csv("validation_cross_validated.csv", summary)
