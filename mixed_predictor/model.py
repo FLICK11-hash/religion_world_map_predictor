@@ -53,6 +53,31 @@ def fit(years: list[int], shares: dict, groups: list[str]) -> dict:
     return trends
 
 
+def trend_quality(years: list[int], shares: dict, groups: list[str]) -> dict:
+    """R-squared of each group's log-share trend: how straight the line actually is.
+
+    This is what lets one parameter do the work of eight. A group whose log-share really does move
+    in a straight line (Islam, 0.88 over 1970-2010) should keep its trend; one that wanders or
+    reverses ("Other", 0.28) should be damped hard. Scaling the half-life by R-squared does exactly
+    that, and R-squared is computed only from the years the model is allowed to see, so it carries
+    no information from the future.
+    """
+    reference = years[-1]
+    offsets = [y - reference for y in years]
+    mean_t = sum(offsets) / len(offsets)
+    spread = sum((t - mean_t) ** 2 for t in offsets)
+
+    quality = {}
+    for group in groups:
+        logs = [math.log(max(shares[y][group], FLOOR)) for y in years]
+        mean_y = sum(logs) / len(logs)
+        slope = sum((t - mean_t) * (v - mean_y) for t, v in zip(offsets, logs)) / spread
+        residual = sum((v - (mean_y + slope * (t - mean_t))) ** 2 for t, v in zip(offsets, logs))
+        total = sum((v - mean_y) ** 2 for v in logs)
+        quality[group] = max(0.0, 1.0 - residual / total) if total else 0.0
+    return quality
+
+
 def damped_years(horizon: float, half_life: float | None) -> float:
     """Effective elapsed time once the trend decays with the given half-life.
 
@@ -68,10 +93,19 @@ def damped_years(horizon: float, half_life: float | None) -> float:
     return scale * (1.0 - 2.0 ** (-horizon / half_life))
 
 
-def predict(trends: dict, reference_year: int, year: int, half_life: float | None) -> dict:
-    """Shares for one future year. Strictly positive, sums to exactly 1."""
-    elapsed = damped_years(year - reference_year, half_life)
-    logs = {g: level + slope * elapsed for g, (level, slope) in trends.items()}
+def predict(trends: dict, reference_year: int, year: int, half_life) -> dict:
+    """Shares for one future year. Strictly positive, sums to exactly 1.
+
+    half_life may be a single number (or None for no damping) applied to every group, or a dict
+    giving each group its own -- see trend_quality.
+    """
+    horizon = year - reference_year
+    if isinstance(half_life, dict):
+        elapsed = {g: damped_years(horizon, half_life[g]) for g in trends}
+    else:
+        shared = damped_years(horizon, half_life)
+        elapsed = {g: shared for g in trends}
+    logs = {g: level + slope * elapsed[g] for g, (level, slope) in trends.items()}
     biggest = max(logs.values())  # subtract the max before exp: standard softmax guard
     weights = {g: math.exp(v - biggest) for g, v in logs.items()}
     total = sum(weights.values())

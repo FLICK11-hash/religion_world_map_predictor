@@ -88,6 +88,7 @@ read it as "percent of the population placed in the wrong group".
 |---|---|---|---|
 | persistence (nothing changes) | 3.299 | 4.850 | – |
 | manual predictor's algorithm | 3.215 | 5.896 | 3/5 |
+| adaptive per-group damping *(rejected)* | 3.095 | 5.104 | 4/5 |
 | undamped log trend | 3.043 | 5.514 | 3/5 |
 | **damped log trend (this model)** | **3.003** | 5.086 | **4/5** |
 
@@ -106,6 +107,23 @@ years:
 | 15 years | 3 | 5.02 |
 | 20 years | 2 | 6.04 |
 | 25 years | 1 | 6.68 |
+
+### One idea that did not work
+
+Extrapolating helps for five of the eight groups taken individually — on Islam it cuts the error
+from 1.90 pp to 1.33 — but a single global half-life is chosen by a share-weighted average, which
+lets the badly-behaved series set the dial for everyone. The obvious fix was to scale each group's
+half-life by the R-squared of its own log trend, so clean trends keep extrapolating and wandering
+ones get frozen: still one parameter, applied unevenly.
+
+It scored **worse** (3.095 against 3.003) and is kept in the code, as the `adaptive` strategy, only
+as a recorded negative result. The reason it fails is worth more than the idea was: R-squared
+measures whether a line is *straight*, not whether it is *trustworthy*. Judaism scores 0.94 and
+Folk/Traditional 0.87, and those are exactly the two series whose trends are artefacts — Judaism's
+decline is mostly the world population tripling underneath it, and Folk/Traditional's is entangled
+with China's reclassification. A straight line through a measurement artefact is still straight.
+Picking which trends to trust needs knowledge about the data, which is the one thing this model
+does not have.
 
 ## Accuracy is not evenly distributed
 
@@ -179,9 +197,14 @@ worse than assuming nothing changes, and only the backtest knew.
 - **Judaism's trend is not what it looks like.** −17% per decade is mostly the denominator: the
   world's population tripled over the window. Extrapolating it to 0.19% by 2100 treats an
   arithmetic fact as a tendency, and small groups are also where WRP's measurement is thinnest.
-- **The forecast is nearly flat, and that is the finding.** With the selected half-life the
-  composition stops moving after about 2030. That is not a bug and not a claim that nothing will
-  change; it is what nine observations will support. The "beyond validated range" rows for 2500 and
+- **The forecast is nearly flat, and that means "no information", not "no change".** With the
+  selected half-life the composition stops moving after about 2030. Read with the strategy table
+  below it: four approaches score within 0.30 pp of each other in cross-validation and yet
+  disagree by up to 11.8 pp about Islam in 2100. The flat row is the middle of an interval wide
+  enough to contain both "nothing changes" and "Islam reaches 30.8%", so it carries almost no
+  information either way. It is not a claim that the world's religious composition will hold
+  still; it is what a trend fitted to nine global aggregates, with no demographic mechanism
+  underneath it, is able to support. The "beyond validated range" rows for 2500 and
   3026 exist only so this can be compared with the other two implementations, which report them.
 - **Intended use.** This is coursework comparing three ways of building the same small application.
   It is not a research instrument and should not be cited as a projection of anyone's religious

@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import statistics
 
-from model import fit, predict
+from model import fit, predict, trend_quality
 
 MIN_TRAIN = 4          # observations needed before a cut is usable
-STRATEGIES = ("persistence", "manual", "undamped", "damped")
+STRATEGIES = ("persistence", "manual", "undamped", "damped", "adaptive")
 HALF_LIFE_GRID = [0, 5, 10, 15, 20, 30, 40, 60, 80, 120, 200, 400, None]
 
 
@@ -56,6 +56,14 @@ def _forecast(years, shares, groups, cut_index, target_year, half_life, strategy
     if strategy == "manual":
         return manual_algorithm(train_years, shares, groups, target_year)
     trends = fit(train_years, shares, groups)
+    if strategy == "adaptive":
+        # One dial, applied unevenly: each group's half-life is the shared one scaled by how
+        # straight its own trend is on the training years. Clean trends keep extrapolating,
+        # wandering ones get frozen.
+        base = half_life if half_life is not None else max(g for g in HALF_LIFE_GRID if g)
+        quality = trend_quality(train_years, shares, groups)
+        per_group = {g: base * quality[g] for g in groups}
+        return predict(trends, train_years[-1], target_year, per_group)
     return predict(trends, train_years[-1], target_year,
                    None if strategy == "undamped" else half_life)
 
