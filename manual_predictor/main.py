@@ -121,10 +121,34 @@ prediction_2500["year"] = 2500
 prediction_3026 = data_2024.copy()
 prediction_3026["year"] = 3026
 
+year_2100_sum = 0
+year_2500_sum = 0
+year_3026_sum = 0
 for religion in average_religion_change_per_year:
     prediction_2100[religion] += average_religion_change_per_year[religion] * 76
     prediction_2500[religion] += average_religion_change_per_year[religion] * 476
     prediction_3026[religion] += average_religion_change_per_year[religion] * 1002
+
+    # No negative #'s
+    if prediction_2100[religion] < 0:
+        prediction_2100[religion] = 0
+    if prediction_2500[religion] < 0:
+        prediction_2500[religion] = 0
+    if prediction_3026[religion] < 0:
+        prediction_3026[religion] = 0
+
+    # summing
+    year_2100_sum += prediction_2100[religion]
+    year_2500_sum = prediction_2500[religion]
+    year_3026_sum = prediction_3026[religion]
+
+for religion in average_religion_change_per_year:
+    prediction_2100[religion] = prediction_2100[religion]/year_2100_sum
+    prediction_2500[religion] = prediction_2500[religion]/year_2500_sum
+    prediction_3026[religion] = prediction_3026[religion]/year_3026_sum
+    
+    
+
 
 print(average_religion_change_per_year)
 print(prediction_2100)
