@@ -151,7 +151,10 @@ for religion in average_religion_change_per_year:
 
 
 print(average_religion_change_per_year)
+print()
 print(prediction_2100)
+print()
 print(prediction_2500)
+print()
 print(prediction_3026)
 
