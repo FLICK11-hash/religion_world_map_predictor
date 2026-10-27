@@ -1,4 +1,4 @@
-# Hand-written baseline
+# Naive linear-trend baseline
 
 The simplest possible version of the question: seven snapshots of the world's religious
 composition, an average annual change per group, and a straight-line extrapolation.
@@ -12,8 +12,9 @@ composition for 2100, 2500 and 3026, as raw dictionaries.
 
 ## What it is for
 
-It is the floor against which the other two implementations are read. It is useful precisely
-because its failures are easy to see.
+It is the simplest reference forecast in the repository, the floor against which the trend baseline
+and the cohort-component model are read. It is useful precisely because its failures are easy to
+see. It was written by hand, which is why its folder is named `manual_predictor`.
 
 ## Its data
 

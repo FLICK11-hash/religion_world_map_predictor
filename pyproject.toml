@@ -5,11 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "religion-forecast"
 version = "0.7.0"
-description = "Cohort-component projection of religious composition by country, with switching, migration and historical validation."
+description = "Probabilistic cohort-component projection of religious composition by country, with switching, migration and out-of-sample evaluation."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Conrad Flick" }]
-license = { text = "MIT" }
+# No licence has been chosen yet; see README.md.
+keywords = ["statistics", "statistical demography", "population projection", "cohort-component model",
+            "probabilistic forecasting", "forecast evaluation", "religious demography"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Sociology",
+]
 # Abstract dependencies: the ranges the package is intended to work with.
 # Only the exact set in requirements-lock.txt has been tested end to end.
 dependencies = [
