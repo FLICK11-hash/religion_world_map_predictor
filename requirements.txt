@@ -1,11 +1,7 @@
-# Core: everything the model, the backtests, the experiments and the SVG figures need.
-numpy>=1.26
-pandas>=2.1
-openpyxl>=3.1,<4      # reads the UN migrant-stock workbook
-requests>=2.31,<3     # downloads the optional datasets (run.py fetch)
-
-# Optional: only for `run.py figures --png`, the matplotlib versions of the maps.
-# The SVG figures, which are what the results use, need nothing beyond the core.
-# matplotlib>=3.8,<4
-# geopandas>=1.0,<2
-# pyogrio>=0.9
+# Installs the exact set the pipeline was verified under. Kept so that older
+# instructions (`pip install -r requirements.txt`) keep working.
+#
+#   Ranges and optional extras:  pyproject.toml
+#   Exact tested versions:       requirements-lock.txt
+#   Editable install + command:  pip install -e .         then  religion-forecast --help
+-r requirements-lock.txt

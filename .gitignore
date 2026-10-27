@@ -6,3 +6,6 @@
 **/outputs/
 *.joblib
 *.zip
+*.egg-info/
+build/
+dist/
