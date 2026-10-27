@@ -44,7 +44,7 @@ behind them, and those mechanisms are what the questions are about.
 
 Step 4B's design deserves a note because it is better than its later neighbour. It chose blend
 weights from earlier folds only, and its own README warns that "any improvement is only within
-this evaluation design". The mixed baseline in `baselines/` did not take the same care, and its
+this evaluation design". The trend baseline in `baselines/` did not take the same care, and its
 headline result turned out to be leakage (`docs/COMPARABILITY.md`).
 
 Step 5E's own record reports the result that carried forward into the current model: demography
@@ -74,7 +74,7 @@ The Generation 1 machine-learning steps need `lightgbm`, `scikit-learn`, `joblib
 (`pip install -e '.[legacy]'`, which replaces the old `requirements_step4.txt`) and a `data/processed/` panel built from the Pew workbook. Neither
 was available where the current repository was verified, so **they have not been re-run and are
 not claimed to work.** Their original layout, with the scripts beside `data/` as they expect, is
-preserved at the tag `hw4-submission`, the tip of the former `main` history.
+preserved at the tag `archive/pre-merge-main`, the tip of the former `main` history.
 
 ## Paths in these READMEs
 

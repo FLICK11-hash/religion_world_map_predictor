@@ -1,4 +1,4 @@
-# Comparing the implementations
+# Comparing the model with its baselines
 
 This repository contains two forecasting frameworks that both report their errors in percentage
 points. Those numbers are **not comparable**, and a reader who sets them side by side will reach a
@@ -6,7 +6,7 @@ wrong conclusion. This page explains why, and states the one comparison that is 
 
 ## What each one measures
 
-| | Primary package (`religion_forecast/`) | Mixed baseline (`baselines/mixed_predictor/`) |
+| | Primary package (`religion_forecast/`) | Trend baseline (`baselines/mixed_predictor/`) |
 |---|---|---|
 | Unit forecast | 200 countries × 8 religions | one world composition, 8 shares |
 | Countries | all with WPP demography | balanced panel of 131, those present in every WRP year 1970-2010 |
@@ -22,10 +22,10 @@ wrong conclusion. This page explains why, and states the one comparison that is 
 **Aggregation removes error.** The world composition is a population-weighted sum of country
 compositions. If a model overstates the Muslim share in one country and understates it by the same
 number of people in another, the world error is zero while the country-level error is not. The
-mixed baseline is scored after that cancellation; the primary package before it. Lower world-level
+trend baseline is scored after that cancellation; the primary package before it. Lower world-level
 error is therefore expected even from a worse model, and says nothing about which forecasts better.
 
-**They predict different populations.** The mixed baseline keeps only states present in every WRP
+**They predict different populations.** The trend baseline keeps only states present in every WRP
 year from 1970 to 2010, which drops 63 states holding 10.7% (733 million) of the 2010 population.
 The two largest are **Indonesia (240 million) and Bangladesh (147 million)**, both Muslim-majority,
 followed by reunified Germany and the post-Soviet states. Bangladesh is a genuine post-1970 state.
@@ -33,7 +33,7 @@ Indonesia is not: it is simply **missing from the WRP files for 1980 and 1985**,
 dataset, so any panel requiring every year excludes the world's largest Muslim-majority country.
 The balanced panel therefore understates the world Muslim share, and its trend.
 
-**They pool different horizons.** The primary package scores ten-year windows. The mixed baseline
+**They pool different horizons.** The primary package scores ten-year windows. The trend baseline
 averages 5- to 25-year forecasts, where the longest horizons have the largest errors and the fewest
 instances.
 
@@ -53,14 +53,14 @@ Both frameworks give the same answer, and it is the most robust finding in the r
 |---|---|---|
 | Primary package, best variant | 2 of 4 windows | p = 0.75 |
 | Primary package, as used for the forecast (switching strength 1) | 2 of 4 windows | p = 0.875 |
-| Mixed baseline, damped trend (corrected evaluation) | 2 of 4 folds | p = 1.0 |
-| Mixed baseline, best variant (undamped trend) | 3 of 4 folds | p = 0.25 |
+| Trend baseline, damped trend (corrected evaluation) | 2 of 4 folds | p = 1.0 |
+| Trend baseline, best variant (undamped trend) | 3 of 4 folds | p = 0.25 |
 
 With four test windows the smallest p-value a two-sided paired test can produce is 0.125, so
 neither framework can show significant skill over persistence at the 5% level regardless of the
 data. Two quite different approaches converge on the same result: **at decadal horizons, the
 historical record does not let any of these models be distinguished from assuming nothing
-changes.** That is a statement about the evidence, not a failure of either implementation, and it
+changes.** That is a statement about the evidence, not a failure of either approach, and it
 is the right frame for reading every projection in this repository.
 
 The p-values are computed by `sign_flip_test` in `baselines/mixed_predictor/validate.py`, applied
@@ -77,9 +77,9 @@ populations, and the two earliest omit the largest Muslim-majority country. That
 in mind when reading the 1980-1990 window, where full-strength switching does worst, though nothing
 here shows the omission is what causes that error.
 
-## A correction to the mixed baseline's original result
+## A correction to the trend baseline's original result
 
-The mixed baseline originally reported beating persistence by 9% of the error in 4 of 5 folds. That
+The trend baseline originally reported beating persistence by 9% of the error in 4 of 5 folds. That
 result came from a leaking cross-validation: when each fold was held out, its half-life was tuned on
 later folds, which are scored on the held-out fold's own target years. 14 of 15 test targets entered
 the tuning objective. Under leakage-free nested forward-chaining the advantage disappears (2.962 pp

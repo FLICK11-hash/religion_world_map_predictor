@@ -1,13 +1,33 @@
-# Religious composition of countries: a cohort-component projection
+# Projecting the religious composition of countries
 
-A demographic simulation of how the religious composition of every country may change from 2020,
-through births, deaths, ageing, religious switching and international migration. Populations are
-held as persons by country (200), religion (8), migrant generation (3) and five-year age group (17),
-and moved forward in five-year steps under eight scenarios. Every mechanism's contribution to every
-change in share is recorded, so the components add up exactly to the simulated change.
+**A probabilistic cohort-component model and its out-of-sample evaluation**
 
-The repository's contribution is less a forecast than an account of **what a forecast of this kind
-can and cannot support**. Its historical validation shows that no version of the model can be
+| | |
+|---|---|
+| Field | Statistics: applied statistics and statistical demography |
+| Topic | Probabilistic population projection and forecast evaluation, applied to religious composition |
+| arXiv category | `stat.AP` (Statistics: Applications) |
+| MSC 2020 | 62P25 (applications of statistics to the social sciences), 91D20 (mathematical demography), 62M20 (prediction) |
+| JEL | C53 (forecasting and simulation methods), J11 (demographic trends and forecasts), Z12 (religion) |
+| Keywords | cohort-component projection, religious switching, international migration, Monte Carlo uncertainty, backtesting, interval calibration, shift-share decomposition |
+
+The model is a demographic simulation of how the religious composition of every country may change
+from 2020, through births, deaths, ageing, religious switching and international migration.
+Populations are held as persons by country (200), religion (8), migrant generation (3) and five-year
+age group (17), and moved forward in five-year steps under eight scenarios. Parameter uncertainty is
+propagated by Monte Carlo. Every mechanism's contribution to every change in share is recorded, so
+the components add up exactly to the simulated change.
+
+## Research questions
+
+1. Which mechanisms account for projected change in religious composition, within countries and
+   for the world as a whole?
+2. Does a mechanistic projection forecast historical decades better than naive baselines?
+3. Are its probabilistic intervals calibrated?
+4. How far does disagreement between data sources limit what any projection can be scored against?
+
+The contribution is less a forecast than an account of **what a forecast of this kind can and
+cannot support**. The model's historical validation shows that no version of it can be
 distinguished from assuming nothing changes, that its uncertainty bands are several times too
 narrow, and that two vintages of the published figures it is scored against differ by more than two
 independent models differ about the next thirty years.
@@ -65,20 +85,23 @@ parameters, the largest effect on the 2100 Christian share (standardised rank co
 rate Pew's surveys report. The model is most sensitive to a disagreement between two kinds of
 evidence, which better switching measurement would settle.
 
-## Three implementations
+## The model and its reference baselines
 
-| | What it is | Role |
-|---|---|---|
-| `religion_forecast/` | the cohort-component package, 200 countries | **the project** |
-| `baselines/mixed_predictor/` | a damped trend on the world's eight shares, no mechanism | baseline: what a trend alone achieves |
-| `baselines/manual_predictor/` | a linear trend on seven snapshots | baseline: the floor |
+| | Method | Forecast unit | Role |
+|---|---|---|---|
+| `religion_forecast/` | probabilistic cohort-component projection | 200 countries × 8 religions | the model |
+| `baselines/mixed_predictor/` | damped log-ratio trend, half-life tuned out of sample | world, 8 groups | trend baseline |
+| `baselines/manual_predictor/` | linear trend on shares, clipped and renormalised | world, 7 groups | naive baseline |
+
+The baselines contain no demographic mechanism. They measure how much a trend alone achieves. Their
+folder names record how each was first written (see History).
 
 The baselines forecast one world composition rather than 200 countries, so **their errors are not on
-the same scale as the package's** and must not be ranked against it. `docs/COMPARABILITY.md` explains
+the same scale as the model's** and must not be ranked against it. `docs/COMPARABILITY.md` explains
 why and gives the one legitimate comparison: each model against its own persistence baseline. By that
 measure the two approaches agree that nothing is distinguishable from persistence at decadal horizons.
 
-The mixed baseline's first evaluation leaked, tuning its parameter with knowledge of each fold's
+The trend baseline's first evaluation leaked, tuning its parameter with knowledge of each fold's
 target years, and reported a 9% advantage that vanished once corrected. The correction is kept beside
 the original, with a test that tells them apart (`baselines/README.md`).
 
@@ -151,7 +174,7 @@ windows score 117, 137, 140 and 164 countries respectively.
   working tree was clean, and whether the integrity checks passed. `projection_report.json` records
   which inputs were used, which fell back and which were missing.
 - **Tests.** 16 package tests, the integrity checks, the four archived Step 5D/5E suites, 17 property
-  checks and 5 methodology checks in the mixed baseline. All pass.
+  checks and 5 methodology checks in the trend baseline. All pass.
 
 `docs/REPRODUCIBILITY.md` has the checklist, including what remains open: no container, and no
 archived snapshot of the inputs, which matters because WPP and the migrant stocks are revised.
@@ -168,18 +191,20 @@ inputs/                 published figures transcribed with citations, one eviden
 scripts/                prepare_raw_data.py, prepare_pew_panel.py, verify_data.py
 results/                one complete run, committed, with its commit stamp and check output
 results_step5/          the Step 5D export; holds the fallback start state
-baselines/              manual_predictor/, mixed_predictor/
+baselines/              manual_predictor/ (naive linear trend), mixed_predictor/ (damped log-ratio trend)
 legacy/                 archived experiments: Steps 1-6 machine learning, Steps 5D-5E cohort model
 docs/                   methods, data, limitations, reproducibility, results, comparability
+CITATION.cff            citation metadata
 data/  outputs/         generated, git-ignored
 ```
 
 ## History
 
-The repository began in October 2026 as coursework comparing three ways of building the same
-forecasting application: by hand, by prompting an AI assistant, and collaboratively from one
-specification. The prompted version is the one that grew into this package; the other two are kept
-in `baselines/`, and `baselines/README.md` records the comparison.
+The project originated in October 2026 as a course exercise in which the same forecasting question
+was implemented three ways: written by hand, generated by prompting an AI coding assistant, and
+written jointly with one. It has since been developed as an independent research project. The
+AI-generated version grew into this package. The other two are kept as its reference baselines,
+which is why their folders are named `manual_predictor` and `mixed_predictor`.
 
 The package itself went through two generations. Steps 1 to 6 were a machine-learning pipeline that
 trained LightGBM and a neural network to predict five-year changes in each religion's share. Steps
@@ -191,13 +216,23 @@ are what the questions are about. The current package, Step 7, descends directly
 The work was kept in two unrelated git histories, one holding the baselines and the first
 generation, the other the cohort model. They were merged when the repository was restructured,
 without rewriting either. `git log --follow` traces any file through both, and the state of each
-before the merge is tagged: `hw4-submission` and `step7-research-snapshot`.
+before the merge is tagged: `archive/pre-merge-main` and `archive/pre-merge-research`.
+
+**Use of AI tools.** Most of the package's code and documentation was written with an AI coding
+assistant (Claude, by Anthropic), under the author's direction. Every reported number is regenerated
+by the code from documented inputs, and the corrections recorded in `docs/` came from auditing that
+work rather than accepting it.
+
+## How to cite
+
+`CITATION.cff` holds the citation metadata, and GitHub shows it as "Cite this repository". There is
+no archived release or DOI yet. A tagged release deposited on Zenodo would provide both.
 
 ## Documentation
 
 - `docs/METHODS.md`: the model, equation by equation, and what is estimated rather than assumed
 - `docs/DATA.md`: every dataset, with coverage, dates, licence and limitations
-- `docs/COMPARABILITY.md`: why the implementations' errors cannot be ranked, and what can be compared
+- `docs/COMPARABILITY.md`: why the model's and the baselines' errors cannot be ranked, and what can be compared
 - `docs/LIMITATIONS.md`: what the validation does and does not support
 - `docs/RESULTS.md`: findings from the committed run
 - `docs/REPRODUCIBILITY.md`: the checklist and exact commands

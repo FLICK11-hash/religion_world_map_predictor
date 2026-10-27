@@ -21,7 +21,7 @@ import validate
 
 RESULTS = Path(__file__).resolve().parent / "results"
 HORIZONS = [2030, 2050, 2100]
-BEYOND_VALIDATION = [2500, 3026]   # the other two implementations report these; see README
+BEYOND_VALIDATION = [2500, 3026]   # the other two models report these; see README
 
 
 def _write_csv(name: str, rows: list[dict]) -> Path:

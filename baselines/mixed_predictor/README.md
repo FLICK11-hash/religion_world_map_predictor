@@ -1,4 +1,4 @@
-# Mixed predictor: a global-aggregate trend baseline
+# Damped log-ratio trend: a global-aggregate baseline
 
 A deliberately simple forecaster of the **world's** religious composition, eight shares with no
 countries and no demographic mechanism. It exists to answer one question for the primary package:
@@ -32,7 +32,7 @@ reproduces "nothing changes" exactly and `H = ∞` is plain extrapolation.
 
 ## Design decisions
 
-**1. A published dataset.** The hand-written baseline's own comment says its 1900–1990 rows came
+**1. A published dataset.** The naive baseline's own comment says its 1900–1990 rows came
 from "google AI overview simply because I couldn't find reliable and easy to interpret data
 anywhere else". They are internally inconsistent: Islam goes 20.0% (1920) → 13.4% (1950) → 20.0%
 (1970), which did not happen, and the 1920 row matches 1990 in five of seven fields. This baseline
@@ -53,10 +53,10 @@ German reunification) and partly this artefact. The panel understates the world 
 probably its growth. Neither the raw sums nor this panel is a clean world series; interpolating
 Indonesia's two missing years would be the obvious next step.
 
-**3. Log-ratio instead of clip-and-renormalise.** The hand-written baseline adds a linear trend,
+**3. Log-ratio instead of clip-and-renormalise.** The naive baseline adds a linear trend,
 clips negatives to zero and renormalises. The clip is irreversible: a group that reaches zero stays
 there, which is why it reports "Other" at exactly 0.00% at every horizon. Fitting in log space
-removes the failure mode. `selftest` checks both halves on real data: the hand-written algorithm does
+removes the failure mode. `selftest` checks both halves on real data: the naive baseline's algorithm does
 drive a group to zero by 2100, and this model does not at any horizon out to 12026.
 
 **4. Anchor on the observation, not the regression intercept.** The first version started each
@@ -89,7 +89,7 @@ in the wrong group":
 | Strategy | Corrected error (pp) | Beats persistence | Exact paired test, p | Original, leaking (pp) |
 |---|---|---|---|---|
 | persistence (nothing changes) | 2.977 | – | – | 3.299 |
-| hand-written baseline's algorithm | 2.544 | 3 of 4 | 0.375 | 3.215 |
+| naive baseline's algorithm (linear, clipped) | 2.544 | 3 of 4 | 0.375 | 3.215 |
 | undamped log trend | 2.425 | 3 of 4 | 0.250 | 3.043 |
 | damped log trend | 2.962 | 2 of 4 | 1.000 | 3.003 |
 | adaptive per-group damping | 2.953 | 2 of 4 | 1.000 | 3.095 |
@@ -154,7 +154,7 @@ from one another in validation, disagree by up to 12.8 pp about the Muslim share
 is the middle of an interval wide enough to contain both "nothing changes" and "Islam reaches 30.8%".
 This model has no births, deaths, migration or conversion; a flat answer is what a trend fitted to
 nine aggregates can support, not a claim about the world. The rows for 2500 and 3026 are printed only
-for comparison with the other implementations.
+for comparison with the other two models.
 
 ## Limitations
 
@@ -168,25 +168,20 @@ for comparison with the other implementations.
   it treats arithmetic as a tendency.
 - **WRP's per-row reliability codes** (`sourcereliab`, `recreliab`, `reliabilevel`) are not used.
 
-## How it was built
+## Provenance
 
-This baseline is one of three implementations of the same question, written in October 2026 to
-compare ways of building it: one by hand (`../manual_predictor/`), one by prompting an AI
-assistant, which became the primary package, and this one, written collaboratively from a single
-specification with both earlier versions as reference. That origin is why the repository holds
-three, and the record is kept because it bears on how much to trust each.
+Written in October 2026, jointly with an AI coding assistant, when the project was a course exercise
+implementing the same question three ways; the folder name records that. The specification required
+shares in [0, 100] summing to 100, validation against a baseline, a comparison of history with
+forecast and no unnecessary dependencies, and it supplied the naive baseline and the cohort model as
+reference. Two of the design decisions above came from those references: the clip (decision 3) was
+found by reading the naive baseline's code and noticing that Other was 0.00 at every horizon. The
+anchoring flaw (decision 4) was found only by running the backtest; it was invisible by inspection.
 
-The specification set the constraints: shares in [0, 100] summing to 100, validation against a
-baseline, a history-versus-forecast comparison, no unnecessary dependencies, and *"avoid copying
-unnecessary complexity"*, without which the obvious move was to port pieces of the larger model.
-The earlier versions supplied the evidence for several decisions: the clip (decision 3) was found by
-reading the hand-written code and noticing that Other was 0.00 at every horizon. The anchoring flaw
-(decision 4) was found only by running the backtest; it was invisible by inspection.
-
-The validation was where the build was least careful, and the correction above is the most
-important thing in this file. The leaking cross-validation was written, described as rigorous and
-reported, and the error was found only in a later audit. Writing a validation is not the same as
-validating, and that applies to the method as much as to the model.
+The validation was where the work was least careful, and the correction above is the most important
+thing in this file. The leaking cross-validation was written, described as rigorous and reported,
+and the error was found only in a later audit. Writing a validation is not the same as validating,
+and that applies to the method as much as to the model.
 
 ## Datasheet
 
