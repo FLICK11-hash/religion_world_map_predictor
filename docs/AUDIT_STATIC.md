@@ -143,7 +143,7 @@ Step 5D (`step5d_cohort_forecast.py`, see `README_STEP5D.md`) is a new model, no
 
 Not yet verified on real data: country matching of the new loaders, the hindcast fit, and whether the cohort engine tracks WPP growth (reported as the rescale size).
 
-## Step 5E history tests (WRP 1950-2010; see religion_forecast_step1/README_STEP5E.md)
+## Step 5E history tests (WRP 1950-2010; see legacy/README_STEP5E.md)
 
 Out of sample (chosen on 1960-1980, scored on 1990 and 2000), population-weighted error in points:
 persistence 4.62; demographic fertility gaps 4.57 (small gain); pools 4.65; gravity migration 4.63;

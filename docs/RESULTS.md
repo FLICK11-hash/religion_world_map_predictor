@@ -122,10 +122,18 @@ Pew Research Center's 2015 report projected the same quantity to 2050. Change in
 | Buddhism | −1.0 | −1.4 | +0.4 |
 | Hinduism | −0.4 | −0.3 | −0.1 |
 
-Two independently built models agree on the direction for every group, and on magnitude within
-1.3 points over thirty years. The differences are in the expected direction: this model has an
-explicitly estimated switching mechanism and projects faster Christian decline and faster
-unaffiliated decline (the latter because it weights China's shrinking population more).
+Two independently built models agree on the size of every group's change within 1.3 points over
+thirty years. They agree on its direction for six of the eight groups. The exceptions are
+Christianity, which this model has falling by 0.9 points and Pew rising by 0.2, and Judaism, where
+both changes are under 0.02 points. (An earlier version of this file said the direction agreed for
+every group; its own table showed otherwise.) The differences are in the expected direction: this
+model has an explicitly estimated switching mechanism and projects faster Christian decline and
+faster unaffiliated decline (the latter because it weights China's shrinking population more).
+
+The two disagree far more about where 2020 started than about what happens next. Pew's 2015
+estimate of the 2020 world differs from the 2020 start state used here, Pew's own later data, by
+8.6 points for the unaffiliated, 4.2 for folk religion, 2.5 for Buddhism and 2.3 for Christianity,
+largely because China is classified differently (`benchmark_vs_pew2015.csv`, `docs/LIMITATIONS.md`).
 
 Regionally the agreement is closer for sub-Saharan Africa and North America than for Latin
 America, where this model projects Christianity down 8.0 points against Pew's 0.8. That gap is
@@ -145,9 +153,19 @@ On the WRP decades, population-weighted total-variation error in percentage poin
 | + switching, full strength | 4.487 | 4.797 |
 | Extrapolate the last decade | 6.829 | 5.854 |
 
-The mechanistic model beats "nothing changes" by about 3% of the error, and extrapolation is far
-worse than either. Of the datasets added, only the UN bilateral migrant stocks measurably improved
-the migration component (1990-2010: −0.062 against persistence, the best of any variant).
+No configuration of the mechanistic model is reliably better than assuming nothing changes.
+Births and deaths alone come within 1% of persistence in both periods. Full-strength switching is
+2.9% better on 1990-2010 and 8.9% worse over all four windows, almost entirely because of the
+1980-1990 decade. Scored window by window, every configuration beats persistence in exactly 2 of
+the 4, and no difference is statistically distinguishable: an exact paired test gives p ≥ 0.75,
+and with four windows no test could return p below 0.125. An earlier version of this page reported
+only the favourable 1990-2010 column as "about 3%"; see `docs/COMPARABILITY.md`.
+
+Extrapolating the last decade is worse than persistence in all four windows, by between 0.14 and
+3.0 points. That is as consistent as four windows can show, which is still short of conventional
+significance, and it is the clearest positive result of the backtests. Of the datasets added, only
+the UN bilateral migrant stocks measurably improved the migration component (1990-2010: −0.062
+against persistence, the best of any variant).
 
 The interval calibration is the uncomfortable result: nominal 90% intervals contain the observed
 share 13-19% of the time, and would need to be 2.7 to 19 times wider to cover the error actually
@@ -179,7 +197,7 @@ deviation of the parameter):
 
 | Outcome | Strongest parameter | Coefficient | Next | R² |
 |---|---|---|---|---|
-| Christian world share | `survey_weight` | −0.89 | `tfr_dev_half_life` −0.17 | 0.77 |
+| Christian world share | `survey_weight` | −0.88 | `tfr_dev_half_life` −0.17 | 0.77 |
 | Unaffiliated world share | `survey_weight` | +0.72 | `tfr_dev_half_life` +0.19 | 0.63 |
 | Muslim world share | `Hf` (fertility-gap half-life) | +0.57 | `survey_weight` +0.51 | 0.77 |
 | Within-country diversity | `survey_weight` | +0.29 | `turnover` −0.26 | 0.29 |
