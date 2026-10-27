@@ -7,7 +7,7 @@ Required (already used by earlier steps)
   start state: data/processed/pew_harmonized.csv (Step 2, Pew 2010 and 2020, eight groups) or, if
                absent, results_step5/headline_country_shares.csv (Pew 2020 start state exported by
                Step 5D; no Pew 2010, so the 2010-2020 test cannot run)
-Optional (Step 7 uses them when present; see docs/STEP7_DATA_SOURCES.md and run.py fetch)
+Optional (Step 7 uses them when present; see docs/DATA.md and run.py fetch)
   data/raw/extra/WPP2024_PopulationByAge5GroupSex_Medium.csv.gz   national age structure
   data/raw/extra/undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx  bilateral stocks
      or data/raw/extra/migrant_stock_bilateral.csv (origin_iso3, dest_iso3, year, migrants)
