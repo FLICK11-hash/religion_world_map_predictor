@@ -6,7 +6,9 @@ import numpy as np, pandas as pd
 import step5d_cohort_forecast as S
 
 # Stub for the one function we reuse from step5 (pure numpy/pandas), extracted from the real source.
-src = Path('step5_forecast_scenarios.py').read_text(encoding='utf8')
+# Read the sibling script relative to this file, not the working directory, so the test
+# runs from the project root now that the Step 5 scripts live in legacy/.
+src = (Path(__file__).resolve().parent / 'step5_forecast_scenarios.py').read_text(encoding='utf8')
 tree = ast.parse(src)
 want = {'group_outputs', 'write_global_uncertainty'}
 ns = {'np': np, 'pd': pd, 'CATEGORIES': S.CATEGORIES, 'K': S.K}
