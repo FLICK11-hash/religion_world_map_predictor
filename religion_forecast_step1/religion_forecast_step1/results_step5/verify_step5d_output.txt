@@ -1,0 +1,98 @@
+PASS: Step 5D 120 runs, 201 countries, 4 scenarios; shares, population, 3026 interpolation, summaries, run numbering.
+
+DIAGNOSTICS (read these before using any result)
+- Countries with WPP defaults in 2020: 1; without a Pew 2010 baseline (zero switching): 0
+- Rescale to WPP totals per 5-year step (mean |log factor|): median 0.015, max 0.020. Large values mean the cohort engine disagrees with WPP population growth.
+- Hindcast 2010->2020 (global pop-weighted, percentage points of error vs Pew 2020):
+        religion  persistence_error_pp  demography_only_error_pp  countries_where_demography_gets_sign_right
+    Christianity                 2.021                     1.872                                       0.537
+           Islam                -0.409                     0.002                                       0.622
+        Hinduism                 0.083                     0.103                                       0.602
+        Buddhism                 0.507                     0.479                                       0.617
+         Judaism                 0.012                     0.004                                       0.632
+Folk_Traditional                -0.006                    -0.020                                       0.552
+           Other                -0.012                    -0.030                                       0.552
+    Unaffiliated                -2.195                    -2.410                                       0.338
+  demography-only beats persistence for 4 of 8 religions at the global level.
+- Within-country fertility gap (phi): NOT IDENTIFIED. Error changes by only 0.026 pp across phi 0-1 in the Pew 2010-2020 hindcast, so the sampled range is a judgement.
+  Persistence (no change) scores 3.35 pp; the demographic model should beat it. Step 5E history tests show demography only slightly better than no change.
+                      scenario  Christianity  Islam  Hinduism  Buddhism  Judaism  Folk_Traditional  Other  Unaffiliated
+               demography_only         30.65  31.23     14.68      3.31     0.18              1.25   0.71         17.99
+     demography_plus_switching         27.74  31.23     14.51      2.74     0.18              1.37   0.80         21.44
+equal_fertility_counterfactual         30.48  30.91     14.78      3.35     0.18              1.29   0.75         18.27
+   no_migration_counterfactual         31.05  30.64     14.55      3.32     0.19              1.24   0.72         18.29
+           Pew 2015 projection         31.40  29.70     14.90      5.20     0.20              4.80   0.70         13.20
+
+SENSITIVITY: which parameters move the headline shares in 2050? (correlation across headline runs)
+parameter  Unaffiliated  Christianity  Islam
+      psi         -0.45         -0.17   0.46
+      phi         -0.68          0.32   0.66
+    w_add         -0.39          0.25   0.22
+       Hf         -0.37          0.41   0.23
+       e0          0.06         -0.16   0.09
+tfr_shift         -0.04          0.13  -0.29
+   lam_nb          0.04          0.20   0.04
+   lam_od          0.03         -0.14   0.11
+      lam          0.08         -0.25   0.17
+  Based on 30 headline runs. |correlation| under about 0.3 is noise at this run count.
+
+DECOMPOSITION (single deterministic runs; switch one mechanism off at a time)
+  central: fertility gaps, age offsets 0.1, migration  unaffiliated  24.2% ->  18.0%   Christianity  28.8% ->  30.6%
+  no fertility gaps                                    unaffiliated  24.2% ->  18.3%   Christianity  28.8% ->  30.5%
+  no fertility gaps, no migration                      unaffiliated  24.2% ->  18.6%   Christianity  28.8% ->  30.9%
+  no fertility gaps, no migration, no age offsets      unaffiliated  24.2% ->  18.6%   Christianity  28.8% ->  30.9%
+  If the unaffiliated share still falls with no fertility gaps and no migration, the cause is the starting age structure, not a fertility assumption.
+
+HEADLINE SHARES (global, population-weighted mean over runs)
+  Christianity  2020  28.8%   2050  30.6%   change  +1.9 pp
+  Islam         2020  25.6%   2050  31.2%   change  +5.6 pp
+  Hinduism      2020  14.9%   2050  14.7%   change  -0.3 pp
+  Unaffiliated  2020  24.2%   2050  18.0%   change  -6.2 pp
+  WARNING: the headline unaffiliated share falls by more than 3 pp by 2050. History shows the unaffiliated rising since 1990, so this decline needs a clear cause. Check the sensitivity table above.
+  NOTE: the headline has no switching, so Christianity rises here. Between 1990 and 2010 history shows Christianity falling through switching, not demography.
+
+MIGRATION (headline scenario, mean over runs, 2020-2100)
+- Migration matrix: gravity, WPP-balanced (geography only; no bilateral table) (geography only; read the README_STEP5D limits before using destination results)
+Global net migration by religion (millions of persons; negative = net emigration):
+                  inflow_persons  outflow_persons  net_persons
+religion                                                      
+Islam                     146.57           148.88        -2.31
+Buddhism                    8.70             8.93        -0.23
+Judaism                     0.02             0.01         0.00
+Folk_Traditional            2.94             2.94         0.00
+Other                       1.26             1.26        -0.00
+Hinduism                   29.24            29.23         0.01
+Unaffiliated               19.57            19.15         0.42
+Christianity               88.74            86.66         2.08
+Largest net emigration (persons, all religions):
+country_id
+PAK   -47647000.0
+IND   -29259000.0
+BGD   -25590000.0
+CHN   -12274000.0
+UGA   -12042000.0
+PHL    -8186000.0
+MLI    -7546000.0
+MEX    -7458000.0
+Largest net immigration (persons, all religions):
+country_id
+MYS     8484000.0
+DEU    10365000.0
+AUS    13615000.0
+ZAF    14593000.0
+GBR    15319000.0
+CAN    21586000.0
+RUS    21795000.0
+USA    98797000.0
+Religion most often leaving each country (top 8 by outflow):
+                religion  outflow_persons
+country_id                               
+PAK                Islam       46099000.0
+IND             Hinduism       22929000.0
+BGD                Islam       23455000.0
+CHN         Unaffiliated       10900000.0
+UGA         Christianity       10506000.0
+PHL         Christianity        7467000.0
+MLI                Islam        7158000.0
+MEX         Christianity        6726000.0
+WARNING: exploratory mechanism model, not a validated 3026 forecast.

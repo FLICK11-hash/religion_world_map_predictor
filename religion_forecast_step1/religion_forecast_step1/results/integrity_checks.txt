@@ -1,0 +1,57 @@
+PASS  1a shares non-negative and finite (33600 rows)
+PASS  1b shares sum to 100% in every country, year and scenario
+PASS  1c q05 bands within 0-100%
+PASS  1c q95 bands within 0-100%
+PASS  2a sub-step contributions sum to the total
+PASS  2b components reproduce the simulated change of mean shares (max error 6.44e-07 pp)
+PASS  3a migration conserves people by religion worldwide (max imbalance 0.0 persons of 986,573,650)
+PASS  3b migration leaves world religious shares unchanged
+PASS  4a world shares sum to 100%
+PASS  4b world population finite and positive to 3030 (range 1.45-10.27 billion)
+PASS  5a dominant-change probabilities in [0, 1]
+PASS  5b switching rates are probabilities
+PASS  5c diversity index within [0, 0.875]
+
+Inputs used:
+  wpp_indicators         used      237 countries, 1950-2100
+  start_state            fallback  results_step5 2020 start state (201 countries); Pew 2010 unavailable
+  wrp                    used      1730 usable country-years of 1995
+  natural_earth          used      242 map units
+  wpp_age                used      200 of 200 countries, 1950-2100 (5-year points)
+  bilateral_stock        used      undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx: 68941 country pairs x years, years [np.int64(1990), np.int64(1995), np.int64(2000), np.int64(2005), np.int64(2010), np.int64(2015), np.int64(2020), np.int64(2024)] (cached parse)
+  migrant_religion       missing   no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv)
+  switching_survey       used      67 verified cells, 33 countries
+  religion_fertility     used      8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back
+  unhcr                  used      64809 rows 2010-2022
+  pew_2015_projection    used      5 years, 234 countries
+PASS  6a start state reported: results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)
+      NOTE: Pew 2010 was not available, so the Pew 2010-2020 window was neither fitted nor tested.
+
+Switching fit: {'delta': 0.0, 'beta_d': 0.8, 'tau_u': 0.8, 'net_noise_scale_pp': [2.62, 0.574, 0.2, 0.2, 0.2, 0.272, 0.701, 0.655], 'median_posterior_ess': 222.91897379649424, 'latent_draws': 256}
+Emigration selectivity: {'model': 'affinity', 'kappa': 0.5, 'lam': 0.65, 'rmse_pp': 2.213315558805887, 'rmse_if_mirror_origin_pp': 5.928812458194395, 'residuals_pp': [['world_migrants_2020', 'Christianity', -5.140140071675319], ['world_migrants_2020', 'Islam', 1.099755772032399], ['world_migrants_2020', 'Unaffiliated', 3.210517265912465], ['world_migrants_2020', 'Hinduism', -0.8423307074088395], ['world_migrants_2020', 'Buddhism', -0.22314165513465767], ['world_migrants_2020', 'other', 1.394175001109888], ['world_migrants_2020', 'Judaism', -0.4988356048359388], ['migrants_living_in_Europe_2020', 'Christianity', -1.2013047043835456], ['migrants_living_in_Europe_2020', 'Islam', 1.0219695897604453], ['migrants_living_in_Europe_2020', 'Unaffiliated', 0.38944912012258825], ['migrants_living_in_MENA_2020', 'Christianity', -3.0830228122249004], ['migrants_living_in_MENA_2020', 'Islam', 2.98587484447917], ['migrants_living_in_MENA_2020', 'Hinduism', 0.30585858922503206], ['india_born_migrants_2020', 'Christianity', 4.06993365415493], ['us_foreign_born_adults_2023', 'Christianity', 3.2624261504700485], ['us_foreign_born_adults_2023', 'Islam', 0.8442888679939342], ['us_foreign_born_adults_2023', 'Unaffiliated', -0.7444752318639125], ['us_foreign_born_adults_2023', 'Hinduism', -1.57373481601639], ['us_foreign_born_adults_2023', 'Buddhism', -0.2863663807001009]]}
+Diagnostics: {'mean_abs_log_rescale_to_2100': 0.007473484359038167, 'migration_shortfall_persons_mean': 45167420.4398046}
+
+History tests (lower is better; negative change = better than persistence):
+                       scope                                   model  popw_tv_pp  change_vs_persistence_pp
+test windows 1990-2010 (WRP)                              demography       4.579                    -0.044
+test windows 1990-2010 (WRP)                    demography_migration       4.580                    -0.043
+test windows 1990-2010 (WRP)           demography_migration_momentum       6.829                     2.205
+test windows 1990-2010 (WRP)          demography_migration_switching       4.580                    -0.043
+test windows 1990-2010 (WRP) demography_migration_switching_residual       4.580                    -0.043
+test windows 1990-2010 (WRP)                             persistence       4.623                     0.000
+test windows 1990-2010 (WRP)                    switching_strength_0       4.580                    -0.043
+test windows 1990-2010 (WRP)                  switching_strength_0.5       4.489                    -0.135
+test windows 1990-2010 (WRP)                    switching_strength_1       4.487                    -0.136
+   all WRP windows 1970-2010                              demography       4.378                    -0.028
+   all WRP windows 1970-2010                    demography_migration       4.381                    -0.025
+   all WRP windows 1970-2010           demography_migration_momentum       5.854                     1.447
+   all WRP windows 1970-2010          demography_migration_switching       4.570                     0.163
+   all WRP windows 1970-2010 demography_migration_switching_residual       4.639                     0.233
+   all WRP windows 1970-2010                             persistence       4.406                     0.000
+   all WRP windows 1970-2010                    switching_strength_0       4.381                    -0.025
+   all WRP windows 1970-2010                  switching_strength_0.5       4.503                     0.097
+   all WRP windows 1970-2010                    switching_strength_1       4.797                     0.390
+PASS  7a modelled countries drawn on the map (195 of 200, 19 as points because they are smaller than a pixel; missing: GLP, GUF, MTQ, MYT, REU)
+      46 map polygons have no estimate and are drawn grey
+
+RESULT: all checks passed
