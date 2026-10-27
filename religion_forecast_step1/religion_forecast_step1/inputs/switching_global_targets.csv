@@ -1,0 +1,13 @@
+# Published global switching figures used as CHECKS of the fitted switching model (not fitted to).
+# Pew 2025: adults ages 18-54 in 117 countries and territories (92% of the 2010 world population), 7 groups.
+scope,religion,measure,value,url,evidence_type
+world_18_54,Christianity,left_per_100_raised,17.1,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Christianity,joined_per_100_raised,5.5,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Buddhism,left_per_100_raised,22.1,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Buddhism,joined_per_100_raised,12.3,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Unaffiliated,left_per_100_raised,7.5,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Unaffiliated,joined_per_100_raised,24.2,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+world_18_54,Islam,left_per_100_raised,1.0,https://www.pewresearch.org/religion/2025/06/09/factors-driving-religious-change-2010-2020/,pew_page_text (search excerpt; check against the report); stated as about 1
+world_18_54,Hinduism,left_per_100_raised,1.0,https://www.pewresearch.org/religion/2025/06/09/factors-driving-religious-change-2010-2020/,pew_page_text (search excerpt; check against the report); stated as about 1
+hdi_ge_0.8_18_54,all,median_pct_switched,18.0,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)
+hdi_lt_0.55_18_54,all,median_pct_switched,3.0,https://www.newsweek.com/christianity-religion-research-study-analysis-2093185,secondary_news

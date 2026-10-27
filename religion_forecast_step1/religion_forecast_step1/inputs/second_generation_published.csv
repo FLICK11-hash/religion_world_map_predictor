@@ -1,0 +1,5 @@
+# Published intergenerational retention, used to set the generation intensity ranges in step7_assumptions.json.
+scope,measure,Islam,Judaism,Catholic,other_Christian,url,evidence_type,Christianity
+France 18-59 (TeO2 2019-20),pct raised in religion who follow it as adults,91.0,84.0,67.0,69.0,https://www.insee.fr/fr/statistiques/6793308,"official statistics (Insee-Ined 2023), via search excerpt",
+France second generation,pct raised in religion still in it,91.0,,,,https://www.ined.fr/en/everything_about_population/demographic-facts-sheets/focus-on/religiosity-dynamics-immigrants-and-descendants-in-france,"official statistics (Ined), via search excerpt",68
+"33 European countries ESS 2002-2018, Christian-origin immigrant groups",pct disaffiliated: second generation | first generation,,,,,https://doi.org/10.1080/14616696.2022.2044067,"academic (Molteni & van Tubergen 2022), via search excerpt",17.75 | 14.27

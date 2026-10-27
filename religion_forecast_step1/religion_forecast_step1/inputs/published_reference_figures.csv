@@ -1,0 +1,10 @@
+# Published Pew figures used to check Step 7 inputs and outputs (not fitted to).
+scope,measure,Christianity,Islam,Unaffiliated,Hinduism,url,evidence_type,Buddhism,Judaism,other
+world,share_2010_pct,30.6,23.9,23.3,14.9,https://www.pewresearch.org/short-reads/2025/06/10/islam-was-the-worlds-fastest-growing-religion-from-2010-to-2020/,pew_page_text (search excerpt; check against the report),,,
+world,share_2020_pct,28.8,25.6,24.2,14.9,https://www.pewresearch.org/religion/2025/06/09/how-the-global-religious-landscape-changed-from-2010-to-2020/,pew_page_text (search excerpt; check against the report),4.1,,
+world,persons_2020_millions,,,,,https://www.pewresearch.org/religion/2025/06/09/how-the-global-religious-landscape-changed-from-2010-to-2020/,pew_page_text (search excerpt; check against the report),324.0,14.8,172.0
+world,tfr_2010_15,2.7,3.1,,,https://www.pewresearch.org/religion/2025/06/09/factors-driving-religious-change-2010-2020/,pew_page_text (search excerpt; check against the report) (Christian value flagged by the search summary),,,
+Europe 2020,share_pct,67.0,,25.0,,https://www.pewresearch.org/religion/2025/06/09/religion-in-europe/,pew_page_text (search excerpt; check against the report),,,
+North America 2020,share_pct,63.0,,30.0,,https://www.pewresearch.org/religion/2025/06/09/religion-in-north-america/,pew_page_text (search excerpt; check against the report),,,
+Sub-Saharan Africa 2020,share_pct,62.0,33.0,,,https://www.pewresearch.org/religion/2025/06/09/religion-in-sub-saharan-africa/,pew_page_text (search excerpt; check against the report),,,
+Latin America-Caribbean 2020,share_pct,85.0,,12.0,,https://www.pewresearch.org/religion/2025/06/09/religion-in-latin-america-and-the-caribbean/,pew_page_text (search excerpt; check against the report),,,
