@@ -221,3 +221,88 @@ def cross_validated_comparison(years, shares, groups, grid=None) -> list[dict]:
             "beats_persistence": sum(1 for f in per_fold if f[strategy] < f["persistence"]),
         })
     return summary, per_fold
+
+
+# ---------------------------------------------------------------------------------------------
+# Leakage-free re-evaluation. Added after an audit of cross_validated_comparison above, which is
+# kept unchanged so the original experiment stays reproducible.
+#
+# The flaw in cross_validated_comparison: holding out cut c, it tunes the half-life on every
+# other cut, including cuts after c. Those later cuts are scored on years after c, which are
+# exactly the targets fold c is then judged on. Computing an error at a year requires knowing
+# that year, so the half-life is chosen with information from fold c's own future: 14 of the 15
+# test targets also appear in the tuning objective. The function below never does that.
+# ---------------------------------------------------------------------------------------------
+
+def nested_forward_comparison(years, shares, groups, grid=None) -> tuple[list[dict], list[dict]]:
+    """Nested forward-chaining: at each cut, use only what was observable at that cut.
+
+    For an outer cut at year t, the half-life is chosen by an inner forward-chaining backtest on
+    years <= t alone, then the model forecasts every later year. No observation after t touches
+    either the fit or the half-life. A cut too early to support an inner backtest cannot choose a
+    half-life honestly, so it is skipped rather than given one chosen with hindsight.
+    """
+    grid = grid or HALF_LIFE_GRID
+    folds = []
+    for cut in range(MIN_TRAIN - 1, len(years) - 1):
+        past = years[: cut + 1]                                   # everything knowable at the cut
+        inner = list(range(MIN_TRAIN - 1, len(past) - 1))         # inner cuts, all inside the past
+        if not inner:
+            continue
+        scored = [(h, mean_total_variation(backtest(past, shares, groups, h, "damped", inner), groups))
+                  for h in grid]
+        chosen = min(scored, key=lambda row: row[1])[0]
+        fold = {"cut_year": years[cut], "chosen_half_life": chosen,
+                "inner_forecasts_used_for_tuning": len(composition_errors(
+                    backtest(past, shares, groups, chosen, "damped", inner), groups))}
+        for strategy in STRATEGIES:
+            fold[strategy] = mean_total_variation(
+                backtest(years, shares, groups, chosen, strategy, [cut]), groups)
+        folds.append(fold)
+
+    summary = []
+    for strategy in STRATEGIES:
+        values = [f[strategy] for f in folds]
+        summary.append({"strategy": strategy, "folds": len(values),
+                        "mean_error_pp": statistics.fmean(values), "worst_error_pp": max(values),
+                        "beats_persistence": sum(1 for f in folds if f[strategy] < f["persistence"])})
+    return summary, folds
+
+
+def sign_flip_test(differences: list[float]) -> dict:
+    """Exact paired permutation test of whether the mean difference is zero.
+
+    Under the null each paired difference is equally likely to have either sign, so every one of
+    the 2^n sign patterns is equally likely. Enumerating them all gives an exact two-sided p-value
+    with no distributional assumption. With n folds the smallest attainable p-value is 2 / 2^n,
+    which is what makes small samples unable to reach conventional significance at all.
+    """
+    from itertools import product
+    n = len(differences)
+    observed = abs(statistics.fmean(differences))
+    patterns = list(product((1, -1), repeat=n))
+    extreme = sum(1 for signs in patterns
+                  if abs(statistics.fmean(s * d for s, d in zip(signs, differences))) >= observed - 1e-12)
+    return {"n": n, "mean_difference": statistics.fmean(differences),
+            "p_value_two_sided": extreme / len(patterns),
+            "smallest_attainable_p": 2 / len(patterns)}
+
+
+def horizon_matched(years, shares, groups, half_life) -> list[dict]:
+    """Compare strategies one horizon at a time, so long and short forecasts are never averaged.
+
+    Pooling every (cut, target) pair lets the 20- and 25-year forecasts, which have the largest
+    errors and the fewest instances, dominate one headline number. At a single horizon each
+    target year appears once, so the forecasts being compared do not share targets.
+    """
+    out = []
+    by_strategy = {s: composition_errors(backtest(years, shares, groups, half_life, s), groups)
+                   for s in STRATEGIES}
+    for h in sorted({r["horizon_years"] for r in by_strategy["persistence"]}):
+        row = {"horizon_years": h}
+        for s in STRATEGIES:
+            errs = [r["total_variation_pp"] for r in by_strategy[s] if r["horizon_years"] == h]
+            row[f"{s}_pp"] = statistics.fmean(errs)
+            row["forecasts"] = len(errs)
+        out.append(row)
+    return out

@@ -3,6 +3,7 @@
     python main.py                 the forecast, with the evidence for it
     python main.py validate        the full backtest tables
     python main.py selftest        assertions that the constraints hold
+    python main.py methodology     audit of the validation itself, with the corrected result
     python main.py rebuild-data    regenerate world_shares_wrp.csv from the raw WRP file
 
 Standard library only. Reads one committed CSV. Writes results/.
@@ -252,6 +253,96 @@ def selftest(args) -> int:
     return 1 if failed else 0
 
 
+def methodology(args) -> int:
+    """Audit of the validation itself. Reproduces why the headline comparison does not hold.
+
+    Separate from `selftest` on purpose: selftest checks the model's guaranteed properties and is
+    unchanged. This checks whether the *evaluation* is sound, and reports the corrected result.
+    """
+    import copy
+    years, shares, _ = data.load()
+    groups = data.GROUPS
+    checks = []
+
+    def check(name, condition):
+        checks.append((name, bool(condition)))
+
+    _rule("1. LEAKAGE IN THE ORIGINAL CROSS-VALIDATION")
+    usable = list(range(validate.MIN_TRAIN - 1, len(years) - 1))
+    leaked = total = 0
+    for h in usable:
+        test = set(years[h + 1:])
+        tuning = set().union(*(set(years[c + 1:]) for c in usable if c != h))
+        leaked += len(test & tuning)
+        total += len(test)
+    print(f"{leaked} of {total} test targets ({100 * leaked / total:.0f}%) are also scored when the "
+          f"half-life is tuned,\nso each fold's half-life is chosen with knowledge of its own answers.")
+
+    _rule("2. LEAKAGE-FREE NESTED FORWARD-CHAINING")
+    summary, folds = validate.nested_forward_comparison(years, shares, groups)
+    print(f"{'cut':>5}{'half-life':>11}{'tuned on':>10}" + "".join(f"{s:>12}" for s in validate.STRATEGIES))
+    for f in folds:
+        print(f"{f['cut_year']:>5}{str(f['chosen_half_life']):>11}{f['inner_forecasts_used_for_tuning']:>7} fc"
+              + "".join(f"{f[s]:>12.3f}" for s in validate.STRATEGIES))
+    print()
+    for r in summary:
+        print(f"  {r['strategy']:12} mean {r['mean_error_pp']:.3f} pp   beats persistence "
+              f"{r['beats_persistence']}/{r['folds']}")
+
+    _rule("3. IS ANY STRATEGY DISTINGUISHABLE FROM PERSISTENCE?")
+    tests = []
+    print(f"{'strategy':12}{'n':>3}{'mean gain pp':>14}{'p two-sided':>13}{'smallest p possible':>21}")
+    for st in [s for s in validate.STRATEGIES if s != "persistence"]:
+        t = validate.sign_flip_test([f["persistence"] - f[st] for f in folds])
+        tests.append({"strategy": st, **t})
+        print(f"{st:12}{t['n']:>3}{t['mean_difference']:>+14.3f}{t['p_value_two_sided']:>13.3f}"
+              f"{t['smallest_attainable_p']:>21.3f}")
+    floor = tests[0]["smallest_attainable_p"]
+    print(f"\nWith {tests[0]['n']} leakage-free folds no paired test can return p below {floor:.3f}, "
+          f"so no strategy\ncan be shown to beat persistence at the 5% level, whatever the data say.")
+
+    _rule("4. LEAKAGE TEST: PERTURB ONLY THE FUTURE")
+    base_nested = {f["cut_year"]: f["chosen_half_life"] for f in folds}
+    _, orig = validate.cross_validated_comparison(years, shares, groups)
+    base_orig = {f["held_out_cut"]: f["chosen_half_life"] for f in orig}
+    moved_nested, moved_orig = [], []
+    for cut in sorted(base_orig):
+        altered = copy.deepcopy(shares)
+        for yr in years:
+            if yr > cut:
+                altered[yr]["Islam"] *= 1.6
+                altered[yr]["Unaffiliated"] /= 1.6
+                tot = sum(altered[yr].values())
+                altered[yr] = {g: v / tot for g, v in altered[yr].items()}
+        _, pn = validate.nested_forward_comparison(years, altered, groups)
+        _, po = validate.cross_validated_comparison(years, altered, groups)
+        if cut in base_nested:
+            moved_nested.append(base_nested[cut] != {f["cut_year"]: f["chosen_half_life"] for f in pn}[cut])
+        moved_orig.append(base_orig[cut] != {f["held_out_cut"]: f["chosen_half_life"] for f in po}[cut])
+    print(f"Altering only data after each cut moved the chosen half-life in "
+          f"{sum(moved_orig)}/{len(moved_orig)} folds of the original CV and "
+          f"{sum(moved_nested)}/{len(moved_nested)} folds of the nested one.")
+
+    check("the original CV leaks: most test targets are used in tuning", leaked / total > 0.5)
+    check("the nested CV's half-life never depends on data after its cut", not any(moved_nested))
+    check("the original CV's half-life does depend on data after its cut", any(moved_orig))
+    check("the nested CV uses only cuts that can be tuned from the past", len(folds) < len(usable))
+    check("no strategy can reach p < 0.05 with this many folds", floor > 0.05)
+
+    _write_csv("methodology_nested_folds.csv", folds)
+    _write_csv("methodology_nested_summary.csv", summary)
+    _write_csv("methodology_significance.csv", tests)
+    half_life, _, _ = validate.select_half_life(years, shares, groups, holdout_cuts=1)
+    _write_csv("methodology_by_horizon.csv", validate.horizon_matched(years, shares, groups, half_life))
+
+    _rule("METHODOLOGY CHECKS")
+    for name, ok in checks:
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}")
+    failed = [n for n, ok in checks if not ok]
+    print(f"\n{len(checks) - len(failed)}/{len(checks)} passed")
+    return 1 if failed else 0
+
+
 def rebuild(args) -> int:
     years, shares, provenance = data.build_from_raw(start_year=args.start_year)
     data.save(years, shares, provenance)
@@ -269,11 +360,12 @@ def main(argv=None) -> int:
     sub.add_parser("forecast", help="the forecast and the evidence for it (default)")
     sub.add_parser("validate", help="full backtest tables")
     sub.add_parser("selftest", help="check the model's guaranteed properties")
+    sub.add_parser("methodology", help="audit the validation itself and report the corrected comparison")
     rebuild_parser = sub.add_parser("rebuild-data", help="regenerate the derived CSV from raw WRP")
     rebuild_parser.add_argument("--start-year", type=int, default=data.DEFAULT_START,
                                 help=f"first year of the balanced panel (default {data.DEFAULT_START})")
     args = parser.parse_args(argv)
-    return {"validate": show_validation, "selftest": selftest,
+    return {"validate": show_validation, "selftest": selftest, "methodology": methodology,
             "rebuild-data": rebuild}.get(args.command, report)(args)
 
 
