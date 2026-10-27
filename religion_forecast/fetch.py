@@ -12,7 +12,7 @@ What it fetches (all optional; Step 7 runs without them and says so in its repor
   UNHCR refugee population statistics by origin and asylum (CC BY 4.0)
   World Bank WDI: GDP per capita PPP and urban share (CC BY 4.0), for covariate tests
   Pew Research Center 2015 country projections 2010-2050 (for comparison only; Pew terms of use)
-Needs manual download (free Pew account; see docs/STEP7_DATA_SOURCES.md):
+Needs manual download (free Pew account; see docs/DATA.md):
   Pew 'Religious Composition of the World's Migrants, 1990-2020' -> data/raw/extra/pew_migrants_religion.csv
   Pew 2024 Global Attitudes microdata (switching) -> tabulate to switching_lifetime_observed.csv
 Every downloaded file's SHA-256 is written to data/raw/extra/manifest.json.
@@ -252,7 +252,7 @@ def main(argv=None):
     for p in sorted(RAW7.iterdir()):
         if p.is_file():
             print(f'  {p.name:70s} {p.stat().st_size / 1e6:8.2f} MB')
-    print('Manual (free Pew account): see docs/STEP7_DATA_SOURCES.md for the migrants-by-religion and switching data.')
+    print('Manual (free Pew account): see docs/DATA.md for the migrants-by-religion and switching data.')
 
 
 if __name__ == '__main__':

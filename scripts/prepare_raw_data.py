@@ -1,9 +1,12 @@
 """Step 1: Download and inspect WRP, Pew, UN WPP 2024 and Natural Earth.
 
 Usage:
-    python step1_download_inspect.py
-    python step1_download_inspect.py --no-download
-    python step1_download_inspect.py --data-dir ./my_raw_data
+    python scripts/prepare_raw_data.py
+    python scripts/prepare_raw_data.py --no-download
+    python scripts/prepare_raw_data.py --data-dir ./my_raw_data
+
+Originally step1_download_inspect.py. The default data directory is resolved
+from the project root, so the script works from any working directory.
 
 Only raw files and inspection reports are produced. No cleaning/merging occurs.
 """
@@ -234,7 +237,8 @@ def inspect_pew(data_dir: Path) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-dir", type=Path, default=Path("data/raw"))
+    parser.add_argument("--data-dir", type=Path,
+                        default=Path(__file__).resolve().parent.parent / "data" / "raw")
     parser.add_argument("--no-download", action="store_true")
     args = parser.parse_args()
     raw = args.data_dir.resolve()

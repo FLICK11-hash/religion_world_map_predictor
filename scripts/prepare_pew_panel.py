@@ -1,7 +1,12 @@
 """Step 2: create an auditable country-year panel from WRP, Pew, UN and Natural Earth.
 
-Run from the folder containing data/raw:
-    python step2_clean_merge.py
+Usage (from any directory):
+    python scripts/prepare_pew_panel.py
+
+Originally step2_clean_merge.py. Builds data/processed/pew_harmonized.csv, the
+2010 and 2020 start state the forecasting package prefers. Without it the
+package falls back to results_step5/headline_country_shares.csv; see
+docs/DATA.md.
 
 Requires: pandas, geopandas, requests, openpyxl, pycountry.
 Downloads an auxiliary (time-aware, imperfect) COW->ISO crosswalk from GitHub.
@@ -21,7 +26,8 @@ import pandas as pd
 import pycountry
 import requests
 
-ROOT = Path(__file__).resolve().parent
+# This script lives in scripts/; data/ is at the project root one level up.
+ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "processed"
 CROSSWALK_URL = "https://raw.githubusercontent.com/leops95/cow2iso/master/cow2iso.csv"
