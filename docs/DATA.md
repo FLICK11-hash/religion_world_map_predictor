@@ -4,7 +4,9 @@ Collected 2026-10. Every dataset is used only if its file is present, and
 `data/projections/projection_report.json` (`inputs`) records what each run found. Nothing is
 filled in when a file is missing: the model switches to a labelled fallback and says which.
 
-Folder conventions, relative to `religion_forecast_step1/religion_forecast_step1/`:
+Folder conventions, relative to the repository root. Every input below is listed with its
+source URL, the SHA-256 of the exact file the committed results used, and its licence in
+`config/data_manifest.json`; `python scripts/verify_data.py` checks a local `data/` against it.
 
 - `data/raw/` holds downloaded source data; `data/raw/extra/` the optional datasets. Both are
   git-ignored. (`data/raw/step7/` is the old name for `extra` and is still read, so an existing
@@ -20,8 +22,8 @@ Folder conventions, relative to `religion_forecast_step1/religion_forecast_step1
 | Natural Earth admin-0, 1:50m | `data/raw/ne_50m_admin_0_countries.zip` | distances, land borders, continents and every map | present-day borders | public domain |
 | Pew Research Center, religious composition 2010 and 2020 (June 2025) | `data/raw/pew_2010_2020.xlsx` → `data/processed/pew_harmonized.csv` | the 2020 start state and the Pew 2010-2020 backtest window | 201 countries, 7 groups | free Pew account; Pew terms of use. DOI 10.58094/vhrw-k516 |
 
-`python prepare_raw_data.py` fetches the first three and writes a SHA-256 manifest. The Pew
-workbook is behind a free account and must be downloaded by hand; `python prepare_pew_panel.py`
+`python scripts/prepare_raw_data.py` fetches the first three and writes a SHA-256 manifest. The Pew
+workbook is behind a free account and must be downloaded by hand; `python scripts/prepare_pew_panel.py`
 then builds the harmonised panel.
 
 **Without `data/processed/pew_harmonized.csv`** — as in the environment where the committed
@@ -30,7 +32,7 @@ same Pew 2020 data exported by the earlier Step 5D pipeline with the same Folk/O
 that case the Pew 2010-2020 window is neither fitted nor tested, and every report says so.
 
 **Pew's seven groups against the model's eight.** Pew's 2025 release counts folk religions inside
-"other religions". `prepare_pew_panel.py` splits that group using each country's WRP ratio from
+"other religions". `scripts/prepare_pew_panel.py` splits that group using each country's WRP ratio from
 2010 or earlier; the split is a proxy and is labelled `folk_split_method`. The model keeps eight
 categories: WRP windows are compared only within WRP, the Pew window only within Pew, and survey
 or migrant figures given in Pew's seven are compared with Folk + Other combined.

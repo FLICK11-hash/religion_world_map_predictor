@@ -46,8 +46,12 @@ On the WRP decades, population-weighted total-variation error, in percentage poi
 | + switching at full strength | 4.487 | 4.797 |
 | Extrapolate the last decade | 6.829 | 5.854 |
 
-The best mechanistic model improves on persistence by 0.14 points on an error of 4.6 — about 3%.
-Switching helps on the recent decades and hurts on the early ones, where the fit had only two or
+On the two 1990-2010 windows the best mechanistic model improves on persistence by 0.14 points
+on an error of 4.6, about 3%. Over all four windows the same configuration is worse than
+persistence. Window by window, every configuration beats persistence in exactly 2 of 4, so the
+backtests cannot distinguish any of them from assuming nothing changes (exact paired test,
+p ≥ 0.75; see `docs/COMPARABILITY.md`). Switching helps on the recent decades and hurts on the
+early ones, where the fit had only two or
 three decades to learn from and chose the largest country spread the grid allows. The projection
 uses full-strength switching anyway, because surveys observe switching directly and the history
 tests cannot settle it; that is a judgment and is recorded as one in
@@ -61,7 +65,7 @@ result of the backtests.
 Pew's 2015 report and Pew's 2025 report disagree about the world Christian share **in 2020** by
 2.3 points (31.1% against 28.8%). Scored country by country, Pew's own ten-year-ahead projection
 of 2020 differs from Pew's later measurement of 2020 by 10.7 points population-weighted — and
-freezing 2010 unchanged scores 11.0, almost the same. **China contributes 69% of that difference**
+freezing 2010 unchanged scores 10.9, almost the same. **China contributes 69% of that difference**
 and Vietnam 6%; it is a reclassification between folk religion and the unaffiliated, not a
 forecasting failure.
 
