@@ -1,14 +1,14 @@
 {
-  "timestamp_utc": "2026-10-24T23:51:43.533480+00:00",
-  "start_state": "results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)",
+  "timestamp_utc": "2026-10-29T19:45:01.486227+00:00",
+  "start_state": "data/processed/pew_harmonized.csv (Pew 2010 and 2020; Folk/Other split by WRP proxy)",
   "inputs": {
     "wpp_indicators": {
       "status": "used",
       "detail": "237 countries, 1950-2100"
     },
     "start_state": {
-      "status": "fallback",
-      "detail": "results_step5 2020 start state (201 countries); Pew 2010 unavailable"
+      "status": "used",
+      "detail": "Pew 2010/2020 via Step 2 (201 countries in 2020, 201 in 2010)"
     },
     "wrp": {
       "status": "used",
@@ -40,39 +40,39 @@
     },
     "unhcr": {
       "status": "used",
-      "detail": "64809 rows 2010-2022"
+      "detail": "138893 rows 1951-2025"
     }
   },
   "history_test_choices": {
     "switching_strength_best_all_windows": 0.0,
     "switching_strength_scores_popw_tv_pp": {
-      "0.0": 4.381163054211865,
-      "0.5": 4.502920279283002,
-      "1.0": 4.796813488880641
+      "0.0": 4.1943118532786485,
+      "0.5": 4.267276385687526,
+      "1.0": 4.4884665367422745
     },
     "switching_strength_best_1990_2010": 1.0,
     "switching_strength_scores_1990_2010_popw_tv_pp": {
-      "0.0": 4.580264460980635,
-      "0.5": 4.488675292831494,
-      "1.0": 4.4870548473696745
+      "0.0": 4.2024786731806065,
+      "0.5": 4.100683814179055,
+      "1.0": 4.07639615268609
     },
     "residual": {
       "alpha": 100.0,
       "weight": 0.0
     },
     "residual_scores_popw_tv_pp": {
-      "alpha=1,weight=1": 6.44774782052862,
-      "alpha=10,weight=1": 6.350382841153776,
-      "alpha=100,weight=0.5": 5.071207580238816,
-      "alpha=100,weight=0": 4.569562116264183,
-      "alpha=100,weight=0.25": 4.704365355075105,
-      "alpha=1,weight=0.5": 5.289441701822897,
-      "alpha=1,weight=0": 4.569562116264183,
-      "alpha=10,weight=0": 4.569562116264183,
-      "alpha=10,weight=0.25": 4.787212871912084,
-      "alpha=10,weight=0.5": 5.257069084833732,
-      "alpha=1,weight=0.25": 4.80072151940592,
-      "alpha=100,weight=1": 5.932945539328639
+      "alpha=1,weight=1": 6.253809723242578,
+      "alpha=10,weight=1": 6.160987554926837,
+      "alpha=100,weight=0.5": 4.8624292331564245,
+      "alpha=100,weight=0": 4.345031105298191,
+      "alpha=100,weight=0.25": 4.489848378304601,
+      "alpha=1,weight=0.5": 5.093569786072965,
+      "alpha=1,weight=0": 4.345031105298191,
+      "alpha=10,weight=0": 4.345031105298191,
+      "alpha=10,weight=0.25": 4.5788386203188685,
+      "alpha=10,weight=0.5": 5.0604766514476385,
+      "alpha=1,weight=0.25": 4.593109147390555,
+      "alpha=100,weight=1": 5.727770264793253
     }
   },
   "used_by_forecast": {
@@ -84,8 +84,8 @@
     "model": "affinity",
     "kappa": 0.5,
     "lambda": 0.65,
-    "rmse_pp": 2.213315558805887,
-    "rmse_if_migrants_mirror_origin_pp": 5.928812458194395
+    "rmse_pp": 2.2133155628749837,
+    "rmse_if_migrants_mirror_origin_pp": 5.928812445777069
   },
   "notes": [
     "history_test_choices are the options with the lowest mean population-weighted error over the test windows; the per-window choices in out_of_sample_choices.csv use earlier windows only.",

@@ -1,8 +1,8 @@
 parameter,value,status,source_or_reason
-start shares 2020,results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D),observed,Pew 2020 (Folk/Other split by WRP proxy)
+start shares 2020,data/processed/pew_harmonized.csv (Pew 2010 and 2020; Folk/Other split by WRP proxy),observed,Pew 2020 (Folk/Other split by WRP proxy)
 "national fertility, mortality, net migration to 2100",WPP 2024 medium,observed/projected,UN WPP 2024
 input wpp_indicators,"237 countries, 1950-2100",used,religion_forecast/datasets.py
-input start_state,results_step5 2020 start state (201 countries); Pew 2010 unavailable,fallback,religion_forecast/datasets.py
+input start_state,"Pew 2010/2020 via Step 2 (201 countries in 2020, 201 in 2010)",used,religion_forecast/datasets.py
 input wrp,1730 usable country-years of 1995,used,religion_forecast/datasets.py
 input natural_earth,242 map units,used,religion_forecast/datasets.py
 input wpp_age,"200 of 200 countries, 1950-2100 (5-year points)",used,religion_forecast/datasets.py
@@ -10,9 +10,9 @@ input bilateral_stock,"undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xl
 input migrant_religion,no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv),missing,religion_forecast/datasets.py
 input switching_survey,"67 verified cells, 33 countries",used,religion_forecast/datasets.py
 input religion_fertility,"8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back",used,religion_forecast/datasets.py
-input unhcr,64809 rows 2010-2022,used,religion_forecast/datasets.py
-"switching hyperparameters (delta, beta_d, tau_u)","(0.0, 0.8, 0.8)",estimated,"empirical Bayes, religion_forecast.switching"
-switching evidence windows,"WRP 1950-1960, WRP 1960-1970, WRP 1970-1980, WRP 1980-1990, WRP 1990-2000, WRP 2000-2010",observed,"WRP, Pew"
+input unhcr,138893 rows 1951-2025,used,religion_forecast/datasets.py
+"switching hyperparameters (delta, beta_d, tau_u)","(-0.5, 1.2, 0.8)",estimated,"empirical Bayes, religion_forecast.switching"
+switching evidence windows,"WRP 1950-1960, WRP 1960-1970, WRP 1970-1980, WRP 1980-1990, WRP 1990-2000, WRP 2000-2010, Pew 2010-2020",observed,"WRP, Pew"
 survey switching cells,"67 cells, 33 countries",observed,inputs/switching_lifetime_observed.csv
 "religion of migrants: destination affinity kappa, minority effect lambda",kappa=0.50; lambda=0.65,estimated,"grid fit to Pew's published religious composition of migrants (19 targets), rmse 2.21 pp (migrants mirroring origin: 5.93)"
 fertility.reference_world_tfr,2.5,observed,Used only to convert a ratio gap into an additive gap when w_add > 0.

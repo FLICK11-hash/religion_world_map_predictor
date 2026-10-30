@@ -17,8 +17,6 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - adherents_by_country.csv
 - fertility_evidence.csv
 - group_fertility_2020_2025.csv
-- benchmark_vs_pew2015.csv
-- benchmark_pew2015_skill.csv
 - run_outcomes.csv
 - projection_report.json
 - validation_summary.csv
@@ -39,6 +37,6 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - country_target_years_reference_with_bands.csv
 - components_country_2020_2100_reference.csv
 - comparison_report.md
-- figures/ (56 SVG figures, open figures/index.html)
+- figures/ (55 SVG figures, open figures/index.html)
 - integrity_checks.txt
 - run_stamp.json
