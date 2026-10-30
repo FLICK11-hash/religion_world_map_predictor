@@ -1,19 +1,19 @@
 {
-  "timestamp_utc": "2026-10-25T00:26:33.725705+00:00",
-  "runtime_seconds": 2090.2,
+  "timestamp_utc": "2026-10-29T20:48:38.013327+00:00",
+  "runtime_seconds": 3816.5,
   "countries": 200,
   "dropped_countries": [
     "CHI_ISLANDS"
   ],
-  "start_state": "results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)",
+  "start_state": "data/processed/pew_harmonized.csv (Pew 2010 and 2020; Folk/Other split by WRP proxy)",
   "inputs": {
     "wpp_indicators": {
       "status": "used",
       "detail": "237 countries, 1950-2100"
     },
     "start_state": {
-      "status": "fallback",
-      "detail": "results_step5 2020 start state (201 countries); Pew 2010 unavailable"
+      "status": "used",
+      "detail": "Pew 2010/2020 via Step 2 (201 countries in 2020, 201 in 2010)"
     },
     "wrp": {
       "status": "used",
@@ -45,11 +45,11 @@
     },
     "unhcr": {
       "status": "used",
-      "detail": "64809 rows 2010-2022"
+      "detail": "138893 rows 1951-2025"
     },
     "pew_2015_projection": {
-      "status": "used",
-      "detail": "5 years, 234 countries"
+      "status": "missing",
+      "detail": "no external benchmark comparison"
     }
   },
   "runs_per_scenario": 40,
@@ -66,32 +66,32 @@
   },
   "reference_scenario": "stabilising",
   "switching_fit": {
-    "delta": 0.0,
-    "beta_d": 0.8,
+    "delta": -0.5,
+    "beta_d": 1.2,
     "tau_u": 0.8,
     "net_noise_scale_pp": [
-      2.62,
-      0.574,
+      2.419,
+      0.512,
       0.2,
       0.2,
       0.2,
-      0.272,
-      0.701,
-      0.655
+      0.2,
+      0.504,
+      0.66
     ],
-    "median_posterior_ess": 222.91897379649424,
+    "median_posterior_ess": 211.50178122919112,
     "latent_draws": 256
   },
   "switching_survey_level": {
     "logit_shift_by_religion": {
-      "Christianity": 0.5517031438175763,
-      "Islam": -0.523313060610235,
-      "Hinduism": -0.24077197003862238,
-      "Buddhism": 0.7550657696738199,
+      "Christianity": 0.5925205877465487,
+      "Islam": -0.28547990996958106,
+      "Hinduism": -0.12024474744612235,
+      "Buddhism": 0.9705513351400441,
       "Judaism": 0.0,
       "Folk_Traditional": 0.0,
       "Other": 0.0,
-      "Unaffiliated": -0.08852507585470448
+      "Unaffiliated": 0.2660297665534017
     },
     "note": "survey level = fitted rates shifted so adults 18-54 match Pew 2025 (117 countries); runs mix the two levels"
   },
@@ -99,109 +99,109 @@
     "model": "affinity",
     "kappa": 0.5,
     "lam": 0.65,
-    "rmse_pp": 2.213315558805887,
-    "rmse_if_mirror_origin_pp": 5.928812458194395,
+    "rmse_pp": 2.2133155628749837,
+    "rmse_if_mirror_origin_pp": 5.928812445777069,
     "residuals_pp": [
       [
         "world_migrants_2020",
         "Christianity",
-        -5.140140071675319
+        -5.140140057074092
       ],
       [
         "world_migrants_2020",
         "Islam",
-        1.099755772032399
+        1.0997558132843182
       ],
       [
         "world_migrants_2020",
         "Unaffiliated",
-        3.210517265912465
+        3.2105172439876526
       ],
       [
         "world_migrants_2020",
         "Hinduism",
-        -0.8423307074088395
+        -0.8423307325118703
       ],
       [
         "world_migrants_2020",
         "Buddhism",
-        -0.22314165513465767
+        -0.2231416613372783
       ],
       [
         "world_migrants_2020",
         "other",
-        1.394175001109888
+        1.3941750011439407
       ],
       [
         "world_migrants_2020",
         "Judaism",
-        -0.4988356048359388
+        -0.49883560749267186
       ],
       [
         "migrants_living_in_Europe_2020",
         "Christianity",
-        -1.2013047043835456
+        -1.2013046867403432
       ],
       [
         "migrants_living_in_Europe_2020",
         "Islam",
-        1.0219695897604453
+        1.021969620897348
       ],
       [
         "migrants_living_in_Europe_2020",
         "Unaffiliated",
-        0.38944912012258825
+        0.38944908158272185
       ],
       [
         "migrants_living_in_MENA_2020",
         "Christianity",
-        -3.0830228122249004
+        -3.083022794590992
       ],
       [
         "migrants_living_in_MENA_2020",
         "Islam",
-        2.98587484447917
+        2.985874873369525
       ],
       [
         "migrants_living_in_MENA_2020",
         "Hinduism",
-        0.30585858922503206
+        0.30585854046526784
       ],
       [
         "india_born_migrants_2020",
         "Christianity",
-        4.06993365415493
+        4.069933612762686
       ],
       [
         "us_foreign_born_adults_2023",
         "Christianity",
-        3.2624261504700485
+        3.2624262329653604
       ],
       [
         "us_foreign_born_adults_2023",
         "Islam",
-        0.8442888679939342
+        0.8442888953439338
       ],
       [
         "us_foreign_born_adults_2023",
         "Unaffiliated",
-        -0.7444752318639125
+        -0.7444753402475612
       ],
       [
         "us_foreign_born_adults_2023",
         "Hinduism",
-        -1.57373481601639
+        -1.573734839343555
       ],
       [
         "us_foreign_born_adults_2023",
         "Buddhism",
-        -0.2863663807001009
+        -0.2863663581013389
       ]
     ]
   },
   "diagnostics": {
-    "mean_abs_log_rescale_to_2100": 0.007473484359038167,
-    "migration_shortfall_persons_mean": 45167420.4398046
+    "mean_abs_log_rescale_to_2100": 0.007469073908464177,
+    "migration_shortfall_persons_mean": 45279418.907711506
   },
   "cautions": [
     "Shares after 2100 rest on stated long-run assumptions; 2500 and 3026 are speculative scenarios.",
