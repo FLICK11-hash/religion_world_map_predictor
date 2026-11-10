@@ -5,7 +5,7 @@ title: "Projecting the religious composition of countries: a probabilistic cohor
 authors:
   - family-names: Flick
     given-names: Conrad
-version: 0.7.0
+version: 1.0.0
 repository-code: "https://github.com/FLICK11-hash/religion_world_map_predictor"
 abstract: >-
   A probabilistic cohort-component projection of the religious composition of

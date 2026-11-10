@@ -203,6 +203,7 @@ def main(argv=None):
     pd.concat([T.migration_table(ctx, s, st) for s, st in stores.items()], ignore_index=True).to_csv(
         OUT / 'migration_country_period.csv', index=False)
     T.corridors(ctx, ref, stores[ref]).to_csv(OUT / 'migration_corridors_reference.csv', index=False)
+    T.corridor_concentration(ctx, ref, stores[ref]).to_csv(OUT / 'migration_corridor_concentration.csv', index=False)
     dc = pd.concat([T.dominant_change(ctx, s, st) for s, st in stores.items()], ignore_index=True)
     dc.to_csv(OUT / 'dominant_change.csv', index=False)
     us = T.uncertainty_split(wt)

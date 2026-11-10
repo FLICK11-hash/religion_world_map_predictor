@@ -1,11 +1,11 @@
-"""Step 2: create an auditable country-year panel from WRP, Pew, UN and Natural Earth.
+"""Build an auditable country-year panel from WRP, Pew, UN and Natural Earth.
 
 Usage (from any directory):
     python scripts/prepare_pew_panel.py
 
 Originally step2_clean_merge.py. Builds data/processed/pew_harmonized.csv, the
 2010 and 2020 start state the forecasting package prefers. Without it the
-package falls back to results_step5/headline_country_shares.csv; see
+package falls back to inputs/pew2020_start_state.csv; see
 docs/DATA.md.
 
 Requires: pandas, geopandas, requests, openpyxl, pycountry.
@@ -84,7 +84,7 @@ def must_exist() -> None:
              "WPP2024_Demographic_Indicators_Medium.csv.gz", "ne_50m_admin_0_countries.zip"]
     absent = [n for n in names if not (RAW / n).is_file()]
     if absent:
-        raise FileNotFoundError(f"Missing input files in {RAW}: {absent}. Run Step 1 first.")
+        raise FileNotFoundError(f"Missing input files in {RAW}: {absent}. Run scripts/prepare_raw_data.py first.")
     OUT.mkdir(parents=True, exist_ok=True)
 
 

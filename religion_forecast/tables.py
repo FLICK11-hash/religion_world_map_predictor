@@ -31,12 +31,14 @@ def q(x, a, axis=0):
 PI_YEARS = [y for y in YEARS if 2020 < y <= 2020 + ER.MAX_REPORTED_HORIZON]
 
 
-def attach_predictive(stores, error_model, seed, draws=10):
+def attach_predictive(stores, error_model, seed, draws=25):
     """Predictive draws for every scenario and year to 2100: each Monte Carlo run of the model plus
     errors resampled from the history record (religion_forecast.errors). The same random numbers are
-    used in every scenario, so scenario differences are unaffected. Stores, per scenario and year,
-    country quantiles (5%, 95%), world quantiles (5%, 10%, 90%, 95%) and how often each country's
-    largest religion differs from 2020's."""
+    used in every scenario, so scenario differences are unaffected, and in every year, so each draw
+    is one error path, the same standardised error growing with horizon as the error model has it
+    (which also keeps the bands smooth over time). Stores, per scenario and year, country quantiles
+    (5%, 95%), world quantiles (5%, 10%, 90%, 95%) and how often each country's largest religion
+    differs from 2020's."""
     for st in stores.values():
         st.pred = {}
         if error_model is None:
@@ -45,8 +47,9 @@ def attach_predictive(stores, error_model, seed, draws=10):
         dom0 = st.sh[:R, 0].astype(float).mean(0).argmax(1)
         for y in PI_YEARS:
             j = YEARS.index(y)
-            rng = np.random.default_rng([seed, 9090, y])
-            d = ER.predictive(st.sh[:R, j].astype(float), y - 2020, error_model, rng, draws)
+            rng = np.random.default_rng([seed, 9090])
+            samples = st.sh[:R, j].astype(float)
+            d = ER.predictive(samples, y - 2020, error_model, rng, draws, nn=ER.neighbours(samples.mean(0), error_model))
             pop = np.repeat(st.pop[:R, j], draws, axis=0)
             w = pop / np.maximum(pop.sum(1, keepdims=True), 1e-300)
             world = (d * w[:, :, None]).sum(1)
@@ -164,6 +167,26 @@ def corridors(ctx, name, st, top=400):
             o, d = np.unravel_index(f, F.shape)
             rows.append({'scenario': name, 'period': PERIOD_LABEL[pr], 'origin': ctx.ids[o], 'destination': ctx.ids[d],
                          'persons': float(F[o, d])})
+    return pd.DataFrame(rows)
+
+
+def corridor_concentration(ctx, name, st, top=20):
+    """For the destinations with most simulated arrivals in 2020-2050: the largest single origin's
+    share of those arrivals against its share of the destination's 2020 migrant stock. A ratio far
+    above 1 marks a corridor the projection makes much larger than it has been (for example where
+    WPP's national margins leave an origin's usual destinations no room)."""
+    F = st.od[0] / max(st.R, 1)
+    S = ctx.stock2020
+    arrivals = F.sum(0)
+    rows = []
+    for d in np.argsort(arrivals)[::-1][:top]:
+        o = int(np.argmax(F[:, d]))
+        stock_share = float(S[o, d] / max(S[:, d].sum(), 1e-300)) if S is not None else np.nan
+        share = float(F[o, d] / max(arrivals[d], 1e-300))
+        rows.append({'scenario': name, 'destination': ctx.ids[d], 'arrivals_2020_2050_millions': arrivals[d] / 1e6,
+                     'largest_origin': ctx.ids[o], 'origin_share_of_arrivals': share,
+                     'origin_share_of_2020_stock': stock_share,
+                     'ratio': share / stock_share if stock_share and stock_share > 0 else np.nan})
     return pd.DataFrame(rows)
 
 

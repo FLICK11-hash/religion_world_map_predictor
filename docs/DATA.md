@@ -26,10 +26,11 @@ source URL, the SHA-256 of the exact file the committed results used, and its li
 workbook is behind a free account and must be downloaded by hand; `python scripts/prepare_pew_panel.py`
 then builds the harmonised panel.
 
-**Without `data/processed/pew_harmonized.csv`** — as in the environment where the committed
-results were produced — the model starts from `results_step5/headline_country_shares.csv`, the
-same Pew 2020 data exported by the earlier Step 5D pipeline with the same Folk/Other split. In
-that case the Pew 2010-2020 window is neither fitted nor tested, and every report says so.
+**Without `data/processed/pew_harmonized.csv`** the model starts from the committed
+`inputs/pew2020_start_state.csv`: the same Pew 2020 composition, harmonised by the same script
+with the same Folk/Other split, but without 2010. In that case the Pew 2010-2020 window is
+neither fitted nor tested, and every report says so. `results/run_stamp.json` and
+`projection_report.json` record which start state a run used.
 
 **Pew's seven groups against the model's eight.** Pew's 2025 release counts folk religions inside
 "other religions". `scripts/prepare_pew_panel.py` splits that group using each country's WRP ratio from
@@ -39,14 +40,17 @@ or migrant figures given in Pew's seven are compared with Folk + Other combined.
 
 ## 2. Optional, fetched by `run.py fetch`
 
-Each tries the official URL first, then a public GitHub mirror.
+Each tries the official URL first, then a public GitHub mirror. The mirror is also used when the
+official download succeeds but cannot be converted here (the Pew 2015 workbook), so a machine with
+full internet access ends up with the same files as one that only reaches the mirrors. Converted
+files are written byte-identically on every platform (Unix line endings, no gzip timestamp), and
+`scripts/verify_data.py` compares text files by content as well as by bytes.
 
 | Dataset | Official source | File produced | Used for | In the committed run |
 |---|---|---|---|---|
 | UN DESA International Migrant Stock 2024, destination × origin | un.org/development/desa/pd/content/international-migrant-stock | the xlsx itself | the migrant network; each country's mobility; first-generation stocks and their origin mix from 1990; calibration of the religion of migrants | used (68,941 pair-years, 1990-2024) |
 | UN WPP 2024 population by 5-year age group and sex | UN WPP CSV files | `WPP2024_age5_condensed.csv.gz` | real age pyramids for every start year; the female share of each reproductive age group | used (237 countries, 1950-2100) |
 | UNHCR refugee population statistics | api.unhcr.org/population/v1/population/ | `unhcr_population.csv` | loaded and reported; refugees are already inside the UN migrant stocks, so there is no separate displacement component | loaded (64,809 rows) |
-| World Bank WDI: GDP per capita PPP, urban share | api.worldbank.org/v2/ | `wdi_covariates.csv` | available for covariate tests; not used, because WPP life expectancy and fertility already give a complete 1950-2100 development index | loaded |
 | Pew 2015 country projections 2010-2050 | assets.pewresearch.org | `pew2015_rounded_population.csv` | the external benchmark and the forecast-skill yardstick (section 5) | used |
 
 Also checked: **Abel & Cohen** bilateral flow estimates (figshare 10.6084/m9.figshare.7731233),

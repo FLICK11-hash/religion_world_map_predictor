@@ -128,23 +128,22 @@
     "tau_v": 0.7,
     "grid": {
       "delta": [
-        -1.0,
-        0.0,
-        1.0,
-        2.0,
-        3.0
+        -1.5,
+        -0.5,
+        0.5,
+        1.5
       ],
       "beta_d": [
-        0.0,
-        0.8,
-        1.6,
+        -0.5,
+        0.5,
+        1.5,
         2.4
       ],
       "tau_u": [
-        0.5,
-        1.0,
-        2.0,
-        3.0
+        0.4,
+        0.9,
+        1.4,
+        2.0
       ]
     },
     "latent_draws": 512,
@@ -195,19 +194,19 @@
       },
       "note": "No country is given more lifetime outflow than the highest observed in surveys: raised Christian 49% left (South Korea, Pew 2025), raised Buddhist 61% (South Korea), raised Muslim about 25%, raised Hindu about 20%, raised Jewish about 24% (US RLS); raised unaffiliated who join a religion 45% (US 2014 RLS). Folk/Other: assumption."
     },
-    "grid_note": "Coarse starting grid for the empirical Bayes fit. The fit adapts its importance-sampling proposal at the best grid point, repeats the grid, adapts again and refines continuously with Nelder-Mead within `bounds` (religion_forecast.switching.Hierarchy.fit).",
+    "grid_note": "Starting grid and bounds of the empirical Bayes fit. The bounds are the prior range of the hyperparameters (the box of the project's original search grid); the fit evaluates the coarse grid, adapts its importance-sampling proposal at the best point, repeats the grid, adapts again and refines continuously with Nelder-Mead inside the bounds (religion_forecast.switching.Hierarchy.fit). The full fit used by the projection lies inside them. Fits to historical net change alone, used in the history tests, prefer a larger country spread tau_u (about 3); with it, full-strength switching forecasts worse out of sample, because the extra spread reproduces country trends in the historical residuals that do not persist, so the bound is kept and folds that reach it are reported.",
     "bounds": {
       "delta": [
-        -3.0,
-        5.0
+        -1.5,
+        1.5
       ],
       "beta_d": [
-        -1.0,
-        4.0
+        -0.5,
+        2.4
       ],
       "tau_u": [
-        0.1,
-        5.0
+        0.4,
+        2.0
       ]
     },
     "replicate_fits": {

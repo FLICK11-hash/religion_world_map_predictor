@@ -262,8 +262,8 @@ class Fertility:
         world figure     damped by phi. A global ratio mostly reflects WHERE each group lives, not
                          how many children its members have relative to their neighbours.
 
-    Step 5E found that history cannot identify phi, so both damping factors stay assumptions with
-    stated ranges, and `fertility_evidence` records which tier each cell came from.
+    History tests cannot identify phi (the error is flat in it), so both damping factors stay
+    assumptions with stated ranges, and `fertility_evidence` records which tier each cell came from.
     """
 
     def __init__(self, ctx, p, scenario_cfg):

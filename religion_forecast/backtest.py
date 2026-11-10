@@ -118,9 +118,12 @@ def run(include_pew=True, ctx=None):
         pop = ctx.wpp_at('pop', t)
         train = [x for x in wins if x['source'] == 'WRP' and x['end'] <= t]
         hier = ES.fit_switching(ctx, train, use_survey=False) if len(train) >= 2 else None
+        b = ctx.a['switching'].get('bounds', {})
+        at_bound = [] if hier is None else [k for k, v in zip(('delta', 'beta_d', 'tau_u'), hier.H)
+                                            if k in b and min(abs(v - b[k][0]), abs(v - b[k][1])) < 1e-6]
         fits.append({'test_window': label, 'train_windows': len(train),
                      'delta': None if hier is None else hier.H[0], 'beta_d': None if hier is None else hier.H[1],
-                     'tau_u': None if hier is None else hier.H[2]})
+                     'tau_u': None if hier is None else hier.H[2], 'at_bound': ','.join(at_bound)})
         nm = next(x for x in wins_nomig if x['start'] == t and x['source'] == w['source'])
         base = w['pred']
         eff = ES.expected_switch_effect(hier, w) if hier is not None else np.zeros_like(base)

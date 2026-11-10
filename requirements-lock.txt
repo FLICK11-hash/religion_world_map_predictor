@@ -1,8 +1,8 @@
-# Exact versions under which the full pipeline, the 16 package tests, the integrity
-# checks, the four archived Step 5D/5E test suites and both baselines were verified.
+# Exact versions under which the full pipeline, the package tests, the integrity checks
+# and the two programs in previous_grad_assignment/ were verified.
 # Python 3.13.16, Linux x86_64. Install with:  pip install -r requirements-lock.txt
 #
-# The optional extras in pyproject.toml (maps, prepare, legacy) were NOT tested here:
+# The optional extras in pyproject.toml (maps, prepare) were NOT tested here:
 # their packages could not be installed in the verification environment.
 numpy==2.5.3
 pandas==3.0.5

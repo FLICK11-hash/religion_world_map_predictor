@@ -17,8 +17,11 @@ change (checked by `run.py checks`).
 
 ### 1. Survival
 
-`P[a+1](t+5) = s_a * P[a](t)`, with `s_a = 5L(a+1) / 5L(a)` from a life table, and the open group
-surviving at `T85/T80`.
+`P[a+1](t+5) = s_a * P[a](t)`, with `s_a = 5L(a+1) / 5L(a)` from a life table. The open group
+is `P[80+](t+5) = (5L80 / 5L75) P[75-79](t) + (T85 / T80) P[80+](t)`, which reproduces a
+stationary population exactly (`tests/test_model.py`). An earlier version applied `T80/T75`, the
+ratio for the combined 75+ population, to the 75-79 group alone, understating its survival by
+about a sixth; to 2100 the national rescaling to WPP hid most of that, after 2100 it did not.
 
 The life table is a Siler-type hazard, `h(x) = 0.0004 + c·e^(−0.9x) + b·e^(0.09x)`, fitted to two
 WPP series: *b* by bisection so that life expectancy at birth equals WPP's `e0`, and *c* in closed
@@ -57,7 +60,7 @@ Every figure enters as a **ratio** to the reference fertility the same source re
 population and period, never as a level, because a level divided by a reference from another
 period would be wrong. The damping exists because a ratio measured across countries is not a
 within-country ratio: globally, Muslim fertility is high largely because Muslims live in
-high-fertility countries. Step 5E established that history cannot identify `phi`, so it stays an
+high-fertility countries. History tests cannot identify `phi` (the error is flat in it), so it stays an
 assumption with a stated range; the United States figures are a useful check, implying an
 unaffiliated ratio of 0.86 where the world ratio of 0.68 reproduces 0.86 at `phi ≈ 0.5`.
 
@@ -93,23 +96,62 @@ Rates come from a hierarchical model, estimated by empirical Bayes:
 
 > `logit d[c,r] = μ_d[r] + δ + β_d·z_c(t) + τ_u·ξ_c + τ_e·ξ_{c,r}`
 > `logit a[c]   = μ_a + β_a·z_c + τ_a·ξ′_c`
+> `logit v[c,r] = μ_v[r] + τ_v·ξ″_c`
 
 `z` is a development index (standardised WPP life expectancy and −log TFR, capped at the most
-developed level observed). `δ`, `β_d` and `τ_u` maximise the marginal likelihood over a grid;
-country effects are posterior draws by importance weighting.
+developed level observed). The country effects `ξ` are standard normal; `δ`, `β_d` and `τ_u` are
+estimated by maximising the marginal likelihood of the evidence, with the country effects
+integrated out.
 
 Two kinds of evidence enter:
 
 - **Net change.** A demographic-plus-migration hindcast of each historical decade, run *without*
   switching, leaves a residual. Its link to the rates is the first-order effect of switching on
-  shares, which matches exact simulation within 0.05 points. The likelihood is Student-t, robust
-  to source breaks. Because the hindcast already contains births, deaths, ageing and migration,
-  only the unexplained part is attributed to switching, so nothing is counted twice.
-- **Surveys.** 67 verified lifetime cells in 33 countries enter a binomial likelihood.
+  shares, which matches exact simulation within 0.05 points. The likelihood is Student-t (4
+  degrees of freedom), robust to source breaks. Because the hindcast already contains births,
+  deaths, ageing and migration, only the unexplained part is attributed to switching, so nothing
+  is counted twice.
+- **Surveys.** 67 verified lifetime cells from 48 survey rows (a country's adults raised in one
+  religion, in one survey) in 33 countries. Each row is one **Dirichlet-multinomial**: the cells it
+  reports, at the probabilities the model gives them, plus one complement cell for whatever it
+  does not report. A cell "raised *r*, now *s*" has probability `v_r` times the model's share of
+  converts going to *s* (local prevalence, as in the lifetime matrix), not `v_r` itself. The
+  concentration `α = 100` lets a row carry the information of at most about a hundred respondents
+  however large the survey, which allows for design effects and for the model's simplifications
+  (one conversion effect per country, converts placed by prevalence). `α = 30` and `100` fit
+  equally well and `300` worse; `α → ∞` is the multinomial.
+
+  An earlier version scored each cell as a separate binomial against the total conversion
+  probability. That counted the respondents of a row several times over and compared cells such
+  as "raised unaffiliated, now Muslim (0.6%)" with the probability of affiliating with any
+  religion (about 45%), which pulled the affiliation rate, and with it the disaffiliation rate,
+  far down. Most of the gap the project used to report between the history-fitted and the
+  survey level of switching was that error.
+
+**Estimation.** The marginal likelihood of `H = (δ, β_d, τ_u)` is a product over countries of
+ten-dimensional integrals over each country's effects, estimated by importance sampling. Draws
+from the prior are inefficient wherever the evidence is sharp, and made the estimate depend on
+the random seed. The fit therefore (i) evaluates a coarse grid with prior draws; (ii) replaces each
+country's draws with a **defensive mixture** proposal, 25% prior and 75% a Gaussian fitted to that
+country's importance-weighted draws, carrying the weight log prior − log proposal so that the
+estimator stays unbiased for every `H`; (iii) repeats the grid and the adaptation; and (iv)
+maximises continuously with Nelder-Mead on `(δ, β_d, log τ_u)`, inside the prior box
+`δ ∈ [−1.5, 1.5]`, `β_d ∈ [−0.5, 2.4]`, `τ_u ∈ [0.4, 2.0]` (the range of the project's original
+search grid). The fit the projection uses lies inside it. Fits to historical net change alone,
+used in the history tests, prefer a larger country spread (`τ_u` near 3); with it full-strength
+switching forecasts worse, because the extra spread reproduces country trends in the historical
+residuals that do not persist. The bound is therefore kept, and folds that reach it are flagged
+in `switching_fit_by_fold.csv`. Because the latent effects are
+standard normal whatever `H` is, one set of draws serves every `H`, and the estimated likelihood
+is a smooth function of it. Some Monte Carlo error remains, so the projection uses **three
+replicate fits** with independent draws, run *r* using replicate *r* mod 3. That carries the error
+into the projection's spread, and the replicates' standard deviation is reported in
+`projection_report.json`. Country effects are drawn from each replicate's importance-weighted
+posterior.
 
 Pew's 2025 survey of 117 countries (adults 18-54) then fixes a second, "survey" level per religion
-through a logit shift. The two levels disagree — for Christians 11.7 against 17.1 left per 100
-raised — so every run draws a weight between them rather than the project choosing one.
+through a logit shift, and every run draws a weight between the two levels rather than the
+project choosing one.
 
 ### 4-5. Migration
 
@@ -138,6 +180,12 @@ immigration. Each run draws `ρ` from 0.5 to 1; the 1990-2020 corridor test fits
 After 2100 there is no WPP: `E_c = rate_c(2095-2100) × multiplier × pop_c`, and destinations keep
 their 2100 attraction, falling as they grow (congestion θ).
 
+A cap on corridors (no origin may supply more than *c* times its share of a destination's migrant
+stock) was tested on 1990-2020 for *c* from 1.5 to 4 and fits the observed corridors worse at every
+margin softness; observed arrivals were more concentrated by origin than the uncapped model
+simulates. It is therefore not applied. The projection's largest corridors relative to 2020
+stocks are listed in `migration_corridor_concentration.csv`.
+
 **Who.** Each corridor draws from origin cells in proportion to persons × age propensity ×
 generation propensity × a corridor mix
 `m[o,d,r] ∝ share_o[r]^(−λ) · (share_d[r] + 0.01)^κ`. λ is the minority effect (minorities
@@ -148,12 +196,6 @@ error 2.2 points against 5.9 if migrants simply mirrored their origin.
 No cell can lose more than half its people in five years; full cells are capped and the remainder
 redistributed by water-filling. Immigrants arrive as first generation, split by age exactly as
 the emigrants were, so worldwide migration changes no religion's numbers at all.
-
-### 6. Residual
-
-A ridge regression on start-of-decade conditions predicts what the mechanisms miss. Its weight is
-chosen out of sample by the backtest, and that weight is 0 — it never improved out-of-sample
-error, so the projection runs without any machine-learned correction.
 
 ## After 2100
 
@@ -182,18 +224,64 @@ Life expectancy rises 0.02-0.06 years per year to a cap of 90-95; under-5 mortal
 Run *r* uses the same parameter draws in every scenario, so a difference between two scenarios is
 the assumption alone.
 
-## Uncertainty
+## Evaluation
+
+**Point forecasts.** Every World Religion Project decade from 1970-1980 to 2000-2010, and Pew
+2010-2020 when the Pew workbook is prepared, is forecast from its first year with switching fitted
+only on decades that end by then (net-change evidence only: the surveys postdate every origin).
+National demography inside the window is WPP 2024's estimate, so the tests measure error
+conditional on fertility, mortality and net migration. The score is the total-variation distance
+between forecast and observed shares, population-weighted over countries.
+
+**Inference.** A decade-level comparison has four or five observations, and an exact paired test
+on it cannot fall below p = 0.125 (2/2⁴). The comparison with persistence is therefore also made
+country by country: the population-weighted mean difference in error over every country-decade,
+with a 95% interval from 4,000 bootstrap resamples of countries (all of a country's decades
+together). Countries in the same decade share common shocks, which this interval does not
+capture, so the decade-level sign-flip test is reported beside it as the conservative bound.
+
+## Uncertainty and predictive intervals
 
 Three kinds are separated:
 
-- **parameter uncertainty** — the spread of runs inside one scenario, from the drawn parameters,
-  the posterior switching draws and the country noise;
-- **scenario uncertainty** — the range across scenario means;
-- **everything else** — measurement error in the source data and country-level change the model
-  has no mechanism for.
+- **parameter uncertainty**: the spread of runs inside one scenario, from the drawn parameters,
+  the posterior switching draws and the replicate fits (`q05`, `q95`);
+- **forecast error**: what the model, so fitted, has historically got wrong, added back by the
+  error model below (`pi05`, `pi95`, to 2100);
+- **scenario uncertainty**: the range across scenario means.
 
-Only the first two are simulated. The backtest shows the third dominates at country level: see
-`docs/LIMITATIONS.md`.
+**The error record.** From each origin 1970, 1980, 1990 and 2000 the model is run forward 40 times
+with everything as it would have been fitted then, and scored against the World Religion Project
+at every later decade to 2010: 10 forecasts at horizons of 10 to 40 years, about 560 to 120
+country-decades each.
+
+**The error model.** For country *c*, religion *k* and horizon *h*,
+
+> `e = (h/10)^β · (s(1−s) + 10⁻⁴)^b · u`
+
+where *s* is the mean forecast share and *u* a standardised error. `b` is the slope of log|e| on
+log(s(1−s)) at ten years (small shares move less); `β` is the growth of the mean absolute
+standardised error with horizon. A predictive draw takes one Monte Carlo run and adds
+`(h/10)^β g(s) u`, with *u* resampled in two stages: one historical decade for the whole world,
+then for each country the whole eight-religion error vector of one of its 15 nearest neighbours
+in that decade, nearest by total-variation distance between forecast compositions (a k-nearest-
+neighbour bootstrap). The first stage keeps the common shock a decade's countries shared, which
+is what matters for world totals. The second gives each country many errors rather than the few
+its own history supplies, without ever transplanting an error measured on a religion that was a
+tiny minority onto a country where it is the majority, which a standardised error can otherwise
+turn into an absurd change. Shares are clipped at zero and renormalised. On the history record,
+leave one origin out, this scored better than resampling any country (interval score 14.2 against
+16.3 at 90%, 34 against 42 for shares above one half; world-total coverage 92.5% against 87.5%),
+resampling within share-size classes, or aligning errors by rank.
+
+**Validation.** Leave one origin out: `b`, `β` and the resampling pool are re-estimated without
+the origin being tested, and its forecasts are scored for coverage and for the interval score of
+Gneiting and Raftery (2007), `IS_α(l, u; x) = (u − l) + (2/α)(l − x)⁺ + (2/α)(x − u)⁺`, against the
+parameter-only intervals.
+
+The record's longest horizon is 40 years, so the growth law is extrapolated beyond 2060, and the
+intervals are conditional on WPP's national demography; predictive intervals are reported to 2100
+and not beyond.
 
 ## Estimated, assumed, observed
 
@@ -203,8 +291,8 @@ Only the first two are simulated. The backtest shows the third dominates at coun
   structures; the 67 survey switching cells; published fertility and migrant-composition figures.
 - **Estimated from data:** switching hyperparameters and country effects; the survey-level shifts;
   the religion of migrants (κ, λ); the circulation rate; the centre of the margin softness ρ; the
-  residual weight (0).
+  forecast-error scale `b` and growth `β`.
 - **Assumption:** the fertility damping factors `phi` and `phi_region`; the age patterns of
-  switching and migration; generation intensities; everything after 2100; the scenario settings;
-  switching strength 1.
+  switching and migration; generation intensities; the survey overdispersion `α`; everything after
+  2100; the scenario settings; switching strength 1.
 - **Unverified:** Pew's global median ages by religion.
