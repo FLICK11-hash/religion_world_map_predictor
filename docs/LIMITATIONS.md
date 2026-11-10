@@ -1,122 +1,133 @@
-# What the validation supports, and what it does not
+# What the evaluation supports, and what it does not
 
-Written against the committed run in `results/`. Every number here comes from a file in that
-folder or in `data/validation/`.
+Written against the committed run in `results/`. Every number comes from a file there.
 
-## 1. The intervals are not forecast intervals
+## 1. No version of the model beats assuming nothing changes
 
-This is the most important finding and it is a negative one.
+Scored on four World Religion Project decades, 1970-2010, with everything fitted only on earlier
+decades, no mechanistic variant can be distinguished from persistence, and the best of them is
+at most about 2% better. Country by country, over 558 country-decades, the
+population-weighted difference in total-variation error from persistence is
+−0.02 pp for births and deaths alone (95% interval −0.10 to +0.06) and
++0.48 pp with full-strength switching (−0.19 to +1.15). A naive trend, the last decade's change
+repeated, is clearly worse (+1.71 pp, +1.03 to +2.25). The decade-level sign-flip test
+agrees, though with four decades it cannot fall below p = 0.125.
 
-The model reports 5-95% bands from its Monte Carlo over drawn parameters. Running that same Monte
-Carlo on historical decades and asking how often the observed share actually fell inside the band
-gives:
+Two cautions. The country bootstrap treats countries as independent within a decade, and they
+share common shocks, so its intervals are too narrow and the conclusion "indistinguishable" holds
+a fortiori; a bound such as "at most a few percent better" is less secure. And every history test
+is conditional on national demography: the WPP 2024 *estimates* for each historical window are
+used, not the projections available at the time, so real-time forecast error was larger.
 
-| Nominal | Covered (1980-90) | Covered (1990-2000) | Covered (2000-10) |
-|---|---|---|---|
-| 50% | 8.7% | 5.4% | 8.2% |
-| 80% | 16.2% | 10.6% | 14.4% |
-| 90% | 19.4% | 13.4% | 17.1% |
+## 2. The model's own bands are not forecast intervals; the predictive intervals are
 
-A 90% interval that contains the truth 13-19% of the time is not a 90% interval. The median
-interval is 0.04-0.10 percentage points wide, while the median absolute error is 1.7 points for
-Christianity and 0.6 for the unaffiliated. To cover the error actually made, the intervals would
-have to be **2.7 to 19 times wider**, depending on the group.
+The Monte Carlo bands (`q05`, `q95`) contain the observed share 19-20% of the time at
+nominal 90%, at every horizon. They describe parameter uncertainty only. The predictive intervals
+(`pi05`, `pi95`) add the forecast errors the model actually made, and in leave-one-origin-out tests
+they cover 89-92% at nominal 90% for horizons of 10 to 40 years, with interval scores about
+half as large.
 
-Widening each interval by the per-religion data-noise scale the switching fit estimates lifts
-coverage to 67-77%. So most of the shortfall is not the model being wrong about its parameters —
-it is variation in the historical measurements, and country-level change the model has no
-mechanism for.
+What that does and does not establish:
 
-**What follows.** Read the published bands as *the spread of model outputs under parameter
-uncertainty*, which is what they are, and not as a probability that the truth lies inside. For an
-honest near-term country-level error bar, use the out-of-sample numbers in
-`data/validation/interval_calibration_windows.csv`: at a ten-year horizon the 90th percentile of
-absolute error is 7.3 points for Christianity, 5.4 for the unaffiliated, 5.5 for Folk/Traditional,
-3.7 for Islam and under 1 point for the smaller groups.
+- **Calibration is shown to 40 years.** The error record's longest horizon is 2010 − 1970. The
+  error growth law `(h/10)^β` is extrapolated from there to 80 years (2100). Beyond 2100 no
+  predictive interval is given.
+- **The record is the World Religion Project's.** Its errors include its own measurement noise and
+  category changes between rounds, which is appropriate if the future will be measured as noisily,
+  and conservative if Pew's later rounds are more consistent.
+- **The intervals carry the record's direction.** In 1970-2010 the unaffiliated share was observed
+  below the forecast in every decade, mostly in post-communist and East Asian countries, and the
+  intervals inherit that: the predictive median of the world unaffiliated share in 2100 lies below
+  the central path, because China's compositional neighbours in the record moved that way. Whether
+  that era's revival, as one source measured it, says anything about the twenty-first century is
+  not something the record can settle; centring the errors removes it but calibrates slightly
+  worse and distorts large countries (`predictive_sensitivity_centring.csv`).
+- **The record's model is the history-fitted one.** Surveys of religious switching postdate every
+  origin, so the error record uses switching fitted to net change alone, while the projection also
+  uses the surveys. The intervals assume the projection errs as much as the history-fitted model did.
+- **Conditional on WPP.** National fertility, mortality and net migration come from the WPP 2024
+  medium variant and are not uncertain in the model. Uncertainty in national demography, the main
+  driver of world totals through population weighting, is therefore missing from every interval.
+- **World totals rest on few decades.** Common shocks are resampled from four decades (three when
+  one is held out), so the world-level intervals are coarse; their coverage was 90% at
+  nominal 90%.
 
-## 2. The model beats "nothing changes" by very little
+## 3. The level of religious switching is the most consequential and least certain input
 
-On the WRP decades, population-weighted total-variation error, in percentage points:
+Surveys and historical net change both inform switching. An earlier version of this project
+reported that they disagree strongly (11.7 against 17.1 Christians leaving per 100 raised); most of
+that disagreement was an error in the survey likelihood, corrected in this revision. The two levels
+now stand at 13.0 against 17.1 for Christians, and every run draws a weight between them.
 
-| Model | 1990-2010 | all 1970-2010 |
-|---|---|---|
-| Persistence (no change) | 4.623 | 4.406 |
-| Births and deaths only | 4.579 | 4.378 |
-| + migration | 4.580 | 4.381 |
-| + switching at full strength | 4.487 | 4.797 |
-| Extrapolate the last decade | 6.829 | 5.854 |
+The history tests do not favour switching: full-strength switching, fitted to net change, is no
+better than persistence out of sample. Fitted to net change alone, the model prefers a country
+spread larger than its prior range, and with it forecasts worse, because the extra spread
+reproduces country trends in the historical residuals that do not continue. The projection uses
+switching at full strength because surveys observe it directly; that is a judgement, and the
+history tests cannot settle it.
 
-On the two 1990-2010 windows the best mechanistic model improves on persistence by 0.14 points
-on an error of 4.6, about 3%. Over all four windows the same configuration is worse than
-persistence. Window by window, every configuration beats persistence in exactly 2 of 4, so the
-backtests cannot distinguish any of them from assuming nothing changes (exact paired test,
-p ≥ 0.75; see `docs/COMPARABILITY.md`). Switching helps on the recent decades and hurts on the
-early ones, where the fit had only two or
-three decades to learn from and chose the largest country spread the grid allows. The projection
-uses full-strength switching anyway, because surveys observe switching directly and the history
-tests cannot settle it; that is a judgment and is recorded as one in
-`data/validation/validation_report.json` (`used_by_forecast`).
+The survey evidence itself is thin: 67 cells from 48 survey rows in 33 countries, a third of them
+read from report text or secondary reporting rather than tables (`inputs/switching_lifetime_observed.csv`,
+column `evidence_type`). The Dirichlet-multinomial concentration `α = 100` caps how much any one row
+counts; it is an assumption, chosen because 30 and 100 fit equally well and 300 worse.
 
-Extrapolating recent change is far worse than any mechanistic model. That is the clearest positive
-result of the backtests.
+## 4. Measurements move more than projections
 
-## 3. The underlying measurements move more than the projections do
+Pew's 2015 report and its 2025 data disagree about the world's composition in 2020 by more than
+most of the change any projection makes over thirty years, largely because China's folk religion
+and unaffiliated populations are classified differently (`benchmark_vs_pew2015.csv`,
+`benchmark_pew2015_skill.csv`). No projection of this quantity can be more accurate than the
+measurements it is scored against, and any statement about China inherits the disagreement. The
+Folk/Other split of Pew data is a World Religion Project proxy.
 
-Pew's 2015 report and Pew's 2025 report disagree about the world Christian share **in 2020** by
-2.3 points (31.1% against 28.8%). Scored country by country, Pew's own ten-year-ahead projection
-of 2020 differs from Pew's later measurement of 2020 by 10.7 points population-weighted — and
-freezing 2010 unchanged scores 10.9, almost the same. **China contributes 69% of that difference**
-and Vietnam 6%; it is a reclassification between folk religion and the unaffiliated, not a
-forecasting failure.
+## 5. Where the fertility evidence runs out
 
-Two consequences. First, no projection of this quantity can be more accurate than the measurements
-it is scored against. Second, any country-level statement about China here inherits the
-disagreement, and the Folk/Other split for Pew data is in any case a WRP-based proxy.
+Religion-specific fertility is published for few countries. By 2020 population, most of the world
+takes its within-country fertility differences from regional or global ratios, damped because a
+ratio measured across countries mostly reflects where each group lives (`fertility_evidence.csv`).
+History tests cannot identify the damping factors, which stay assumptions with stated ranges. The
+clearest gap is sub-Saharan Africa: DHS surveys cross-tabulate fertility by religion, but only in
+country reports that could not be reached from the build environment.
 
-## 4. Where the fertility evidence runs out
+## 6. Migration
 
-Published fertility by religious group now covers, by 2020 population: 24% from country figures,
-21% from regional figures, 55% from one global ratio per religion damped by an assumed factor.
+- The religion of migrants is calibrated to 19 published aggregate figures, not observed by
+  corridor; Pew's country-level migrant file needs an account.
+- Some projected corridors are much larger than the corresponding 2020 stocks, notably from
+  Pakistan into the United Kingdom (`migration_corridor_concentration.csv`). WPP 2024 keeps South
+  Asian emigration high while Gulf net immigration falls to almost zero after 2030, and the model
+  respects WPP's national margins. A cap on corridor shares was tested and fits the 1990-2020
+  corridors worse at every setting, so it is not applied; country results for such destinations
+  should be read with this in mind.
+- Gross churn is understated, because circulation is calibrated on foreign-born stocks and a
+  returning emigrant counts as foreign-born. Stocks are right; flows are not.
 
-The global tier is the weakest link. A global ratio mostly measures where each group lives, not
-how many children its members have relative to their neighbours, and history cannot identify the
-damping factor (Step 5E found the error flat in it). The country figures that do exist changed
-real results — Israel's Jewish fertility is above Muslim fertility, which the global ratios had
-backwards — which is reason to expect the remaining 55% to be carrying errors of the same kind.
+## 7. Mechanisms the model does not have
 
-The clearest gap is sub-Saharan Africa: the DHS surveys do cross-tabulate fertility by religion,
-but only inside the full country reports, which could not be reached from the build environment.
-
-## 5. What is assumed rather than estimated
-
-Everything after 2100. The long-run fertility level, the speed of convergence, the life-expectancy
-ceiling, the post-2100 migration rule and the fade of switching are all stated assumptions, and
-`data/experiments/sensitivity_coefficients.csv` shows which of them the long-run results actually
-turn on. The 2500 and 3026 columns exist to show what a set of assumptions implies, not what will
-happen, and are labelled that way in every table and figure.
-
-Within the projection horizon the main assumptions are the two fertility damping factors, the
-switching strength, the age patterns of switching and migration, and the generation intensities.
-
-## 6. Mechanisms the model does not have
-
-- **Religious intermarriage.** Children take their mother's religion. In countries with high
-  intermarriage this understates mixing.
+- **Religious intermarriage.** Children take their mother's religion.
 - **Mortality differences between religions.** Not modelled; no dataset here supports a figure.
-- **Sub-national variation.** Countries are homogeneous units. For large, religiously regionalised
-  countries (India, Nigeria, Indonesia) this is a strong simplification.
+- **Sub-national variation.** Countries are homogeneous units, a strong simplification for India,
+  Nigeria or Indonesia.
 - **Conflict, persecution, state policy and sudden displacement.** Refugees are inside the UN
-  stocks, but there is no shock process, so the model cannot produce a Syria-shaped event.
+  stocks, but there is no shock process.
 - **Religiosity as distinct from affiliation.** The model tracks identification only.
 
-## 7. Known artefacts
+## 8. What is assumed rather than estimated
 
-- Some migration corridors are probably too large. Pakistan supplies 32% of the United Kingdom's
-  simulated arrivals in 2020-2050 against 8% of its 2020 foreign-born, because WPP's projected
-  margins keep South Asian emigration high while Gulf net immigration falls to almost zero after
-  2030. Softening the margin fit reduced this from 46% but did not remove it.
-- Gross migration churn is understated by about a factor of four, because the circulation rate was
-  calibrated on foreign-born stocks and the model counts a returning emigrant as foreign-born.
-  Stocks are right; flows are not.
+Everything after 2100: the long-run fertility level and its convergence, the life-expectancy
+ceiling, post-2100 migration and the fade of switching. The 2200, 2500 and 3026 results show what
+a stated set of assumptions implies; they are labelled exploratory everywhere and carry no
+predictive interval. Within the horizon, the main assumptions are the fertility damping factors,
+the switching strength, the age patterns of switching and migration, the generation intensities
+and `α`. The Pew 2010 median ages by religion used for the within-country age tilt are marked
+unverified in `config/assumptions.json` and must be checked against the report before citation:
+the tilt's strength `psi` is the most influential parameter for the Muslim world share in 2050
+(standardised rank coefficient +0.71).
+
+## 9. Known artefacts
+
 - Five French overseas departments have no Natural Earth geometry of their own and borrow a
   neighbour's coordinates for distance calculations.
+- The World Religion Project's country coverage grows over time (117 to 164 countries scored per
+  test decade), and Indonesia is missing in 1980 and 1985, so the earliest windows omit the largest
+  Muslim-majority country.

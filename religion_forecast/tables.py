@@ -55,7 +55,14 @@ def attach_predictive(stores, error_model, seed, draws=25):
             world = (d * w[:, :, None]).sum(1)
             st.pred[y] = dict(country_q05=np.quantile(d, 0.05, axis=0), country_q95=np.quantile(d, 0.95, axis=0),
                               world_q=np.quantile(world, [0.05, 0.10, 0.90, 0.95], axis=0),
+                              world_median=np.quantile(world, 0.5, axis=0),
                               changed=(d.argmax(2) != dom0[None, :]).mean(0))
+            if y in (2050, 2100):              # comparison: centred errors
+                rng = np.random.default_rng([seed, 9090])
+                db = ER.predictive(samples, y - 2020, error_model, rng, draws,
+                                   nn=ER.neighbours(samples.mean(0), error_model), centred=True)
+                wb = (db * w[:, :, None]).sum(1)
+                st.pred[y]['world_q_centred'] = np.quantile(wb, [0.05, 0.5, 0.95], axis=0)
 
 
 def country_table(ctx, name, st):
@@ -167,6 +174,26 @@ def corridors(ctx, name, st, top=400):
             o, d = np.unravel_index(f, F.shape)
             rows.append({'scenario': name, 'period': PERIOD_LABEL[pr], 'origin': ctx.ids[o], 'destination': ctx.ids[d],
                          'persons': float(F[o, d])})
+    return pd.DataFrame(rows)
+
+
+def predictive_sensitivity(stores, ref):
+    """World shares in 2050 and 2100 (reference scenario): the model's mean, and the median and 90%
+    predictive interval as projected (errors as recorded) and with centred errors (a comparison)."""
+    st = stores[ref]
+    rows = []
+    for y in (2050, 2100):
+        pr = getattr(st, 'pred', {}).get(y)
+        if not pr or 'world_q_centred' not in pr:
+            continue
+        j = STEPS.index(y)
+        for k, c in enumerate(CATS):
+            rows.append({'scenario': ref, 'year': y, 'religion': c, 'model_mean': float(st.world[:st.R, j, k].mean()),
+                         'pi05': float(pr['world_q'][0, k]), 'median': float(pr['world_median'][k]),
+                         'pi95': float(pr['world_q'][3, k]),
+                         'centred_pi05': float(pr['world_q_centred'][0, k]),
+                         'centred_median': float(pr['world_q_centred'][1, k]),
+                         'centred_pi95': float(pr['world_q_centred'][2, k])})
     return pd.DataFrame(rows)
 
 

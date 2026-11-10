@@ -34,8 +34,10 @@ regenerates (`python run.py all`). If the run changes, the numbers below change 
 1. Re-run with the Pew 2010-2020 workbook prepared (`scripts/prepare_pew_panel.py`), so the start
    state is Pew's own data for both years and the 2010-2020 decade enters the tests. The committed
    run used the 2020-only fallback.
-2. Verify every reference against the original, and the Pew 2010 median ages by religion in
-   `config/assumptions.json` (`age_structure.pew_global_median_age_2010`, marked unverified).
+2. Verify every reference against the original, and above all the Pew 2010 median ages by
+   religion in `config/assumptions.json` (`age_structure.pew_global_median_age_2010`, marked
+   unverified): the age-tilt parameter they feed is the most influential input for the Muslim
+   world share in 2050.
 3. Choose a licence, tag a release and archive it (Zenodo) for a DOI to cite in the data and code
    availability statement.
 4. Check the target journal's policy on AI-assisted work and adapt the statement.

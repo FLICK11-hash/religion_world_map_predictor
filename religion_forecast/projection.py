@@ -4,6 +4,7 @@
     python run.py project --runs 12        fewer runs
     python run.py project --scenarios stabilising,high_retention
     python run.py project --quick          8 runs, to check the plumbing, not for results
+    python run.py project --tabulate-only  rebuild the tables from the saved runs (no simulation)
 
 Writes data/projections/ (git-ignored).
 
@@ -166,6 +167,9 @@ def main(argv=None):
     ap.add_argument('--scenarios', default='all')
     ap.add_argument('--seed', type=int, default=None)
     ap.add_argument('--quick', action='store_true', help='8 runs per scenario (a fast check, not for results)')
+    ap.add_argument('--tabulate-only', action='store_true',
+                    help='rebuild every table and predictive interval from the runs saved by the last projection '
+                         '(data/projections/runs.pkl) without simulating again')
     args = ap.parse_args(argv)
     t0 = time.time()
     ctx = SM.Context()
@@ -185,7 +189,21 @@ def main(argv=None):
               f"{ctx.selectivity['lam']:.2f}, rmse {ctx.selectivity['rmse_pp']:.2f} pp "
               f"(migrants mirror origin: {ctx.selectivity['rmse_mirror_pp']:.2f} pp)")
     print(f'Running {len(scenarios)} scenarios x {runs} runs (seed {seed}) ...')
-    stores = run_scenarios(ctx, hier, scenarios, runs, seed)
+    import pickle
+    saved = OUT / 'runs.pkl'
+    if args.tabulate_only:
+        if not saved.exists():
+            raise SystemExit(f'--tabulate-only needs {saved.relative_to(config.PROJECT)}; run the projection first')
+        blob = pickle.loads(saved.read_bytes())
+        stores, runs, seed, scenarios = blob['stores'], blob['runs'], blob['seed'], blob['scenarios']
+        if blob.get('start_state') != ctx.start_source:
+            raise SystemExit('the saved runs used a different start state; run the projection again')
+        print(f'Tabulating the {runs} runs per scenario saved in {saved.relative_to(config.PROJECT)} (seed {seed})')
+    else:
+        stores = run_scenarios(ctx, hier, scenarios, runs, seed)
+        OUT.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(pickle.dumps({'stores': stores, 'runs': runs, 'seed': seed, 'scenarios': scenarios,
+                                        'start_state': ctx.start_source}, protocol=pickle.HIGHEST_PROTOCOL))
     error_model = ER.load_or_build(ctx)
     T.attach_predictive(stores, error_model, seed)
     OUT.mkdir(parents=True, exist_ok=True)
@@ -204,6 +222,7 @@ def main(argv=None):
         OUT / 'migration_country_period.csv', index=False)
     T.corridors(ctx, ref, stores[ref]).to_csv(OUT / 'migration_corridors_reference.csv', index=False)
     T.corridor_concentration(ctx, ref, stores[ref]).to_csv(OUT / 'migration_corridor_concentration.csv', index=False)
+    T.predictive_sensitivity(stores, ref).to_csv(OUT / 'predictive_sensitivity_centring.csv', index=False)
     dc = pd.concat([T.dominant_change(ctx, s, st) for s, st in stores.items()], ignore_index=True)
     dc.to_csv(OUT / 'dominant_change.csv', index=False)
     us = T.uncertainty_split(wt)
@@ -231,6 +250,7 @@ def main(argv=None):
                          for s, st in stores.items() for j, y in enumerate(YEARS)])
     wpop.to_csv(OUT / 'world_population_by_scenario.csv', index=False)
     rep = dict(timestamp_utc=datetime.now(timezone.utc).isoformat(), runtime_seconds=round(time.time() - t0, 1),
+               tabulated_from_saved_runs=bool(args.tabulate_only),
                countries=ctx.n, dropped_countries=ctx.dropped, start_state=ctx.start_source, inputs=D.catalogue(),
                runs_per_scenario=runs, seed=seed, scenarios={s: a['scenarios'][s]['label'] for s in scenarios},
                reference_scenario=ref,
