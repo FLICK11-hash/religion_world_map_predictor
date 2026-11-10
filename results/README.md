@@ -38,6 +38,8 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - migration_foreign_born_by_country.csv
 - migration_corridor_check.csv
 - validation_report.json
+- estimator_recovery.csv
+- estimator_recovery_runs.csv
 - ablation_effects.csv
 - sensitivity_coefficients.csv
 - migrant_sorting_effect.csv

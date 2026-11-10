@@ -238,7 +238,9 @@ Christians make up 14.5% of Pakistan-born migrants, against 1.3% of Pakistan, an
 from 1.3% to 0.4% of Pakistan by 2050, which no census shows. The one origin-country figure
 available, Christians 16% of India-born migrants against 2% of India (Pew 2024), is reproduced at
 11% with `c = 3` and 17% with `c = 6`, against 20% unbounded; each run draws `c` from 3 to 6.
-κ and λ are fitted, at `c = 4.5`, to the 19 published Pew figures on the religion of migrants.
+κ and λ are fitted, at `c = 4.5`, to the 19 published Pew figures on the religion of migrants:
+κ = 0.4, λ = 0.55, error 3.0 points against 5.9 if migrants simply mirrored their origin (2.2
+unbounded, at the price of the implausible origin compositions above).
 Pew's migrant file by country of origin, which needs an account, would identify `c` directly.
 
 No cell can lose more than half its people in five years. Within a religion, cells that reach

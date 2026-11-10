@@ -32,45 +32,47 @@ predictive intervals are built from the errors it actually made there.
 All numbers are from the committed run in `results/`; `docs/RESULTS.md` has the tables.
 
 **1. Nothing beats assuming no change at decadal horizons.** Over 558 country-decades, births and
-deaths alone differ from persistence by −0.02 pp of total-variation error (95% interval −0.10 to
+deaths alone differ from persistence by −0.03 pp of total-variation error (95% interval −0.10 to
 +0.06), so they are at most about 2% better. Switching fitted to historical net change is no better
-(+0.48 pp, −0.19 to +1.15), and repeating the last decade's change is clearly worse (+1.71 pp,
-+1.03 to +2.25).
+(+0.72 pp, −0.19 to +1.70), and repeating the last decade's change is clearly worse (+1.86 pp,
++1.21 to +2.41).
 
-**2. The model's own uncertainty bands are not forecast intervals, but calibrated ones can be
-built.** The Monte Carlo bands contain the observed share 19-20% of the time at nominal 90%.
+**2. The model's own uncertainty bands are not forecast intervals; calibrated ones nearly are.**
+The Monte Carlo bands contain the observed share about a quarter of the time at nominal 90%.
 Adding the model's past errors, resampled by decade from compositionally similar countries and
-scaled by horizon, gives predictive intervals that cover 89-92% at nominal 90% for horizons of 10 to
-40 years in leave-one-origin-out tests (90% for world totals), with interval scores less than half
-as large. Error grows as (horizon/10)^0.34, more slowly than a random walk.
+scaled by horizon, gives predictive intervals that cover 86-88% of observed shares at nominal 90%
+for horizons of 10 to 30 years, validated so that the error model never shares calendar years with
+the forecast it is scored on, with interval scores less than half as large. They are therefore a
+few points too narrow, and coarser for world totals (85% of 72 held-out world shares). Error grows
+as (horizon/10)^0.27, more slowly than a random walk.
 
-**3. To 2100 the intervals are wide, but they still separate the largest groups.**
-In the reference scenario the world Muslim share
-rises from 25.6% in 2020 to 38.7% in 2100 (90% predictive interval 36.5-42.5%) and the Christian
-share falls from 28.8% to 25.8% (22.3-29.3%), so the two intervals no longer overlap. The
-unaffiliated share falls from 24.2% to 19.6% (12.5-21.1%) and the Hindu share from 14.9% to 12.1%
-(8.1-13.4%). In 27 countries the largest religion is more likely than not to change by 2100,
-almost all from Christianity to no religion (France 78%, United Kingdom 75%, Germany 69%, United
-States 47%).
+**3. To 2100 the intervals are wide, but they still separate the largest groups.** In the
+reference scenario the world Muslim share rises from 25.6% in 2020 to 39.1% in 2100 (90% predictive
+interval 36.7-42.4%) and the Christian share falls from 28.8% to 25.7% (22.6-28.8%), so the two
+intervals no longer overlap. The unaffiliated share falls from 24.2% to 19.5% (13.9-21.8%) and the
+Hindu share from 14.9% to 12.0% (9.1-14.1%). In 26 countries the largest religion is more likely
+than not to change by 2100, almost all to no religion (France 89%, United Kingdom 85%, Germany 78%,
+United States 42%).
 
-**4. Most of Islam's projected growth is about where people live.** Of the Muslim share's projected rise of
-13.0 pp by 2100, 10.4 pp comes from population weighting, the faster growth of Muslim-majority
-countries, and 2.7 pp from change within countries. The unaffiliated share rises within countries
-(+7.2 pp) but falls in the world (−4.5 pp), because the countries where it is concentrated grow
-more slowly (−12.5 pp). These are properties of the projection under its assumptions.
+**4. Most of Islam's projected growth is about where people live.** Of the Muslim share's projected
+rise of 13.5 pp by 2100, 10.3 pp comes from population weighting, the faster growth of
+Muslim-majority countries, and 3.3 pp from change within countries. The unaffiliated share rises
+within countries (+7.3 pp) but falls in the world (−4.6 pp), because the countries where it is
+concentrated grow more slowly (−12.5 pp). These are properties of the projection under its
+assumptions.
 
-**5. Within countries, switching drives the change.** Switching off one mechanism at a time on identical
-draws, switching accounts for −8.1 pp of the world Christian share in 2100 and +9.5 pp of the
-unaffiliated share, and for the change of largest religion in about 41 countries. Within-country
-fertility differences add 2.0 pp to the Muslim share. Migration moves no world share by more than a
-quarter of a point.
+**5. Within countries, switching drives the change.** Switching off one mechanism at a time on
+identical draws, switching accounts for −8.0 pp of the world Christian share in 2100 and +9.3 pp of
+the unaffiliated share, and for the change of largest religion in about 42 countries.
+Within-country fertility differences add 2.4 pp to the Muslim share. Migration moves no world share
+by more than about a third of a point, and makes countries slightly more religiously mixed.
 
-**6. A correction to the switching evidence.** Surveys of religious switching were previously
-scored with a likelihood that counted respondents several times over and compared single
-conversion cells with the probability of any conversion. Corrected (one Dirichlet-multinomial per
-survey row), the switching level fitted to history and the level Pew's 2025 surveys report are
-13.0 and 17.1 Christians leaving per 100 raised, much closer than the 11.7 against 17.1 Christians leaving per 100 raised reported
-before.
+**6. The switching estimator is checked, not assumed.** Switching rates come from an empirical
+Bayes model fitted to six decades of net change and 48 survey rows. Its hyperparameters are
+estimated to within standard errors of 0.1-0.2 on the logit scale, and that uncertainty is carried
+into every run. In a simulation study under the real design, the 90% intervals cover the true values
+in 85-95% of replications. The level fitted to history and the level Pew's 2025 surveys report are
+12.8 and 17.1 Christians leaving per 100 raised; every run draws a weight between them.
 
 **What it is not.** It is not a prediction of the religious future. The intervals are conditional
 on the UN's national demography (WPP 2024), which is not uncertain in the model. 2200, 2500 and 3026
@@ -86,6 +88,7 @@ without predictive intervals.
 | `results/` | one complete run, committed, with its figures, report, commit stamp and check output |
 | `docs/` | methods, data, results, limitations, reproducibility |
 | `previous_grad_assignment/` | the two simpler programs from the course exercise the project began as |
+| `PROJECT_OVERVIEW.md` | a short overview for collaborators: aims, what the code does, findings, open problems |
 
 ## Quick start
 
@@ -97,7 +100,7 @@ pip install -e .                                  # optional: adds the `religion
 python scripts/verify_data.py                     # is data/ the data the committed results used?
 python run.py test                                # 28 tests
 python run.py all --quick                         # whole pipeline, fewer runs; results/ is left alone
-python run.py all                                 # the full run; rewrites results/
+python run.py all                                 # the full run, about 35 minutes on 4 cores; rewrites results/
 ```
 
 To look at the committed results without running anything, open `results/figures/index.html` and
@@ -205,6 +208,7 @@ workbooks are not redistributed.
 
 ## Documentation
 
+- `PROJECT_OVERVIEW.md`: what the project is and where help is needed, for collaborators
 - `docs/METHODS.md`: the model, its estimation and the error model, equation by equation
 - `docs/RESULTS.md`: findings of the committed run
 - `docs/LIMITATIONS.md`: what the evaluation does and does not support

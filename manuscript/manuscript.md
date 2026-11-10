@@ -11,21 +11,23 @@ still has to be done before submission.*
 Projections of the world's religious composition are cited widely but rarely evaluated, and
 rarely carry honest uncertainty. We build a probabilistic cohort-component projection for 200
 countries, by religion, migrant generation and age, driven by fertility, mortality, religious
-switching and migration, with every change in share attributed exactly to its mechanism, and we
-evaluate it on the decades 1970-2010 with every parameter fitted only to data available at the
-forecast origin. Over 558 country-decades no variant of the model is distinguishable from assuming
-no change: the demographic model is at most about 2% better than persistence, and switching fitted
-to historical net change does not help. The model's own Monte Carlo bands contain the observed
-share 19-20% of the time at nominal 90%. An empirical error model fitted to the model's past
-forecasts, in which error scales as (s(1−s))^0.85 and grows with horizon as h^0.34, gives predictive
-intervals that cover 89-92% of held-out observations at nominal 90% for horizons of 10 to 40 years,
-and 90% of world totals. Conditional on the UN's national demography, the world Muslim share rises
-from 25.6% in 2020 to 38.7% in 2100 (90% predictive interval 36.5-42.5%) and the Christian share
-falls to 25.8% (22.3-29.3%); four fifths of Islam's rise reflects the faster population growth of
+switching and migration, with every change in share attributed exactly to its mechanism. Religious
+switching is estimated by empirical Bayes with Laplace importance sampling, the uncertainty of its
+hyperparameters is propagated into the projection, and the estimator is checked by simulation
+under the real design. We evaluate the model on the decades 1970-2010 with every parameter fitted
+only to data available at the forecast origin. Over 558 country-decades no variant of the model is
+distinguishable from assuming no change: the demographic model is at most about 2% better than
+persistence, and switching fitted to historical net change does not help. The model's own Monte
+Carlo bands contain the observed share about a quarter of the time at nominal 90%. An empirical
+error model fitted to the model's past forecasts, in which error scales as (s(1−s))^0.80 and grows
+with horizon as h^0.27, gives predictive intervals that cover 86-88% of held-out shares at nominal
+90% for horizons of 10 to 30 years, when the error model shares no calendar years with the
+forecasts it is scored on; a validation that leaves out only the forecast origin overstates this
+coverage. Conditional on the UN's national demography, the world Muslim share rises from 25.6% in
+2020 to 39.1% in 2100 (90% predictive interval 36.7-42.4%) and the Christian share falls to 25.7%
+(22.6-28.8%); three quarters of Islam's rise reflects the faster population growth of
 Muslim-majority countries rather than change within countries, while religious switching drives
-most within-country change. We also show that two estimation errors common in this setting, a
-survey likelihood that counts respondents repeatedly and an importance sampler drawn from the
-prior, changed substantive conclusions.
+most within-country change.
 
 ## 1. Introduction
 
@@ -50,11 +52,15 @@ The contribution is as much about what such a projection can support as about th
 itself. First, at decadal horizons the projection cannot be distinguished from persistence, and
 switching fitted to historical net change makes it worse rather than better. Second, the
 uncertainty such a model reports from its own parameters is several times too narrow, but an
-empirical error model fitted to the model's own past forecasts gives predictive intervals that are
-calibrated out of sample at horizons of 10 to 40 years, for countries and for world totals. Third,
-with those intervals, the projection to 2100 still separates the largest groups, and most of the
-projected change in world composition comes from differences in population growth between
-countries rather than from change within them.
+empirical error model fitted to the model's own past forecasts gives predictive intervals within a
+few points of nominal coverage out of sample at horizons of 10 to 30 years, provided the validation
+keeps every decade a forecast is scored on out of the error model. Third, with those intervals, the
+projection to 2100 still separates the largest groups, and most of the projected change in world
+composition comes from differences in population growth between countries rather than from change
+within them. On the way, we document estimation problems that are easy to make in this setting and
+that changed conclusions: a survey likelihood that counts respondents repeatedly, importance
+samplers that degenerate where survey evidence is sharp, and an emigration propensity that, left
+unbounded, empties small minorities from countries of high emigration.
 
 ## 2. Data
 
@@ -255,9 +261,10 @@ that reaches zero, which the clipping of shares at zero makes common. With four 
 
 Table 1 gives the population-weighted total-variation error of ten-year forecasts of the four
 World Religion Project decades from 1970 to 2010. Persistence errs by 4.41 pp. Births and deaths
-alone err by 4.38 pp (−0.6%), adding migration changes nothing, and adding switching at the
-projection's strength raises the error to 4.90 pp (+11%). A naive trend that repeats the model's
-last-decade residual errs by 5.85 pp (+33%).
+alone err by 4.38 pp (−0.7%), adding migration changes little (4.37 pp), and adding switching at
+the projection's strength raises the error to 5.16 pp (+17%). A naive trend that repeats the
+previous decade's observed change errs by 5.97 pp (+36%), and the demographic forecast plus the
+previous decade's unexplained change by 5.85 pp (+33%).
 
 **Table 1.** Ten-year forecast error, World Religion Project decades 1970-2010 (population-weighted
 total-variation distance, pp), and the country-level difference from persistence with a 95%
@@ -266,103 +273,124 @@ bootstrap interval over countries.
 | Model | Error | vs persistence | Difference, country level | 95% interval |
 |---|---|---|---|---|
 | Persistence | 4.41 | – | – | – |
-| Trend (last decade repeated) | 5.85 | +33% | +1.71 | +1.03 to +2.25 |
-| Births and deaths | 4.38 | −0.6% | −0.02 | −0.10 to +0.06 |
-| + migration | 4.38 | −0.6% | −0.02 | −0.08 to +0.06 |
-| + switching, strength 1 | 4.90 | +11% | +0.48 | −0.19 to +1.15 |
-| + switching, strength chosen on earlier decades | 4.52 | +2.6% | +0.12 | −0.08 to +0.30 |
+| Trend (last decade's change repeated) | 5.97 | +36% | +1.86 | +1.21 to +2.41 |
+| Demography + last decade's unexplained change | 5.85 | +33% | +1.71 | +1.05 to +2.26 |
+| Births and deaths | 4.38 | −0.7% | −0.03 | −0.10 to +0.06 |
+| + migration | 4.37 | −0.8% | −0.03 | −0.09 to +0.04 |
+| + switching, strength 1 | 5.16 | +17% | +0.72 | −0.19 to +1.70 |
+| + switching, strength chosen on earlier decades | 4.59 | +4.2% | +0.17 | −0.10 to +0.45 |
 
 Country by country (Figure 2; 558 country-decades in 171 countries), the difference from
-persistence is −0.02 pp for births and deaths (95% interval −0.10 to +0.06), +0.48 pp with
-full-strength switching (−0.19 to +1.15) and +1.71 pp for the naive trend (+1.03 to +2.25). Only
-the trend is distinguishable from persistence, and it is worse. The demographic model is at most
-about 2% better than assuming no change. Because countries in a decade share common shocks, the
-country bootstrap understates uncertainty, so the conclusion that no mechanistic variant is
-distinguishable from persistence holds a fortiori. The decade-level sign-flip test agrees
-(p ≥ 0.375 for every mechanistic variant; with four decades it cannot fall below 0.125).
+persistence is −0.03 pp for births and deaths (95% interval −0.10 to +0.06), +0.72 pp with
+full-strength switching (−0.19 to +1.70) and +1.86 pp for the naive trend (+1.21 to +2.41). Only
+the two trend baselines are distinguishable from persistence, and they are worse. The demographic
+model is at most about 2% better than assuming no change. Because countries in a decade share
+common shocks, the country bootstrap understates uncertainty, so the conclusion that no
+mechanistic variant is distinguishable from persistence holds a fortiori. The decade-level
+sign-flip test agrees (p ≥ 0.375 for every mechanistic variant; with four decades it cannot fall
+below 0.125).
 
 Switching fitted to historical net change alone does not help. In every fold its country spread
-`τ_u` reaches the upper bound of the prior range, and a model that is free to fit large
+`τ_u` reaches the upper end of the prior range, and a model that is free to fit large
 country-specific effects reproduces country trends in the residuals of earlier decades. Those
-trends do not persist, which is why the naive trend fails, and switching fitted this way fails for
-the same reason.
+trends do not persist, which is why the trend baselines fail, and switching fitted this way fails
+for the same reason.
 
-### 5.2 Forecast error grows slowly, and calibrated intervals can be built from it
+### 5.2 The switching estimator recovers what it estimates
 
-The error record yields b = 0.85 and β = 0.34: errors scale nearly in proportion to s(1 − s), and
-grow with horizon more slowly than a random walk. Mean absolute standardised error is 0.49, 0.59,
-0.75 and 0.77 at horizons of 10, 20, 30 and 40 years.
+On the full evidence, the three replicate fits give δ = −0.06 (standard error 0.18), β_d = 1.27
+(0.10) and τ_u = 1.46 (standard error of log τ_u 0.11), and differ from one another by at most a
+seventh of a standard error; every country's importance sample keeps at least 79 effective draws
+of 512. In 20 replications with evidence simulated from these values under the real design, the
+estimates have bias −0.08 (± 0.04) for δ, +0.01 (± 0.01) for β_d and −0.03 (± 0.02) for log τ_u,
+their spread matches the Laplace standard errors, and the 90% Laplace intervals cover the truth in
+85%, 95% and 85% of replications. The overall level of disaffiliation is thus estimated about half
+a standard error too low, which, if anything, makes the history-fitted level of switching
+conservative. That level, 12.8 Christians leaving per 100 raised among adults aged 18-54, remains
+below the 17.1 that Pew's surveys report, and the runs draw a weight between the two.
 
-The model's Monte Carlo bands contain the held-out observation 19-20% of the time at nominal 90%,
-at every horizon (Figure 3). The error-calibrated intervals, re-estimated without the origin they
-are tested on, cover 89.0%, 91.3%, 91.0% and 92.3% at horizons of 10, 20, 30 and 40 years, and
-52%, 81%, 90% and 95% at nominal 50%, 80%, 90% and 95% averaged over horizons. Their interval
-scores are less than half as large (10.8 against 21.8 pp at ten years; 18.9 against 48.9 at forty).
-For the world totals of the observed countries, the 90% intervals contained 90.0% of held-out
-values, against 13.8% for the Monte Carlo bands.
+### 5.3 Forecast error grows slowly, and nearly calibrated intervals can be built from it
 
-**Table 2.** Leave-one-origin-out calibration of 90% intervals for country × religion shares.
+The error record yields b = 0.80 and β = 0.27: errors scale nearly in proportion to s(1 − s), and
+grow with horizon more slowly than a random walk. Mean absolute standardised error is 0.32, 0.37,
+0.44 and 0.47 at horizons of 10, 20, 30 and 40 years.
+
+The model's Monte Carlo bands contain the observed share 23-25% of the time at nominal 90%, at
+every horizon (Figure 3). The error-calibrated intervals, refitted for each forecast on record
+entries that share no calendar years with it, cover 87.6%, 85.6% and 87.6% of shares observed above
+zero at horizons of 10, 20 and 30 years (Table 2), and 86.4% pooled in the stricter real-time
+variant. Their interval scores are less than half as large (13.6 against 29.2 pp at ten years; 26.9
+against 57.2 at thirty). For the world totals of the observed countries, the 90% intervals
+contained 84.7% of 72 held-out values, against 16.7% for the Monte Carlo bands. The intervals are
+therefore a few points too narrow, and coarser for world totals, which rest on the common shocks of
+four decades. The design of the validation matters: leaving out only the origin being tested, as
+is common, keeps the decades a long forecast is scored on in the error model's pool, and reported
+89-92% coverage for the same intervals.
+
+**Table 2.** Out-of-sample calibration of 90% intervals for country × religion shares observed
+above zero; the error model shares no calendar years with the forecasts it is scored on.
 
 | Horizon | Parameter-only coverage | Error-calibrated coverage | Interval score, parameter-only | Interval score, calibrated |
 |---|---|---|---|---|
-| 10 years | 18.7% | 89.0% | 21.8 | 10.8 |
-| 20 years | 19.9% | 91.3% | 33.7 | 13.8 |
-| 30 years | 18.8% | 91.0% | 43.4 | 17.6 |
-| 40 years | 19.4% | 92.3% | 48.9 | 18.9 |
+| 10 years | 23.4% | 87.6% | 29.2 | 13.6 |
+| 20 years | 24.9% | 85.6% | 44.1 | 19.2 |
+| 30 years | 25.1% | 87.6% | 57.2 | 26.9 |
 
-### 5.3 Projections to 2100
+### 5.4 Projections to 2100
 
 Figure 1 shows world shares in the reference scenario with both kinds of band. Conditional on
-WPP 2024, the Muslim share rises from 25.6% in 2020 to 31.6% in 2050 (90% predictive interval
-29.5-34.1%) and 38.7% in 2100 (36.5-42.5%). The Christian share falls from 28.8% to 27.7% (25.4-29.9%)
-and 25.8% (22.3-29.3%), so that by 2100 the two intervals no longer overlap. The unaffiliated share
-falls from 24.2% to 19.6% (12.5-21.1%), the Hindu share from 14.9% to 12.1% (8.1-13.4%) and the
-Buddhist share from 4.1% to 1.8% (1.5-3.6%).
+WPP 2024, the Muslim share rises from 25.6% in 2020 to 31.7% in 2050 (90% predictive interval
+29.9-34.2%) and 39.1% in 2100 (36.7-42.4%). The Christian share falls from 28.8% to 27.8%
+(26.0-29.7%) and 25.7% (22.6-28.8%), so that from 2050 the two intervals no longer overlap. The
+unaffiliated share falls from 24.2% to 19.5% (13.9-21.8%), the Hindu share from 14.9% to 12.0%
+(9.1-14.1%) and the Buddhist share from 4.1% to 1.7% (1.4-3.3%).
 
 The intervals are asymmetric where the error record is. The unaffiliated interval is skewed
-downward, and the folk and other religions have long upper tails, because the countries
-compositionally closest to China in the record, post-communist and East Asian, saw large
-reclassifications between no religion, folk religion and Christianity between rounds of the World
-Religion Project. Parameter uncertainty alone would have given intervals between about two fifths
-and a twentieth as wide, and by 2100 the eight scenarios differ by less than the width of the
-predictive interval for every group.
+downward (predictive median 17.8%), and the folk and other religions have long upper tails,
+because the countries compositionally closest to China in the record, post-communist and East
+Asian, saw large reclassifications between no religion, folk religion and Christianity between
+rounds of the World Religion Project. Parameter uncertainty alone would have given intervals
+between about half and a tenth as wide, and by 2100 the eight scenarios differ by less than the
+width of the predictive interval for every group.
 
 At the country level (Figure 6), the largest religion is more likely than not to change by 2100 in
-27 countries, almost all Christian-majority countries where the unaffiliated become the largest
-group: France (78%), Australia (78%), the United Kingdom (75%), Germany (69%) and Canada (67%), with
-the United States close to even (47%). Without forecast error the model would put the first three
-at 100%.
+26 countries, almost all Christian-majority countries where the unaffiliated become the largest
+group: France (89%), the United Kingdom (85%), Germany (78%), Australia (74%) and Canada (69%), with
+the United States at 42%. Without forecast error the model would put the first three at 100%.
 
-### 5.4 Switching changes countries; population growth changes the world
+### 5.5 Switching changes countries; population growth changes the world
 
 An exact decomposition of the change in each religion's world share between 2020 and 2100 (Figure
 4) separates change within countries, at fixed 2020 population weights, from change in the weights.
-Of the Muslim share's rise of 13.0 pp, 10.4 pp is population weighting, the faster growth of
-Muslim-majority countries, and 2.7 pp change within countries. The unaffiliated share rises within
-countries by 7.2 pp but falls in the world by 4.5 pp, because the countries where it is concentrated
-grow more slowly (−12.5 pp). Christianity loses 8.5 pp within countries and regains 6.4 pp through
+Of the Muslim share's rise of 13.5 pp, 10.3 pp is population weighting, the faster growth of
+Muslim-majority countries, and 3.3 pp change within countries. The unaffiliated share rises within
+countries by 7.3 pp but falls in the world by 4.6 pp, because the countries where it is concentrated
+grow more slowly (−12.5 pp). Christianity loses 8.7 pp within countries and regains 6.5 pp through
 the growth of sub-Saharan Africa.
 
-Mechanism ablations (Figure 5) attribute to switching −8.1 pp of the world Christian share in 2100
-(5-95% of paired runs −9.8 to −6.8), +9.5 pp of the unaffiliated share (+8.2 to +11.8) and the
-change of largest religion in about 41 countries (33 to 51). Within-country fertility differences
-add 2.0 pp to the Muslim share (1.6 to 2.5). Migration moves no world share by more than a quarter
-of a point: migrants keep their religion, so migration changes world shares only through what
-happens to them after they move. Under the calibrated religion of migrants, rising rather than low
-migration does not make countries more religiously mixed by 2100 (median change in
-population-weighted Gini-Simpson diversity −0.0003), because migrants go disproportionately where
-their religion is already common; if migrants mirrored their origin, every run would be more
-diverse.
+Mechanism ablations (Figure 5) attribute to switching −8.0 pp of the world Christian share in 2100
+(5-95% of paired runs −10.1 to −6.7), +9.3 pp of the unaffiliated share (+7.4 to +11.7) and the
+change of largest religion in about 42 countries (30 to 50). Within-country fertility differences
+add 2.4 pp to the Muslim share (2.0 to 3.0). Migration moves no world share by more than about a
+third of a point: migrants keep their religion, so migration changes world shares only through
+what happens to them after they move. Under the calibrated religion of migrants, rising rather than
+low migration makes countries slightly more religiously mixed by 2100 (median change in
+population-weighted Gini-Simpson diversity +0.004, positive in all 12 paired runs), a third of the
+effect if migrants mirrored their origin (+0.013), because migrants go disproportionately where
+their religion is already common.
 
-### 5.5 What the results turn on
+### 5.6 What the results turn on
 
-In a global sensitivity analysis over 23 drawn parameters, the weight given to the survey level
-of switching rather than the fitted level is the most influential assumption for the Christian
-world share (standardised rank coefficient −0.78 in 2050, −0.60 in 2100). For the Muslim share in
-2050 the most influential is the strength of the within-country age tilt between religions
-(+0.71), whose inputs, Pew's 2010 median ages by religion, are [to be verified]. The convergence
-half-life of within-country fertility gaps matters by 2100 (+0.35). By 2100 no single assumption
-explains most of the spread (R² 0.21-0.58).
+In a global sensitivity analysis over the drawn parameters, including each run's switching
+hyperparameters, on 120 runs, the weight given to the survey level of switching rather than the
+fitted level is the most influential assumption for the Christian world share (standardised rank
+coefficient −0.70 in 2050, −0.51 in 2100); a placebo drawn the same way reaches 0.15. For the
+Muslim share in 2050 the most influential is the strength of the within-country age tilt between
+religions (+0.69), whose inputs, Pew's 2010 median ages by religion, are [to be verified]. The
+convergence half-life of within-country fertility gaps matters by 2100 (+0.41). The estimation
+uncertainty of the switching hyperparameters is close to the placebo's level: it matters less than
+the choice between the two levels of switching. By 2100 no single assumption explains most of the
+spread (R² 0.43-0.63).
 
 
 ## 6. Discussion
@@ -374,19 +402,23 @@ horizons, and the demographic part of it is at most about 2% better. This is not
 particular specification: births, deaths, ageing and migration move religious shares slowly, and
 most of what changes a country's measured composition in a decade is either switching, which the
 historical record identifies poorly, or measurement, which no model of behaviour can forecast. The
-naive trend is the clearest warning. Repeating recent change is 33% worse than persistence, and
-switching fitted freely to historical net change fails for the same reason: much of the country
-level change between rounds of the World Religion Project does not continue.
+naive trend is the clearest warning. Repeating recent change is 36% worse than persistence, and
+switching fitted freely to historical net change fails for the same reason: much of the
+country-level change between rounds of the World Religion Project does not continue.
 
 Second, the uncertainty a projection reports from its own parameters is the wrong uncertainty.
 The Monte Carlo bands of this model, like any band built from parameter draws alone, contain the
-truth about a fifth as often as they claim, because they omit the error that dominates. An
-empirical error model fitted to the model's own past forecasts restores calibration at every
-horizon available, at the country level and for world totals, at the price of intervals that are
-wide at the country level. Error grows with horizon roughly as h^0.34, which is slower than a
-random walk and makes long-range intervals narrower than a naive extrapolation of ten-year errors
+truth about a quarter as often as they claim, because they omit the error that dominates, and this
+remains true when, as here, the estimation uncertainty of the switching hyperparameters is
+propagated. An empirical error model fitted to the model's own past forecasts brings coverage
+within a few points of nominal at every horizon that can be validated, at the price of intervals
+that are wide at the country level. Error grows with horizon roughly as h^0.27, which is slower than
+a random walk and makes long-range intervals narrower than a naive extrapolation of ten-year errors
 would imply. The approach is general: it needs nothing but a model that can be run from past
-origins and a record to score it against.
+origins and a record to score it against. But how it is validated matters as much as how it is
+built. Leaving out only the forecast origin, the obvious design, keeps the very decades a long
+forecast is scored on in the error model's pool, and here overstated coverage by three to five
+points for countries and more for world totals.
 
 Third, conditional on the UN's demography and on stated assumptions, the projection still says
 something definite about the world, and it says it through population growth rather than through
@@ -397,13 +429,18 @@ would be the first thing to make probabilistic in extending this work, for insta
 own probabilistic projections. Switching, by contrast, is what changes countries, and its level is
 the assumption the results are most sensitive to and the one that history identifies least well.
 
-A methodological lesson runs through the revision of the model itself. Two errors in the
-estimation of switching, a likelihood that counted survey respondents several times over and an
-importance sampler whose output depended on its seed, changed substantive conclusions: the first
-manufactured most of an apparent disagreement between survey and historical evidence, and the
-second, through the downward bias of a log-mean of noisy weights, made the historical evidence
-appear to favour small country differences in switching. Both were found by checking the
-estimator rather than its output, which we recommend for any model of this kind.
+A methodological lesson runs through the revision of the model itself. Several errors in its
+estimation changed substantive conclusions. A likelihood that counted survey respondents several
+times over manufactured most of an apparent disagreement between survey and historical evidence.
+Importance samplers drawn from the prior, and then adapted from degenerate weights, made the
+estimated likelihood depend on the seed, through the downward bias of a log-mean of noisy weights;
+an optimiser clipped at its bounds stalled below its own optimum. A first-order switching effect
+computed one age group too young understated switching by 10-20% in young populations. And an
+emigration propensity proportional to a negative power of a minority's share, calibrated only to
+aggregate figures, emptied small minorities from countries of high emigration within decades. All
+were found by checking the estimator and the mechanism rather than the output, by a simulation
+study under the real design and by tests against exact computation, which we recommend for any
+model of this kind.
 
 ## 7. Limitations
 
@@ -411,13 +448,16 @@ The evaluation is conditional on national demography: the historical windows use
 estimates, not the projections available at the time, and the projection takes WPP's medium
 variant as given, so uncertainty in national fertility, the main driver of world totals through
 population weighting, is absent from every interval. The error record covers horizons to 40 years
-and one source of historical composition; the error growth law is extrapolated to 80 years, and
-the record's measurement noise is assumed representative of future measurement. Switching is
+and one source of historical composition; calibration can be validated only to 30 years, the error
+growth law is extrapolated to 80 years, the intervals are a few points too narrow at the horizons
+that can be checked, and the record's measurement noise is assumed representative of future
+measurement. Switching is
 identified by 67 survey cells in 33 countries and by historical net change that the tests show to
 be a poor guide; the weight between the survey and the fitted level is the most influential
-assumption. Religion-specific fertility is measured for few countries, the religion of migrants
-is calibrated to aggregate figures, and the within-country age tilt between religions rests on
-median ages still to be verified. The model has no intermarriage, no religion-specific mortality,
+assumption. Religion-specific fertility is measured for few countries; the religion of migrants is
+calibrated to aggregate figures, only one of which describes the emigrants of one country, so the
+minority effect in emigration is bounded by assumption; and the within-country age tilt between
+religions rests on median ages still to be verified. The model has no intermarriage, no religion-specific mortality,
 no sub-national variation and no shock process for conflict or persecution. Beyond 2100 every input
 is an assumption, and those horizons are reported as exploratory only.
 
@@ -455,6 +495,11 @@ journal's policy.]
   Population Prospects 2024.* New York.
 - United Nations, Department of Economic and Social Affairs, Population Division (2024).
   *International Migrant Stock 2024.* New York.
-- [Add: probabilistic population projection (e.g. Raftery et al. 2012, PNAS); forecast accuracy
-  of population projections (e.g. Keilman); importance sampling with defensive mixtures (Hesterberg
-  1995; Owen and Zhou 2000); Dirichlet-multinomial overdispersion; religious switching measurement.]
+- [Add, and verify: Kass, R. E. and Steffey, D. (1989), approximate Bayesian inference in
+  conditionally independent hierarchical models (parametric empirical Bayes models), *JASA* 84,
+  717-726; Hesterberg, T. (1995), weighted average importance sampling and defensive mixture
+  distributions, *Technometrics* 37, 185-194; Lall, U. and Sharma, A. (1996), a nearest neighbor
+  bootstrap for resampling hydrologic time series, *Water Resources Research* 32, 679-693; Raftery
+  et al. (2012), Bayesian probabilistic population projections for all countries, *PNAS*; Keilman
+  on the accuracy of population projections; Tierney and Kadane (1986) on Laplace approximations;
+  Dirichlet-multinomial overdispersion; religious switching measurement.]

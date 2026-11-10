@@ -18,9 +18,10 @@ python scripts/verify_data.py     # compare data/ against the committed checksum
 python run.py all                 # test, backtest, project, recovery, experiments, checks, figures, report
 ```
 
-`python run.py all` takes about two hours on four cores and rewrites `results/`.
-`python run.py all --quick` takes about forty minutes, is for checking the plumbing, and leaves
-`results/` alone, so a quick check can never replace committed results. The projection saves its
+`python run.py all` takes about 35 minutes on four cores (the committed run: backtest 4 minutes,
+projection 10, estimator recovery 8, experiments 14) and rewrites `results/`; with fewer cores it
+takes proportionally longer. `python run.py all --quick` takes about fifteen minutes, is for
+checking the plumbing, and leaves `results/` alone, so a quick check can never replace committed results. The projection saves its
 runs to `data/projections/runs.pkl`; `python run.py project --tabulate-only` rebuilds every table
 and predictive interval from them in a few minutes, for example after the error model changes.
 Individual stages:
