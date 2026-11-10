@@ -320,8 +320,9 @@ def main(argv=None):
             r = dc[dc.scenario.eq(ref)].sort_values(pcol, ascending=False)
             L.append(f'\nPredictive probability of a change by 2050 and 2100 (`{ref}`), the 25 highest at 2100. '
                      f'{int((r[pcol] > 0.5).sum())} countries exceed 50% by 2100.\n')
-            L.append(md(r.head(25)[['country_id', 'dominant_2020', 'most_likely_2100', 'prob_changed_by_2050_predictive',
-                                     pcol, 'prob_changed_by_2100']], 2))
+            cols = ['country_id', 'dominant_2020'] + [c for c in ('most_likely_new_2100_predictive',) if c in r] + \
+                   ['prob_changed_by_2050_predictive', pcol, 'prob_changed_by_2100']
+            L.append(md(r.head(25)[cols], 2))
     so = _read(X / 'migrant_sorting_effect.csv')
     if so is not None:
         L.append('\n## 12. Does more migration make countries more mixed?\n')
