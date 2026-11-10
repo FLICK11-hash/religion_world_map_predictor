@@ -1,6 +1,6 @@
-"""Integrity checks of the Step 7 outputs (run after run.py project; also reads step7_validate output).
+"""Integrity checks of the projection outputs (run after run.py project; also reads the backtest output).
 
-Run:  .\\.venv\\Scripts\\python.exe run.py checks
+Run:  python run.py checks
 Exit code 0 = every check passed. Checks:
   1 every country's religious shares are non-negative and sum to 100% in every scenario and year
   2 the component breakdown adds up to the simulated change of mean shares (it IS the simulation's
@@ -9,6 +9,8 @@ Exit code 0 = every check passed. Checks:
   4 world shares sum to 100% and world population stays finite and positive to 3030
   5 probabilities, switching rates and diversity indices are within their ranges
   6 inputs actually used (data catalogue), fallbacks and the validation summary are reported
+  7 maps cover the modelled countries
+  8 predictive intervals (to 2100) are ordered, within 0-100%, and at least as wide as the run spread
 """
 from __future__ import annotations
 
@@ -90,13 +92,28 @@ def main(argv=None):
     dv = ct.diversity_gini_simpson_mean
     check(((dv >= 0) & (dv <= 0.875 + 1e-9)).all(), '5c diversity index within [0, 0.875]')
 
+    if 'pi05_Christianity' in ct:
+        pc = ct[ct.year.le(2100) & ct.year.gt(2020)]
+        lo = pc[[f'pi05_{c}' for c in CATS]].to_numpy()
+        hi = pc[[f'pi95_{c}' for c in CATS]].to_numpy()
+        check(np.isfinite(lo).all() and (lo >= -1e-9).all() and (hi <= 1 + 1e-9).all() and (lo <= hi + 1e-12).all(),
+              f'8a country predictive intervals ordered and within 0-100% ({len(pc)} rows, 2025-2100)')
+        wp_ = wt[wt.year.le(2100) & wt.year.gt(2020) & wt.pi05.notna()] if 'pi05' in wt else wt.iloc[:0]
+        if len(wp_):
+            ordered = ((wp_.pi05 <= wp_.pi10 + 1e-12) & (wp_.pi10 <= wp_.pi90 + 1e-12) & (wp_.pi90 <= wp_.pi95 + 1e-12)).all()
+            wider = float(((wp_.pi95 - wp_.pi05) >= (wp_.q95 - wp_.q05) - 1e-9).mean())
+            check(bool(ordered) and wider >= 0.95,
+                  f'8b world predictive quantiles ordered; at least as wide as the run spread in {100 * wider:.0f}% of rows')
+    else:
+        print('      NOTE: no predictive intervals in this run (no forecast-error model)')
+
     inputs = rep.get('inputs', {})
     print('\nInputs used:')
     for k, v in inputs.items():
         print(f'  {k:22s} {v["status"]:9s} {v["detail"]}')
-    check(rep.get('start_state', '').startswith('data/processed') or 'results_step5' in rep.get('start_state', ''),
+    check(rep.get('start_state', '').startswith('data/processed') or 'pew2020_start_state' in rep.get('start_state', ''),
           f"6a start state reported: {rep.get('start_state')}")
-    if 'results_step5' in rep.get('start_state', ''):
+    if 'pew2020_start_state' in rep.get('start_state', ''):
         print('      NOTE: Pew 2010 was not available, so the Pew 2010-2020 window was neither fitted nor tested.')
     print(f"\nSwitching fit: {rep.get('switching_fit')}")
     print(f"Emigration selectivity: {rep.get('emigration_selectivity')}")

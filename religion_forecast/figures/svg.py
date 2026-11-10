@@ -1,8 +1,8 @@
-"""Step 7 maps without matplotlib or geopandas: SVG files plus one HTML gallery.
+"""Maps and charts without matplotlib or geopandas: SVG files plus one HTML gallery.
 
-Run:  .\\.venv\\Scripts\\python.exe run.py figures
+Run:  python run.py figures
 Writes outputs/figures/ (git-ignored). Same map list and numbers as run.py figures --png (both use
-religion_forecast/figures/specs.py); same colours and plate carree extent (-180..180, -59..85) as the Step 6 maps.
+religion_forecast/figures/specs.py); plate carree extent -180..180, -59..85.
 Open index.html in any browser.
 """
 from __future__ import annotations
@@ -165,6 +165,9 @@ def main(argv=None):
     shapes, names, dots = load_shapes()
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'shares').mkdir(exist_ok=True)
+    # start from an empty folder, so a figure that is no longer made cannot linger and be exported
+    for old in list(OUT.glob('*.svg')) + list((OUT / 'shares').glob('*.svg')) + list(OUT.glob('index.html')):
+        old.unlink()
     items = []
     for spec in MD.specs():
         svg = render(spec, shapes, names, dots)
@@ -178,13 +181,14 @@ def main(argv=None):
     cards = ''.join(fig(c, c.replace('_', ' ')[:-4].capitalize()) for c in charts)
     cards += ''.join(fig(p, s['title']) for s, p in items if not p.startswith('shares/'))
     shares = ''.join(fig(p, s['title']) for s, p in items if p.startswith('shares/'))
-    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Step 7 maps</title><style>'
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Religious composition: figures</title><style>'
             'body{font:15px system-ui,-apple-system,Segoe UI,sans-serif;margin:24px;background:#fafafa;color:#111}'
             'figure{margin:0 0 28px;background:white;border:1px solid #e3e3e3;padding:8px}object{width:100%;height:auto;'
             'display:block;aspect-ratio:1400/710}figure:first-of-type object{aspect-ratio:1400/790}'
             'figcaption{font-size:13px;color:#555}h2{margin-top:36px}</style></head><body>'
-            '<h1>Religious composition: figures</h1><p>Values are means over Monte Carlo runs from data/projections. 2200 and later rest on '
-            'long-run assumptions; 2500 and 3026 are speculative scenarios. Hover a country for its value.</p>'
+            '<h1>Religious composition: figures</h1><p>Values are means over Monte Carlo runs from data/projections. To 2100 the '
+            'predictive intervals include past forecast errors; 2200 and later rest on stated long-run assumptions and are '
+            'exploratory. Hover a country or a point for its value.</p>'
             f'{cards}<h2>Religion shares</h2>{shares}</body></html>')
     (OUT / 'index.html').write_text(page, encoding='utf8')
     print(f'Wrote {len(items)} maps and {len(charts)} charts to {OUT}')

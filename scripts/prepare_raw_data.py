@@ -1,4 +1,4 @@
-"""Step 1: Download and inspect WRP, Pew, UN WPP 2024 and Natural Earth.
+"""Download and inspect the core inputs: WRP, Pew, UN WPP 2024 and Natural Earth.
 
 Usage:
     python scripts/prepare_raw_data.py
@@ -279,7 +279,7 @@ def main() -> int:
     output.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"\nSaved provenance and results to {output}")
     print("FINAL STATUS:", json.dumps(results, indent=2))
-    print("Step 1 completed; no data has been cleaned or merged.")
+    print("Download and inspection complete; no data has been cleaned or merged.")
     return 0 if results.get("wrp") == "inspected" else 2
 
 

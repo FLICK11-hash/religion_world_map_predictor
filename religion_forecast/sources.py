@@ -1,7 +1,7 @@
 """Country-year religion shares from WRP (1945-2010), demography from WPP, and geography from
-Natural Earth, without geopandas. Used by step5e_wrp_hindcast.py to test the cohort model on history.
+Natural Earth, without geopandas. Used to fit and test the model on history.
 
-Share rules replicate Step 2 (WRP_FIELDS and normalize_valid). The COW -> ISO3 map is written out
+Share rules are those of scripts/prepare_pew_panel.py (WRP_FIELDS and normalize_valid). The COW -> ISO3 map is written out
 here and checked against WPP population for every country-year (see check_population_match).
 Historic polities with no WPP counterpart are excluded rather than guessed.
 """
@@ -55,7 +55,7 @@ COW_TO_ISO3 = {
     860: "TLS", 900: "AUS", 910: "PNG", 920: "NZL", 935: "VUT", 940: "SLB", 946: "KIR", 947: "TUV",
     950: "FJI", 955: "TON", 970: "NRU", 983: "MHL", 986: "PLW", 987: "FSM", 990: "WSM",
 }
-# Natural Earth code -> WPP code where they differ (step6 uses the same alias).
+# Natural Earth code -> WPP code where they differ.
 NE_ALIAS = {"KOS": "XKX"}
 
 

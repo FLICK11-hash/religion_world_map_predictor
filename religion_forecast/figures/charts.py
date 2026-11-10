@@ -158,19 +158,79 @@ def nice_ticks(lo, hi, n=5):
 
 
 # ------------------------------------------------------------------------------- the figures
+def fig_world_projection(F, out):
+    """Each religion's world share 2020-2100: the reference scenario's mean, its parameter band and
+    its predictive band, with the range of scenario means."""
+    wt = pd.read_csv(F / 'global_share_by_scenario.csv')
+    if 'pi05' not in wt or wt.pi05.isna().all():
+        return None
+    rep = json.loads((F / 'projection_report.json').read_text())
+    ref, runs, nsc = rep['reference_scenario'], rep['runs_per_scenario'], wt.scenario.nunique()
+    wt = wt[wt.year.le(2100)]
+    cal_file = config.VALIDATION / 'predictive_calibration.csv'
+    cover = ''
+    if cal_file.exists():
+        c = pd.read_csv(cal_file)
+        c = c[c.method.eq('error-calibrated') & c.nominal.eq(0.9)].groupby('horizon').coverage.mean()
+        if len(c):
+            cover = (f'which covered {100 * c.min():.0f}-{100 * c.max():.0f}% of held-out observations at nominal 90% '
+                     f'(horizons {c.index.min()}-{c.index.max()} years, leave one origin out).')
+    cv = Canvas(1380, 800, 'World religious composition, 2020-2100',
+                f'Share of world population. Reference scenario ({ref}): mean of {runs} runs, the 5-95% spread of the '
+                f'runs, and the 90% predictive interval. Grey line: the range of all {nsc} scenario means.',
+                'The run spread is parameter uncertainty. The predictive interval adds the forecast errors the model made '
+                'on 1970-2010 (resampled by decade, scaled by horizon; religion_forecast/errors.py),\n'
+                + cover + ' Both are conditional on WPP 2024 national demography. Each panel has its own scale.')
+    cv.legend(30, 92, [('Reference mean', ACCENT), ('90% predictive interval', '#c9dcf5'),
+                       ('5-95% of runs', '#7ea9e8'), ('Range of scenario means', INK3)])
+    pw, ph, gx, gy, top = 312.0, 296.0, 30, 34, 136
+    for k, g in enumerate(CATS):
+        col, row = k % 4, k // 4
+        X0, Y0 = 30 + col * (pw + gx), top + row * (ph + gy)
+        sub = wt[wt.religion.eq(g)]
+        r = sub[sub.scenario.eq(ref)].sort_values('year')
+        rp = r.dropna(subset=['pi05'])
+        rng_ = sub.groupby('year')['mean'].agg(['min', 'max'])
+        hi = max(float(rp.pi95.max()) if len(rp) else 0.0, float(r.q95.max()), float(rng_['max'].max())) * 1.06
+        p = Panel(cv, X0 + 44, Y0 + 34, pw - 92, ph - 62, (2020, 2100), (0, hi), title=MD.label(g))
+        p.grid_y(nice_ticks(0, hi), fmt='{:.1%}' if hi < 0.05 else '{:.0%}')
+        p.grid_x([2020, 2050, 2100], fmt='{:.0f}')
+        p.axis_line()
+        if len(rp):
+            xs = np.r_[2020, rp.year.to_numpy()]
+            m0 = float(r[r.year.eq(2020)]['mean'].iloc[0])
+            p.band(xs, np.r_[m0, rp.pi05.to_numpy()], np.r_[m0, rp.pi95.to_numpy()], ACCENT, 0.15)
+        p.band(r.year.to_numpy(), r.q05.to_numpy(), r.q95.to_numpy(), ACCENT, 0.35)
+        p.line(rng_.index.to_numpy(), rng_['min'].to_numpy(), INK3, width=1.2, dash='3 3')
+        p.line(rng_.index.to_numpy(), rng_['max'].to_numpy(), INK3, width=1.2, dash='3 3')
+        p.line(r.year.to_numpy(), r['mean'].to_numpy(), ACCENT)
+        for yr in (2050, 2100):
+            rr = r[r.year.eq(yr)]
+            if len(rr):
+                rr = rr.iloc[0]
+                p.dot(yr, float(rr['mean']), ACCENT,
+                      tip=f'{MD.label(g)} {yr}: {100 * rr["mean"]:.1f}% (90% predictive '
+                          f'{100 * rr.pi05:.1f}-{100 * rr.pi95:.1f}; runs {100 * rr.q05:.1f}-{100 * rr.q95:.1f})')
+        last = r[r.year.eq(2100)]
+        if len(last):
+            v = float(last['mean'].iloc[0])
+            cv.text(float(p.px(2100)) + 7, float(p.py(v)) + 4, f'{100 * v:.1f}%', size=12, fill=INK, weight=600)
+    return cv.save(out / 'world_projection_2100.svg')
+
+
 def fig_world_composition(F, out):
-    """Each religion's world share over time: the reference scenario with its run spread, and the
-    range of all scenario means around it."""
+    """Each religion's world share 2020-3030 (exploratory beyond 2100): the reference scenario with
+    its run spread, and the range of all scenario means around it."""
     wt = pd.read_csv(F / 'global_share_by_scenario.csv')
     rep = json.loads((F / 'projection_report.json').read_text())
     ref, runs, nsc = rep['reference_scenario'], rep['runs_per_scenario'], wt.scenario.nunique()
-    cv = Canvas(1380, 800, 'World religious composition, 2020-3030',
+    cv = Canvas(1380, 800, 'World religious composition, 2020-3030 (exploratory beyond 2100)',
                 f'Share of world population. Reference scenario ({ref}): mean and 5-95% of {runs} runs. '
                 f'Grey: the range of all {nsc} scenario means. Each panel has its own scale.',
                 'Time axis in two parts: 2020-2100 (WPP-based demography) takes 40% of the width, 2100-3030 '
                 '(stated long-run assumptions) the remaining 60%; the vertical line marks 2100.\n'
-                'The run spread is parameter uncertainty only. Backtests show it is far narrower than actual '
-                'forecast error (see the interval-calibration figure). 2500 and 3026 are speculative scenarios.')
+                'Beyond 2100 the lines show what the stated assumptions imply, not forecasts; the run spread is parameter '
+                'uncertainty only and there are no predictive intervals.')
     cv.legend(30, 92, [('Reference mean', ACCENT), ('5-95% of runs', '#9dc0ee'), ('Range across scenarios', '#cfcec9')])
     xpos = lambda yr: np.where(np.asarray(yr, float) <= 2100, 0.4 * (np.asarray(yr, float) - 2020) / 80.0,
                                0.4 + 0.6 * (np.asarray(yr, float) - 2100) / 930.0)
@@ -205,99 +265,126 @@ def fig_world_composition(F, out):
                       tip=f'{MD.label(g)} {yr}: {100 * rr["mean"]:.1f}% (5-95% of runs '
                           f'{100 * rr.q05:.1f}-{100 * rr.q95:.1f}; scenario means '
                           f'{100 * rng_.loc[yr, "min"]:.1f}-{100 * rng_.loc[yr, "max"]:.1f})')
-    return cv.save(out / 'world_composition.svg')
+    return cv.save(out / 'world_composition_long_run.svg')
 
 
 def fig_validation(V, out):
-    """History-test skill against the persistence baseline, by model and window scope."""
-    f = V / 'validation_summary.csv'
+    """History-test skill relative to persistence, country by country, with bootstrap intervals."""
+    f = V / 'inference.csv'
     if not f.exists():
         return None
-    vs = pd.read_csv(f)
-    keep = ['persistence', 'demography', 'demography_migration', 'switching_strength_0.5',
-            'switching_strength_1', 'demography_migration_momentum']
-    label = {'persistence': 'Persistence (no change)', 'demography': 'Births and deaths only',
-             'demography_migration': '+ migration', 'switching_strength_0.5': '+ switching, half strength',
-             'switching_strength_1': '+ switching, full strength',
-             'demography_migration_momentum': 'Extrapolate the last decade'}
-    scopes = [s for s in vs.scope.unique() if 'WRP' in s]
-    cv = Canvas(1180, 190 + 250 * len(scopes), 'Forecast skill on historical decades',
-                'Population-weighted total-variation error of country religious shares, in percentage points. '
-                'Lower is better; the dashed line is the persistence baseline.',
-                'Forward chaining: switching is fitted only on decades that end before the test decade begins, '
-                'and the strength and residual weights are chosen on earlier test decades only.\n'
-                'Source: data/validation/validation_summary.csv')
+    inf = pd.read_csv(f)
+    order = ['trend', 'demography', 'demography_migration', 'switching_0.5', 'switching_1', 'switching_selected']
+    label = {'trend': 'Trend: last decade repeated', 'demography': 'Births and deaths',
+             'demography_migration': '+ migration', 'switching_0.5': '+ switching, half strength',
+             'switching_1': '+ switching, full strength (as projected)',
+             'switching_selected': '+ switching, strength chosen on earlier decades'}
+    scopes = list(dict.fromkeys(inf.scope))
+    cv = Canvas(1180, 200 + 262 * len(scopes), 'Forecast skill on historical decades, relative to assuming no change',
+                'Population-weighted mean difference in total-variation error from persistence, over every country and '
+                'test decade (percentage points). Left of zero is better. Line: 95% interval.',
+                'Intervals from 4,000 bootstrap resamples of countries. Countries in the same decade share common shocks, '
+                'which this interval does not capture; the decade-level sign-flip p-value on the right is the\n'
+                'conservative test (with four decades it cannot fall below 0.125). Source: data/validation/inference.csv')
     for si, scope in enumerate(scopes):
-        sub = vs[vs.scope.eq(scope) & vs.model.isin(keep)].set_index('model').reindex(keep).dropna(subset=['popw_tv_pp'])
-        pers = float(vs[vs.scope.eq(scope) & vs.model.eq('persistence')].popw_tv_pp.iloc[0])
-        lo, hi = min(sub.popw_tv_pp.min(), pers) * 0.97, max(sub.popw_tv_pp.max(), pers) * 1.02
-        Y = 160 + si * 250
-        p = Panel(cv, 300, Y, 790, 170, (lo, hi), (-0.6, len(sub) - 0.4), title=scope,
-                  ylab='')
-        p.grid_x(nice_ticks(lo, hi, 5), fmt='{:.2f}')
-        for i, (m, row) in enumerate(sub.iterrows()):
-            better = row.popw_tv_pp < pers
-            colour = GOOD if better else (BAD if row.popw_tv_pp > pers * 1.002 else NEUTRAL)
-            p.hbar(i, row.popw_tv_pp, colour, height=15, x_from=lo)
-            cv.text(292, float(p.py(i)) + 4, label.get(m, m), size=12, fill=INK, anchor='end')
-            cv.text(float(p.px(row.popw_tv_pp)) + 8, float(p.py(i)) + 4,
-                    f'{row.popw_tv_pp:.3f}' + ('' if m == 'persistence' else
-                                               f'  ({row.popw_tv_pp - pers:+.3f})'), size=11.5, fill=INK2)
-        p.vline(pers, colour=INK2, dash='4 3')
+        sub = inf[inf.scope.eq(scope)].set_index('model').reindex(order).dropna(subset=['mean_difference_pp'])
+        lo = min(-0.3, float(sub.ci95_low_pp.min()) * 1.1)
+        hi = max(0.3, float(sub.ci95_high_pp.max()) * 1.1)
+        Y = 168 + si * 262
+        n_cw = int(sub.country_windows.max())
+        p = Panel(cv, 330, Y, 600, 170, (lo, hi), (-0.6, len(sub) - 0.4),
+                  title=f'{scope} ({n_cw} country-decades)')
+        p.grid_x(nice_ticks(lo, hi, 6), fmt='{:+.1f}')
+        p.vline(0.0, colour=INK2, dash='4 3')
         p.axis_line()
-        cv.text(300, Y + 198, 'population-weighted total-variation error (percentage points)', size=11.5, fill=INK2)
-    cv.legend(300, 92, [('Better than persistence', GOOD), ('Worse', BAD)])
+        for i, (m, r) in enumerate(sub[::-1].iterrows()):
+            colour = GOOD if r.ci95_high_pp < 0 else (BAD if r.ci95_low_pp > 0 else NEUTRAL)
+            p.hrange(i, r.ci95_low_pp, r.ci95_high_pp, colour, width=3)
+            p.dot(r.mean_difference_pp, i, colour, r=5,
+                  tip=f'{label.get(m, m)}: {r.mean_difference_pp:+.3f} pp [{r.ci95_low_pp:+.3f}, {r.ci95_high_pp:+.3f}]')
+            cv.text(322, float(p.py(i)) + 4, label.get(m, m), size=12, fill=INK, anchor='end')
+            cv.text(1150, float(p.py(i)) + 4,
+                    f'{r.mean_difference_pp:+.2f}  [{r.ci95_low_pp:+.2f}, {r.ci95_high_pp:+.2f}]   '
+                    f'{int(r.windows_better)}/{int(r.windows)} decades, p = {r.p_window:.3f}' if np.isfinite(r.p_window)
+                    else f'{r.mean_difference_pp:+.2f}  [{r.ci95_low_pp:+.2f}, {r.ci95_high_pp:+.2f}]',
+                    size=11, fill=INK2, anchor='end')
+        cv.text(330, Y + 210, 'difference from persistence, percentage points of total-variation error', size=11.5, fill=INK2)
+    cv.legend(330, 96, [('Better than persistence (interval below 0)', GOOD), ('Worse (interval above 0)', BAD),
+                        ('Not distinguishable', NEUTRAL)])
     return cv.save(out / 'validation_skill.svg')
 
 
 def fig_interval_calibration(V, out):
-    """Do the stated uncertainty bands contain the truth as often as they claim?"""
-    f = V / 'interval_calibration.csv'
+    """Do the intervals contain the truth as often as they claim? Parameter-only against
+    error-calibrated, held out by origin, with the growth of error with horizon."""
+    f = V / 'predictive_calibration.csv'
     if not f.exists():
         return None
     cal = pd.read_csv(f)
-    cw = pd.read_csv(V / 'interval_calibration_windows.csv') if (V / 'interval_calibration_windows.csv').exists() \
-        else pd.DataFrame()
-    cv = Canvas(1180, 580, 'Are the predictive intervals honest?',
-                'Left: how often the observed share fell inside the model interval, against how often it should. '
-                'Right: the error actually made at ten years, against the width the model claims.',
-                'The intervals the model reports are PARAMETER uncertainty: the spread of outcomes over the drawn '
-                'parameters. They do not include measurement error in the historical shares, nor country-level\n'
-                'change the model has no mechanism for. Both left-hand lines being far below the diagonal is the '
-                'main negative result of this work. Source: data/validation/interval_calibration*.csv')
-    p = Panel(cv, 76, 168, 420, 310, (0, 1), (0, 1), title='Coverage against nominal level',
-              ylab='share of observed country x religion cells inside the interval')
+    meta = json.loads((V / 'forecast_error_model.json').read_text()) if (V / 'forecast_error_model.json').exists() else {}
+    cv = Canvas(1380, 600, 'Are the forecast intervals honest?',
+                'Left: share of held-out observations inside the interval against its nominal level. Middle: interval '
+                'score (lower is better). Right: how forecast error grows with horizon.',
+                'Leave one origin out: the error model is re-estimated without the origin it is tested on; observations are '
+                'country x religion shares of the World Religion Project, 1980-2010. Left: vertical strokes span the\n'
+                'horizons (10-40 years). Parameter-only intervals are the spread of the model\'s Monte Carlo runs. Source: '
+                'data/validation/predictive_calibration.csv, forecast_error_model.json')
+    methods = [('model draws (parameter uncertainty)', BAD, 'Parameter uncertainty only'),
+               ('error-calibrated', ACCENT, 'Error-calibrated (this paper)')]
+    cv.legend(30, 96, [(lab, c) for _, c, lab in methods])
+    p = Panel(cv, 76, 170, 360, 320, (0.45, 1.0), (0, 1), title='Coverage against nominal level',
+              ylab='share of held-out cells inside (mean over horizons)')
     p.grid_y([0, .25, .5, .75, 1.0], fmt='{:.0%}')
-    p.grid_x([0.5, 0.8, 0.9], fmt='{:.0%}')
+    p.grid_x([0.5, 0.8, 0.9, 0.95], fmt='{:.0%}')
     p.axis_line()
-    p.line([0, 1], [0, 1], INK3, width=1.5, dash='5 4')
-    cv.text(float(p.px(0.62)), float(p.py(0.70)), 'perfect calibration', size=11, fill=INK3)
-    for colour, col, name in ((BAD, 'coverage', 'model interval'),
-                              (ACCENT, 'coverage_with_measurement_error', 'widened by measured data noise')):
-        for win, g in cal.groupby('window'):
-            g = g.sort_values('nominal')
-            p.line(g.nominal.to_numpy(), g[col].to_numpy(), colour, width=2, opacity=0.85)
-            for _, r in g.iterrows():
-                p.dot(r.nominal, r[col], colour, r=4, tip=f'{win}: nominal {r.nominal:.0%}, covered {r[col]:.0%}')
-    cv.legend(76, 96, [('Model interval', BAD), ('Widened by measured data noise', ACCENT)])
-
-    if len(cw):
-        g = cw.groupby('religion')[['abs_error_q90_pp', 'model_half_width_q90_pp', 'widening_needed']].mean()
-        g = g.sort_values('abs_error_q90_pp', ascending=False)
-        hi = float(g.abs_error_q90_pp.max()) * 1.25
-        p2 = Panel(cv, 700, 168, 380, 310, (0, hi), (-0.6, len(g) - 0.4),
-                   title='90th percentile of error at 10 years', ylab='percentage points')
-        p2.grid_x(nice_ticks(0, hi, 5))
-        p2.axis_line()
-        for i, (rel, row) in enumerate(g.iterrows()):
-            p2.hbar(i, row.abs_error_q90_pp, MD.COLORS.get(rel, NEUTRAL), height=13)
-            p2.dot(row.model_half_width_q90_pp, i, INK, r=4,
-                   tip=f'{rel}: model half-width {row.model_half_width_q90_pp:.2f} pp')
-            cv.text(692, float(p2.py(i)) + 4, MD.label(rel), size=12, fill=INK, anchor='end')
-            cv.text(float(p2.px(row.abs_error_q90_pp)) + 8, float(p2.py(i)) + 4,
-                    f'{row.abs_error_q90_pp:.1f} pp  ({row.widening_needed:.0f}x wider than claimed)',
-                    size=11, fill=INK2)
-        cv.legend(700, 96, [('Error actually made', NEUTRAL), ('Width the model claims', INK)])
+    p.line([0.45, 1.0], [0.45, 1.0], INK3, width=1.5, dash='5 4')
+    cv.text(float(p.px(0.56)), float(p.py(0.66)), 'nominal', size=11, fill=INK3)
+    for m, colour, lab in methods:
+        g = cal[cal.method.eq(m)]
+        mean = g.groupby('nominal').coverage.mean()
+        lo, hi = g.groupby(['nominal', 'horizon']).coverage.mean().groupby('nominal').agg(['min', 'max']).T.to_numpy()
+        for x, a, b in zip(mean.index, lo, hi):
+            p.cv.add(f'<line x1="{float(p.px(x)):.1f}" y1="{float(p.py(a)):.1f}" x2="{float(p.px(x)):.1f}" '
+                     f'y2="{float(p.py(b)):.1f}" stroke="{colour}" stroke-width="3" opacity="0.35"/>')
+        p.line(mean.index.to_numpy(), mean.to_numpy(), colour, width=2)
+        for x, v in mean.items():
+            p.dot(x, v, colour, r=4, tip=f'{lab}: nominal {x:.0%}, covered {v:.1%} (range over horizons '
+                                         f'{lo[list(mean.index).index(x)]:.1%}-{hi[list(mean.index).index(x)]:.1%})')
+            below = m.startswith('model')
+            cv.text(float(p.px(x)) + (7 if below else -8), float(p.py(v)) + (14 if below else -9), f'{v:.0%}',
+                    size=10.5, fill=INK2, anchor='start' if below else 'end')
+    sc = cal[cal.nominal.eq(0.9)].groupby(['method', 'horizon']).interval_score_pp.mean().unstack('method')
+    hi = float(sc.max().max()) * 1.15
+    p2 = Panel(cv, 540, 170, 330, 320, (5, 45), (0, hi), title='Interval score, 90% intervals',
+               ylab='percentage points (lower is better)')
+    p2.grid_y(nice_ticks(0, hi, 5), fmt='{:.0f}')
+    p2.grid_x(list(sc.index), fmt='{:.0f} yr')
+    p2.axis_line()
+    for m, colour, lab in methods:
+        if m in sc:
+            p2.line(sc.index.to_numpy(), sc[m].to_numpy(), colour)
+            for h, v in sc[m].items():
+                p2.dot(h, v, colour, r=4, tip=f'{lab}, {h} years: {v:.1f}')
+                cv.text(float(p2.px(h)), float(p2.py(v)) - 11, f'{v:.0f}', size=10.5, fill=INK2, anchor='middle')
+    ma = {int(k): v for k, v in meta.get('mean_abs_standardised_error', {}).items()}
+    if ma:
+        hs = sorted(ma)
+        beta = float(meta.get('beta', 0.5))
+        top = max(ma.values()) * 1.3
+        p3 = Panel(cv, 980, 170, 330, 320, (5, 45), (0, top), title='Error growth with horizon',
+                   ylab='mean |standardised error|')
+        p3.grid_y(nice_ticks(0, top, 5), fmt='{:.2f}')
+        p3.grid_x(hs, fmt='{:.0f} yr')
+        p3.axis_line()
+        xs = np.linspace(8, 45, 40)
+        p3.line(xs, ma[10] * (xs / 10) ** beta, INK3, width=1.5, dash='5 4')
+        p3.line(xs, ma[10] * (xs / 10) ** 0.5, '#cfcec9', width=1.2, dash='2 3')
+        for h in hs:
+            p3.dot(h, ma[h], INK, r=5, tip=f'{h} years: {ma[h]:.3f}')
+        cv.text(float(p3.px(44)), float(p3.py(ma[10] * 4.4 ** beta)) - 8, f'fitted (h/10)^{beta:.2f}', size=11,
+                fill=INK2, anchor='end')
+        cv.text(float(p3.px(44)), float(p3.py(ma[10] * 4.4 ** 0.5)) - 8, 'random walk (h/10)^0.5', size=11,
+                fill=INK3, anchor='end')
     return cv.save(out / 'interval_calibration.svg')
 
 
@@ -442,7 +529,7 @@ def fig_scenarios(F, out, year=2100):
                 f'Dot: a scenario mean. Line: the 5-95% spread of runs inside that scenario. '
                 f'The reference scenario ({ref}) is marked.',
                 'Differences between dots are scenario uncertainty (the assumptions); the length of a line is '
-                'parameter uncertainty inside one scenario. Both understate total forecast uncertainty.\n'
+                'parameter uncertainty inside one scenario. Neither includes forecast error; see world_projection_2100.\n'
                 'Source: data/projections/global_share_by_scenario.csv')
     for ri, rel in enumerate(rels):
         s = sub[sub.religion.eq(rel)].set_index('scenario').reindex(order)
@@ -503,7 +590,8 @@ def build_all(out=None, log=print):
     """Every chart whose input file exists."""
     out = out or config.FIGURES
     made = []
-    for fn, args in ((fig_world_composition, (config.PROJECTIONS,)), (fig_shift_share, (config.PROJECTIONS,)),
+    for fn, args in ((fig_world_projection, (config.PROJECTIONS,)), (fig_world_composition, (config.PROJECTIONS,)),
+                     (fig_shift_share, (config.PROJECTIONS,)),
                      (fig_scenarios, (config.PROJECTIONS,)), (fig_benchmark, (config.PROJECTIONS,)),
                      (fig_validation, (config.VALIDATION,)), (fig_interval_calibration, (config.VALIDATION,)),
                      (fig_ablation, (config.EXPERIMENTS,)), (fig_sensitivity, (config.EXPERIMENTS,))):

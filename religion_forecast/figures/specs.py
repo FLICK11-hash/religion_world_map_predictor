@@ -1,6 +1,6 @@
-"""Step 7 map definitions: which maps exist and the value each country gets (pandas only).
+"""Map definitions: which maps exist and the value each country gets (pandas only).
 
-Shared by run.py figures --png (matplotlib + geopandas PNGs in the Step 6 style) and run.py figures
+Shared by run.py figures --png (matplotlib + geopandas PNGs) and run.py figures
 (dependency-free SVG/HTML), so both draw exactly the same numbers. Every value comes from the
 forecast outputs in data/projections/ (simulation means over runs); nothing is re-estimated here.
 """
@@ -102,11 +102,21 @@ def specs(ref='stabilising'):
                         title=f'Countries whose dominant religion changes by {y}',
                         subtitle=f'Coloured by the new dominant group where most runs change; grey = unchanged. Scenario: {ref}',
                         footnote=_when(y)))
-        out.append(dict(name=f'prob_dominant_change_{y}', kind='sequential', values=dref[f'prob_changed_by_{y}'],
-                        vmin=0, vmax=1, cmap='viridis', percent=True,
-                        title=f'Share of runs in which the dominant religion changes by {y}',
-                        subtitle=f'Model and parameter uncertainty within scenario {ref}; not a calibrated probability',
-                        colorbar='Runs with a change (%)', footnote=_when(y)))
+        pcol = f'prob_changed_by_{y}_predictive'
+        if pcol in dref and dref[pcol].notna().any():
+            out.append(dict(name=f'prob_dominant_change_{y}', kind='sequential', values=dref[pcol],
+                            vmin=0, vmax=1, cmap='viridis', percent=True,
+                            title=f'Probability that the largest religion differs from 2020\'s by {y}',
+                            subtitle=f'Predictive: model runs plus resampled past forecast errors. Scenario: {ref}',
+                            colorbar='Probability (%)',
+                            footnote='Predictive probability: share of predictive draws (model runs plus past forecast errors)'))
+        else:
+            out.append(dict(name=f'prob_dominant_change_{y}', kind='sequential', values=dref[f'prob_changed_by_{y}'],
+                            vmin=0, vmax=1, cmap='viridis', percent=True,
+                            title=f'Share of runs in which the largest religion changes by {y}',
+                            subtitle=f'Parameter uncertainty within scenario {ref} only (exploratory horizon); '
+                                     'not a probability',
+                            colorbar='Runs with a change (%)', footnote=_when(y)))
     c = comp[comp.scenario.eq(ref) & comp.period.isin(['2020-2050', '2050-2100'])]
     g = c.groupby(['country_id', 'religion'])[[col for col in c.columns if col.startswith('share_pp_')]].sum()
     mig = (g['share_pp_emigration'] + g['share_pp_immigration']).abs().groupby('country_id').sum() / 2

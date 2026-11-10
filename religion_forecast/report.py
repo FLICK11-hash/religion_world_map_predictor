@@ -1,11 +1,10 @@
-"""Step 7 comparison report: what improved, by how much, and what remains uncertain.
+"""The run report: every headline number of one run, written from the files it produced.
 
-Run after run.py backtest and run.py project:
-    .\\.venv\\Scripts\\python.exe run.py report            # outputs/comparison_report.md
-    .\\.venv\\Scripts\\python.exe run.py report --export   # also copies small result files to results/
-Writes outputs/comparison_report.md from the files in data/validation/ and
-data/projections/ (and Step 5D results when present), so the report always matches the run.
---export writes results/ (small CSVs, the report and a README) that can be committed to share a run.
+    python run.py report            outputs/comparison_report.md
+    python run.py report --export   also writes results/ (small copies of the run, for committing)
+
+Reads data/validation/, data/projections/ and data/experiments/, so the report always matches the
+run it describes. Nothing here is re-estimated.
 """
 from __future__ import annotations
 
@@ -40,13 +39,14 @@ EXPORT = config.RESULTS
 SMALL = ['global_share_by_scenario.csv', 'components_world_period.csv', 'dominant_change.csv',
          'uncertainty_model_vs_scenario.csv', 'switching_check_vs_pew.csv', 'switching_rates_2020.csv',
          'world_population_by_scenario.csv', 'parameter_provenance.csv', 'migration_corridors_reference.csv',
-         'world_share_shift_share.csv', 'adherents_by_country.csv', 'fertility_evidence.csv',
-         'group_fertility_2020_2025.csv', 'benchmark_vs_pew2015.csv', 'benchmark_pew2015_skill.csv',
-         'run_outcomes.csv', 'projection_report.json']
+         'migration_corridor_concentration.csv', 'world_share_shift_share.csv', 'adherents_by_country.csv',
+         'fertility_evidence.csv', 'group_fertility_2020_2025.csv', 'benchmark_vs_pew2015.csv',
+         'benchmark_pew2015_skill.csv', 'run_outcomes.csv', 'projection_report.json']
 SMALL_X = ['ablation_effects.csv', 'sensitivity_coefficients.csv', 'migrant_sorting_effect.csv']
-SMALL_V = ['validation_summary.csv', 'validation_by_window.csv', 'data_ablations_summary.csv',
-           'switching_fit_by_fold.csv', 'out_of_sample_choices.csv', 'migration_foreign_born_check.csv',
-           'interval_calibration.csv', 'interval_calibration_windows.csv',
+SMALL_V = ['validation_summary.csv', 'validation_by_window.csv', 'validation_by_country.csv', 'inference.csv',
+           'data_ablations_summary.csv', 'switching_fit_by_fold.csv', 'out_of_sample_choices.csv',
+           'forecast_error_model.json', 'forecast_error_record.csv', 'predictive_calibration.csv',
+           'predictive_calibration_world.csv', 'migration_foreign_born_check.csv',
            'migration_foreign_born_by_country.csv', 'migration_corridor_check.csv', 'validation_report.json']
 
 
@@ -131,222 +131,214 @@ def export_results():
     print(f'Exported {len(made)} files to {EXPORT}')
 
 
+def _read(path):
+    return pd.read_csv(path) if path.exists() else None
+
+
 def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--export', action='store_true')
     args = ap.parse_args(argv)
-    L = [f'# Step 7 comparison report\n\nGenerated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC from '
-         '`data/validation/` and `data/projections/`.\n']
     rep = json.loads((F / 'projection_report.json').read_text()) if (F / 'projection_report.json').exists() else {}
     vrep = json.loads((V / 'validation_report.json').read_text()) if (V / 'validation_report.json').exists() else {}
-    L.append('## 1. Inputs used in this run\n')
+    ref = rep.get('reference_scenario', 'stabilising')
+    L = [f'# Run report\n\nGenerated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC from `data/validation/`, '
+         '`data/projections/` and `data/experiments/`. Shares are in percent; differences in percentage points (pp).\n']
+
+    L.append('## 1. Inputs\n')
     rows = [{'input': k, 'status': v['status'], 'detail': v['detail']} for k, v in rep.get('inputs', {}).items()]
     if rows:
         L.append(md(pd.DataFrame(rows)))
     L.append(f"\nStart state: {rep.get('start_state', 'n/a')}. Runs per scenario: {rep.get('runs_per_scenario')}, "
-             f"seed {rep.get('seed')}.\n")
-    if (V / 'validation_summary.csv').exists():
-        vs = pd.read_csv(V / 'validation_summary.csv')
-        L.append('## 2. History tests (forward chaining; lower is better)\n')
-        L.append('Population-weighted total-variation error in percentage points; negative change = better than '
-                 'persistence. Switching and residual weights were chosen on earlier windows only.\n')
-        keep = ['persistence', 'demography', 'demography_migration', 'switching_strength_0.5', 'switching_strength_1',
-                'demography_migration_switching', 'demography_migration_switching_residual', 'demography_migration_momentum']
-        t = vs[vs.model.isin(keep)][['scope', 'model', 'windows', 'popw_tv_pp', 'change_vs_persistence_pp',
-                                     'dominant_accuracy', 'changed_true', 'changed_hit', 'false_alarm']]
-        L.append(md(t, 3))
-    if (V / 'data_ablations_summary.csv').exists():
-        ab = pd.read_csv(V / 'data_ablations_summary.csv')
-        L.append('\n### Does each new dataset improve the history tests?\n')
-        L.append(md(ab[['scope', 'data_variant', 'model', 'popw_tv_pp', 'change_vs_persistence_pp']], 3))
-        L.append('\nThe calibrated religion of migrants uses Pew 2020 migrant data, so its effect on the 1970-2010 windows '
-                 'contains information from after those windows (labelled, not hidden).\n')
-    ch = vrep.get('history_test_choices', vrep.get('choices_for_forecast', {}))
-    if ch:
-        r3 = lambda d: {k: round(v, 3) for k, v in (d or {}).items()}
-        L.append(f"\nResidual learner weight chosen out of sample: {ch.get('residual')}.\n")
-        L.append(f"Switching strength (multiplier on fitted rates), mean error: all four windows "
-                 f"{r3(ch.get('switching_strength_scores_popw_tv_pp'))}; 1990-2010 "
-                 f"{r3(ch.get('switching_strength_scores_1990_2010_popw_tv_pp'))}.\n")
-        used = vrep.get('used_by_forecast', {})
-        if used:
-            L.append(f"Forecast: switching strength {used.get('switching_strength')}\n")
-    if (V / 'interval_calibration.csv').exists():
-        cal = pd.read_csv(V / 'interval_calibration.csv')
-        L.append('\n### 2b. Are the intervals honest?\n')
-        L.append('The same Monte Carlo run on historical decades: how often the observed country x religion '
-                 'share fell inside the model interval. A 90% interval should contain the truth 90% of the '
-                 'time.\n')
-        L.append(md(cal[['window', 'nominal', 'coverage', 'coverage_with_measurement_error',
-                         'median_interval_width_pp']], 3))
-        if (V / 'interval_calibration_windows.csv').exists():
-            cw = pd.read_csv(V / 'interval_calibration_windows.csv')
-            g = cw.groupby('religion')[['abs_error_median_pp', 'abs_error_q90_pp',
-                                        'model_half_width_q90_pp', 'widening_needed']].mean().reset_index()
-            L.append('\nOut-of-sample error at a ten-year horizon, against the width the model claims. '
-                     'The last column is how much wider the intervals would have to be.\n')
-            L.append(md(g, 2))
-            L.append('\n**The published 5-95%% bands are the spread of model outputs under parameter '
-                     'uncertainty, not forecast intervals.** Most of the forecast error is measurement '
-                     'variation in the sources and country-level change the model has no mechanism for. '
-                     'For a near-term error bar use the out-of-sample numbers above.\n')
-    if (F / 'benchmark_pew2015_skill.csv').exists():
-        sk = pd.read_csv(F / 'benchmark_pew2015_skill.csv')
-        L.append('\n### 2c. An outside yardstick\n')
-        L.append("Pew's 2015 report projected 2020; Pew's 2025 report measured it. Scoring one against the "
-                 "other shows how much of the apparent error in this field is data revision rather than "
-                 "forecasting.\n")
-        L.append(md(sk, 2))
-    L.append('## 3. Religious switching\n')
+             f"seed {rep.get('seed')}, reference scenario `{ref}`.\n")
+
+    vs = _read(V / 'validation_summary.csv')
+    if vs is not None:
+        L.append('## 2. History tests\n')
+        L.append('Ten-year forecasts of every test decade, fitted only on earlier decades. Population-weighted '
+                 'total-variation (TV) error of country shares, in pp; the change is against persistence.\n')
+        L.append(md(vs[['scope', 'model', 'windows', 'popw_tv_pp', 'change_vs_persistence_pp',
+                        'change_vs_persistence_percent', 'dominant_accuracy', 'changed_true', 'changed_hit',
+                        'false_alarm']], 3))
+    inf = _read(V / 'inference.csv')
+    if inf is not None:
+        L.append('\n### Country-level comparison with persistence\n')
+        L.append('Population-weighted mean difference in TV error over every country-decade (negative = better), '
+                 'with a 95% interval from a bootstrap over countries, and the exact decade-level sign-flip test.\n')
+        L.append(md(inf[['scope', 'model', 'country_windows', 'mean_difference_pp', 'ci95_low_pp', 'ci95_high_pp',
+                         'p_bootstrap', 'share_better', 'windows_better', 'windows', 'p_window']], 3))
+
+    em = vrep.get('forecast_error_model')
+    cal = _read(V / 'predictive_calibration.csv')
+    if em or cal is not None:
+        L.append('\n## 3. Forecast errors and predictive intervals\n')
+    if em:
+        ma = em.get('mean_abs_standardised_error', {})
+        L.append(f"Error model e = (h/10)^beta (s(1-s) + eps)^b u, fitted on the history record: b = {em['b']:.3f}, "
+                 f"beta = {em['beta']:.3f}. Mean |standardised error| by horizon: "
+                 + ', '.join(f'{k} years {v:.3f}' for k, v in sorted(ma.items(), key=lambda kv: int(kv[0]))) +
+                 f". Resampling blocks: {', '.join(em.get('blocks', []))}.\n")
+    if cal is not None:
+        g = cal.groupby(['method', 'horizon', 'nominal']).agg(coverage=('coverage', 'mean'),
+                                                              coverage_popw=('coverage_population_weighted', 'mean'),
+                                                              interval_score_pp=('interval_score_pp', 'mean'),
+                                                              median_width_pp=('median_width_pp', 'mean')).reset_index()
+        L.append('Leave-one-origin-out: coverage of held-out country x religion shares and interval score '
+                 '(lower is better), parameter-only against error-calibrated intervals.\n')
+        L.append(md(g, 3))
+    calw = _read(V / 'predictive_calibration_world.csv')
+    if calw is not None:
+        gw = calw.groupby(['method', 'horizon', 'nominal']).inside.mean().unstack('nominal').reset_index()
+        L.append('\nWorld shares of the observed countries (8 religions per held-out origin and horizon): share inside '
+                 'the interval, by nominal level.\n')
+        L.append(md(gw, 2))
+
+    L.append('\n## 4. Religious switching\n')
     sf = rep.get('switching_fit', {})
-    L.append(f"Empirical Bayes fit: delta = {sf.get('delta')}, beta_d (development effect, logit per unit) = "
-             f"{sf.get('beta_d')}, tau_u (country spread) = {sf.get('tau_u')}; median posterior effective sample "
-             f"size {sf.get('median_posterior_ess', float('nan')):.0f} of {sf.get('latent_draws')} (closer to the "
-             'maximum = data say less about that country).\n')
-    if (F / 'switching_check_vs_pew.csv').exists():
-        sc = pd.read_csv(F / 'switching_check_vs_pew.csv')
-        L.append('Lifetime switching levels against Pew 2025 (adults 18-54, 117 countries; left per 100 raised). '
-                 'Each run mixes the two model levels with a random weight.\n')
+    if sf:
+        reps = sf.get('replicates', [])
+        L.append(f"Empirical Bayes fit, mean of {len(reps)} replicate fits: delta = {sf.get('delta', float('nan')):.3f}, "
+                 f"beta_d = {sf.get('beta_d', float('nan')):.3f}, tau_u = {sf.get('tau_u', float('nan')):.3f}; replicate "
+                 f"standard deviations {', '.join(f'{k} {v:.3f}' for k, v in sf.get('replicate_sd', {}).items())}. "
+                 f"Median posterior effective sample size {sf.get('median_posterior_ess', float('nan')):.0f} of "
+                 f"{sf.get('latent_draws')} draws.\n")
+    sc = _read(F / 'switching_check_vs_pew.csv')
+    if sc is not None:
+        L.append('Lifetime switching levels against Pew (2025), adults 18-54 in 117 countries, left per 100 raised. '
+                 'Each run weights the history level and the survey level at random.\n')
         L.append(md(sc, 2))
-    if (F / 'switching_rates_2020.csv').exists():
-        sr = pd.read_csv(F / 'switching_rates_2020.csv')
+    sr = _read(F / 'switching_rates_2020.csv')
+    if sr is not None:
         d = sr[sr.rate.str.startswith('disaffiliation') & sr.religion.eq('Christianity')].sort_values('mean', ascending=False)
-        L.append('\nHighest fitted lifetime disaffiliation of people raised Christian (history level, 2020 development):\n')
+        L.append('\nHighest fitted lifetime disaffiliation of people raised Christian (2020 development):\n')
         L.append(md(d.head(10)[['country_id', 'mean', 'q05', 'q95', 'evidence']], 3))
-    L.append('\n## 4. Migration\n')
+
+    L.append('\n## 5. Migration\n')
     es = rep.get('emigration_selectivity')
     if es:
-        L.append(f"Religion of migrants calibrated to Pew's published composition of migrants (19 targets): destination "
-                 f"affinity kappa = {es.get('kappa')}, minority effect lambda = {es['lam']:.2f}; error {es['rmse_pp']:.2f} pp "
-                 f"versus {es['rmse_if_mirror_origin_pp']:.2f} pp if migrants mirrored their origin.\n")
-    if (V / 'migration_foreign_born_check.csv').exists():
-        fb = pd.read_csv(V / 'migration_foreign_born_check.csv')
-        L.append('Migration volumes against data: start from the UN 1990 foreign-born stocks, simulate 1990-2020 '
-                 '(WPP demography, the migration model, no switching) and compare each country\'s 2020 foreign-born '
-                 'share with the UN 2020 stocks. The circulation range in config/assumptions.json is calibrated on this '
-                 'test.\n')
+        L.append(f"Religion of migrants calibrated to Pew's published composition of migrants: destination affinity "
+                 f"kappa = {es.get('kappa')}, minority effect lambda = {es['lam']:.2f}; error {es['rmse_pp']:.2f} pp "
+                 f"against {es['rmse_if_mirror_origin_pp']:.2f} pp if migrants mirrored their origin.\n")
+    fb = _read(V / 'migration_foreign_born_check.csv')
+    if fb is not None:
+        L.append('Foreign-born share of each country in 2020, simulated from the UN 1990 stocks (no switching), '
+                 'against the UN 2020 stocks:\n')
         L.append(md(fb, 3))
-        L.append('')
-    if (V / 'migration_corridor_check.csv').exists():
-        L.append('Corridors 1990-2020 by margin softness (margin_rho; 1 = WPP margins exact): origin mix of simulated '
-                 'inflows into the 25 largest destinations against the growth of UN bilateral stocks. The forecast draws '
-                 'margin_rho per run (range in config/assumptions.json).\n')
-        L.append(md(pd.read_csv(V / 'migration_corridor_check.csv'), 3))
-        L.append('')
-    if (F / 'migration_corridors_reference.csv').exists():
-        co = pd.read_csv(F / 'migration_corridors_reference.csv')
-        L.append('Largest simulated corridors 2020-2050 (reference scenario, persons over the period):\n')
-        L.append(md(co[co.period.eq('2020-2050')].head(12)[['origin', 'destination', 'persons']], 0))
-    L.append('\n## 5. World shares by scenario (%)\n')
-    if (F / 'global_share_by_scenario.csv').exists():
-        wt = pd.read_csv(F / 'global_share_by_scenario.csv')
-        for y in (2050, 2100, 2500, 3026):
-            p = wt[wt.year.eq(y)].pivot(index='scenario', columns='religion', values='mean')[CATS] * 100
-            L.append(f'\n**{y}**' + (' (speculative)' if y >= 2500 else '') + '\n')
-            L.append(md(p.reset_index(), 1))
-    if (F / 'uncertainty_model_vs_scenario.csv').exists():
-        us = pd.read_csv(F / 'uncertainty_model_vs_scenario.csv')
-        L.append('\n### Model uncertainty versus scenario uncertainty (world shares, pp)\n')
-        L.append('Within = mean 5-95% band inside a scenario (parameters, switching evidence, country noise). '
-                 'Between = range of scenario means (assumptions).\n')
-        L.append(md(us[us.year.isin([2050, 2100, 3026])], 2))
-    if (F / 'components_world_period.csv').exists():
-        wc = pd.read_csv(F / 'components_world_period.csv')
-        ref = rep.get('reference_scenario', 'stabilising')
+    cc = _read(V / 'migration_corridor_check.csv')
+    if cc is not None:
+        L.append('\nCorridors 1990-2020: origin mix of simulated inflows into the 25 largest destinations against the '
+                 'growth of UN bilateral stocks, by margin softness and corridor cap (none = the model as used).\n')
+        L.append(md(cc, 3))
+    conc = _read(F / 'migration_corridor_concentration.csv')
+    if conc is not None:
+        L.append('\nLargest single origin of each main destination\'s simulated arrivals, 2020-2050 (reference), '
+                 'against that origin\'s share of the destination\'s 2020 migrant stock:\n')
+        L.append(md(conc.head(15), 2))
+
+    wt = _read(F / 'global_share_by_scenario.csv')
+    if wt is not None:
+        L.append('\n## 6. World shares\n')
+        r = wt[wt.scenario.eq(ref) & wt.year.isin([2020, 2050, 2100])].copy()
+        for c in ('mean', 'q05', 'q95', 'pi05', 'pi95'):
+            if c in r:
+                r[c] = 100 * r[c]
+        L.append(f'Reference scenario `{ref}`: mean, 5-95% of runs (parameter uncertainty) and 90% predictive interval.\n')
+        L.append(md(r[['year', 'religion', 'mean', 'q05', 'q95'] + [c for c in ('pi05', 'pi95') if c in r]], 1))
+        for y in (2050, 2100):
+            pv = wt[wt.year.eq(y)].pivot(index='scenario', columns='religion', values='mean')[CATS] * 100
+            L.append(f'\n**{y}, every scenario (means)**\n')
+            L.append(md(pv.reset_index(), 1))
+        L.append('\n**Exploratory horizons (stated long-run assumptions; not forecasts), reference scenario**\n')
+        lr = wt[wt.scenario.eq(ref) & wt.year.isin([2200, 2500, 3026])].pivot(index='year', columns='religion',
+                                                                              values='mean')[CATS] * 100
+        L.append(md(lr.reset_index(), 1))
+    us = _read(F / 'uncertainty_model_vs_scenario.csv')
+    if us is not None:
+        L.append('\n### Three kinds of uncertainty (world shares, pp)\n')
+        L.append('Run spread = mean 5-95% band inside a scenario; predictive = mean 90% predictive band (to 2100); '
+                 'between = range of scenario means.\n')
+        L.append(md(us[us.year.isin([2050, 2100])], 2))
+
+    wc = _read(F / 'components_world_period.csv')
+    if wc is not None:
         w = wc[wc.scenario.eq(ref) & wc.period.isin(['2020-2050', '2050-2100'])].groupby('religion').sum(numeric_only=True).reindex(CATS)
         cols = [c for c in w.columns if c.startswith('world_share_pp_')]
-        L.append(f'\n## 6. What changes world shares, 2020-2100 ({ref}; percentage points)\n')
-        L.append('From the simulation\'s sequential sub-steps (they add up exactly to the total). Migration cancels worldwide.\n')
+        L.append(f'\n## 7. What changes world shares, 2020-2100 (`{ref}`, pp)\n')
+        L.append('The simulation\'s own sub-step accounting; the parts add up exactly to the total. Migration cancels '
+                 'worldwide.\n')
         L.append(md(w[cols].rename(columns=lambda c: c.replace('world_share_pp_', '')).reset_index(), 2))
-    if (F / 'dominant_change.csv').exists():
-        dc = pd.read_csv(F / 'dominant_change.csv')
-        g = dc.groupby('scenario').agg(**{f'changed_by_{y}': (f'prob_changed_by_{y}', lambda s: int((s > 0.5).sum()))
-                                          for y in (2050, 2100, 2200, 2500, 3026)}).reset_index()
-        L.append('\n## 7. Countries whose dominant religion changes (most runs)\n')
-        L.append(md(g, 0))
-    if (F / 'country_year_by_scenario.csv').exists():
-        ct = pd.read_csv(F / 'country_year_by_scenario.csv')
-        c2 = ct[ct.year.isin(TARGET)].assign(w=lambda d: d.diversity_gini_simpson_mean * d.mean_population)
-        g = (c2.groupby(['scenario', 'year']).w.sum() / c2.groupby(['scenario', 'year']).mean_population.sum()).rename('diversity')
-        L.append('\n## 8. Religious diversity within countries (population-weighted Gini-Simpson)\n')
-        L.append(md(g.reset_index().pivot(index='scenario', columns='year', values='diversity').reset_index(), 3))
-    if (F / 'sensitivity_migrant_sorting.csv').exists():
-        se = pd.read_csv(F / 'sensitivity_migrant_sorting.csv')
-        L.append('\n### 8b. Why migration changes diversity the way it does (`run.py experiments`)\n')
-        L.append(f'Population-weighted within-country diversity; median of {se.run.nunique()} runs. Every cell uses the '
-                 'same random draws, so differences come from the assumption alone. *calibrated*: migrants favour '
-                 'destinations where their religion is common (kappa) and minorities emigrate more (lambda), both '
-                 'fitted to Pew; *no_affinity*: kappa = 0; *mirror*: migrants have their origin\'s religious mix.\n')
-        t = se.groupby(['year', 'variant', 'scenario']).diversity_within_pop_weighted.median().unstack('scenario')
-        L.append(md(t.reset_index(), 3))
-        if {'rising_migration', 'low_migration'} <= set(se.scenario):
-            pv = se.pivot_table(index=['year', 'variant', 'run'], columns='scenario',
-                                values='diversity_within_pop_weighted').reset_index()
-            pv['d'] = pv.rising_migration - pv.low_migration
-            g = pv.groupby(['year', 'variant']).d.agg(median='median', runs_above_zero=lambda x: int((x > 0).sum()),
-                                                      runs='size').reset_index()
-            L.append('\nRising minus low migration, paired by run (positive = more migration, more diverse countries):\n')
-            L.append(md(g, 3))
-    if (F / 'world_share_shift_share.csv').exists():
-        ss = pd.read_csv(F / 'world_share_shift_share.csv')
+    ss = _read(F / 'world_share_shift_share.csv')
+    if ss is not None:
         y = 2100 if 2100 in set(ss.year) else int(ss.year.max())
-        L.append(f'\n## 10. Where world-share change comes from, 2020-{y}\n')
-        L.append('An exact split of each religion\'s change in WORLD share into countries\' own shares '
-                 'changing and country populations growing at different rates. This is a different question '
-                 'from the mechanism accounting above, and for several groups the two parts point in '
-                 'opposite directions.\n')
-        L.append(md(ss[ss.year.eq(y)][['religion', 'change_pp', 'within_country_pp',
-                                       'population_weighting_pp', 'interaction_pp']], 2))
-    if (X / 'ablation_effects.csv').exists():
-        eff = pd.read_csv(X / 'ablation_effects.csv')
-        L.append('\n## 11. What each mechanism contributes\n')
-        L.append('The full model minus the same run with one mechanism switched off, paired run by run on '
-                 'identical draws. Percentage points of world population.\n')
+        L.append(f'\n## 8. Where world-share change comes from, 2020-{y}\n')
+        L.append('An exact split of each religion\'s change in world share into countries\' own shares changing '
+                 'and country populations growing at different rates.\n')
+        L.append(md(ss[ss.year.eq(y)][['religion', 'change_pp', 'within_country_pp', 'population_weighting_pp',
+                                       'interaction_pp']], 2))
+    eff = _read(X / 'ablation_effects.csv')
+    if eff is not None:
+        L.append('\n## 9. What each mechanism contributes\n')
+        L.append('The full model minus the same run with one mechanism switched off, paired run by run on identical '
+                 'draws. Percentage points of world population (dominant_changed_countries is a count).\n')
         show = eff[eff.year.isin([2050, 2100]) & eff.outcome.isin(
-            ['world_Christianity', 'world_Islam', 'world_Unaffiliated', 'world_Hinduism',
-             'dominant_changed_countries'])]
+            ['world_Christianity', 'world_Islam', 'world_Unaffiliated', 'world_Hinduism', 'dominant_changed_countries'])]
         piv = show.pivot_table(index=['outcome', 'year'], columns='mechanism', values='contribution_mean')
         piv.loc[[i for i in piv.index if not str(i[0]).startswith('dominant')]] *= 100
         L.append(md(piv.round(2).reset_index(), 2))
-        L.append('\n(`dominant_changed_countries` is a count, not a percentage.)\n')
-    if (X / 'sensitivity_coefficients.csv').exists():
-        sc = pd.read_csv(X / 'sensitivity_coefficients.csv')
-        sc = sc[sc.basis.eq('rank')]
-        L.append('\n## 12. Which assumptions move the results\n')
-        L.append('Standardised rank regression coefficients from a separate Monte Carlo design: how many '
-                 'standard deviations an outcome moves when one parameter moves by one. Top five per '
-                 'outcome.\n')
-        for y in [v for v in (2100, 3026) if v in set(sc.year)]:
-            top = (sc[sc.year.eq(y) & sc.outcome.isin(['world_Christianity', 'world_Islam',
-                                                       'world_Unaffiliated', 'diversity_within_pop_weighted'])]
+    sens = _read(X / 'sensitivity_coefficients.csv')
+    if sens is not None:
+        sens = sens[sens.basis.eq('rank')]
+        L.append('\n## 10. Which assumptions move the results\n')
+        L.append('Standardised rank regression coefficients (top five per outcome) from a separate Monte Carlo design.\n')
+        for y in [v for v in (2050, 2100) if v in set(sens.year)]:
+            top = (sens[sens.year.eq(y) & sens.outcome.isin(['world_Christianity', 'world_Islam', 'world_Unaffiliated',
+                                                               'diversity_within_pop_weighted'])]
                    .sort_values('abs_coefficient', ascending=False).groupby('outcome').head(5))
             L.append(f'\n**{y}**\n')
             L.append(md(top[['outcome', 'parameter', 'coefficient', 'model_r2']], 3))
-    if (X / 'migrant_sorting_effect.csv').exists():
-        so = pd.read_csv(X / 'migrant_sorting_effect.csv')
-        L.append('\n## 13. Does more migration make countries more mixed?\n')
-        L.append('Rising minus low migration, paired by run, under three assumptions about where migrants '
-                 'go. Positive means more migration leaves countries more religiously mixed.\n')
+    dc = _read(F / 'dominant_change.csv')
+    if dc is not None:
+        L.append('\n## 11. Countries whose largest religion changes\n')
+        g = dc.groupby('scenario').agg(**{f'most_runs_by_{y}': (f'prob_changed_by_{y}', lambda s_: int((s_ > 0.5).sum()))
+                                          for y in (2050, 2100, 2200, 2500, 3026)}).reset_index()
+        L.append('Countries where most runs change (parameter uncertainty only):\n')
+        L.append(md(g, 0))
+        pcol = 'prob_changed_by_2100_predictive'
+        if pcol in dc:
+            r = dc[dc.scenario.eq(ref)].sort_values(pcol, ascending=False)
+            L.append(f'\nPredictive probability of a change by 2050 and 2100 (`{ref}`), the 25 highest at 2100. '
+                     f'{int((r[pcol] > 0.5).sum())} countries exceed 50% by 2100.\n')
+            L.append(md(r.head(25)[['country_id', 'dominant_2020', 'most_likely_2100', 'prob_changed_by_2050_predictive',
+                                     pcol, 'prob_changed_by_2100']], 2))
+    so = _read(X / 'migrant_sorting_effect.csv')
+    if so is not None:
+        L.append('\n## 12. Does more migration make countries more mixed?\n')
+        L.append('Rising minus low migration, paired by run, under three assumptions about where migrants go.\n')
         L.append(md(so, 4))
-    if (F / 'fertility_evidence.csv').exists():
-        fe = pd.read_csv(F / 'fertility_evidence.csv')
-        cov = (fe.groupby('evidence_tier').population_2020.sum() / fe.population_2020.sum() * 100)
-        L.append('\n## 14. How much of the fertility input is measured\n')
-        L.append('Share of 2020 world population whose religion-specific fertility comes from each evidence '
-                 'tier.\n')
+    fe = _read(F / 'fertility_evidence.csv')
+    if fe is not None:
+        cov = fe.groupby('evidence_tier').population_2020.sum() / fe.population_2020.sum() * 100
+        L.append('\n## 13. How much of the fertility input is measured\n')
         L.append(md(cov.round(1).rename('percent_of_world_population').reset_index(), 1))
-    L.append('\n## 15. What remains uncertain\n')
-    L.extend(['- Switching levels: rates fitted to net share changes are lower than Pew 2025 survey levels for Christians and '
-              'Buddhists; runs span both. History tests at decade scale cannot settle which is right.',
-              '- The religion of migrants is calibrated to aggregate Pew figures; corridor-level religion (Pew dataset, free '
-              'account) would replace the calibration. Destination affinity (kappa) decides whether more migration makes '
-              'countries more diverse (section 8b).',
-              '- Circulation is calibrated to foreign-born stocks, so gross churn is understated (returning emigrants count '
-              'as foreign-born). UN stocks also carry legacy corridors (for example India-Pakistan from 1947) into the network.',
-              '- Group fertility gaps are damped Pew global ratios except where religion_fertility_observed.csv is supplied.',
-              '- After 2100 all demography is assumption; 2500 and 3026 are speculative scenarios, not forecasts.',
-              '- Folk/Traditional versus Other in Pew data is a WRP proxy; WRP and Pew classify much of China differently.'])
+    bm = _read(F / 'benchmark_vs_pew2015.csv')
+    if bm is not None:
+        L.append('\n## 14. Against Pew Research Center\'s 2015 projection\n')
+        L.append('Change in world share 2020-2050 as each projects it, and the difference in 2020 levels.\n')
+        L.append(md(bm[bm.level.eq('world')][['religion', 'this_model_change_pp', 'pew2015_change_pp',
+                                               'change_difference_pp', 'level_difference_2020_pp']], 2))
+    sk = _read(F / 'benchmark_pew2015_skill.csv')
+    if sk is not None:
+        L.append('\nPew\'s 2015 projection of 2020 scored against Pew\'s later measurement of 2020:\n')
+        L.append(md(sk, 2))
+    L.append('\n## 15. Read with care\n')
+    L.extend(['- All history tests and predictive intervals are conditional on national demography (WPP 2024 estimates '
+              'inside each historical window, the WPP 2024 medium variant in the projection).',
+              '- The predictive intervals extrapolate the error growth measured at 10-40 years to 80 years.',
+              '- Beyond 2100 every demographic input is a stated assumption; 2200, 2500 and 3026 are exploratory.',
+              '- The religion of migrants is calibrated to aggregate Pew figures, not observed by corridor.',
+              '- Folk/Traditional versus Other in Pew data is a World Religion Project proxy, and the two sources '
+              'classify much of China differently.'])
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text('\n'.join(L) + '\n', encoding='utf8')
     print(f'Wrote {OUT}')

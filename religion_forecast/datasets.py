@@ -113,7 +113,7 @@ def start_state():
         df = df[df.country_id.notna()]
         s20 = df[df.year.eq(2020)].drop_duplicates('country_id')
         s10 = df[df.year.eq(2010)].drop_duplicates('country_id')
-        _note('start_state', 'used', f'Pew 2010/2020 via Step 2 ({len(s20)} countries in 2020, {len(s10)} in 2010)')
+        _note('start_state', 'used', f'Pew 2010/2020 via scripts/prepare_pew_panel.py ({len(s20)} countries in 2020, {len(s10)} in 2010)')
         fm = s20.set_index('country_id')['folk_split_method'] if 'folk_split_method' in s20 else None
         return dict(s2020=s20[['country_id'] + SHARE_COLS].reset_index(drop=True),
                     s2010=s10[['country_id'] + SHARE_COLS].reset_index(drop=True),

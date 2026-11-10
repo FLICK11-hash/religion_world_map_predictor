@@ -1,12 +1,9 @@
-"""Step 7 maps and charts in the Step 6 style (PNG, matplotlib + geopandas).
+"""Maps and charts as PNG with matplotlib and geopandas (optional: pip install -e '.[maps]').
 
-Run from this folder (Windows PowerShell), after run.py project:
-    .\\.venv\\Scripts\\python.exe run.py figures --png
-    explorer .\\outputs\\figures_png
-Uses the same pandas, geopandas and matplotlib as Step 6 and reuses its boundary loading, axes,
-colours and file saving, so the maps look like the earlier ones. Writes outputs/figures_png/; the
-Step 5/6 map folders are not touched. Map values come from religion_forecast/figures/specs.py (shared with the
-dependency-free run.py figures).
+    python run.py figures --png        after run.py project; writes outputs/figures_png/
+
+Map values come from religion_forecast/figures/specs.py, shared with the dependency-free SVG
+figures, so the two sets always show the same numbers.
 Options: --skip-shares (no per-religion share maps), --dpi N.
 """
 from __future__ import annotations
@@ -33,7 +30,7 @@ FORECAST = MD.FORECAST
 MISSING = MD.MISSING
 
 
-# --- drawing helpers (kept here so the package does not depend on the legacy step 6 script) ---
+# --- drawing helpers ---
 def load_boundaries():
     """Natural Earth admin-0 polygons, one row per ISO3 map id, Antarctica dropped."""
     src = config.RAW / 'ne_50m_admin_0_countries.zip'

@@ -25,10 +25,15 @@ measurement. This module measures that error directly and adds it back.
 3 Draw. A predictive draw takes one Monte Carlo run of the model and adds
   (h / 10)^beta * g(s) * u, with u resampled from the ten-year record in two stages: one
   historical decade is drawn for the whole world, then each country takes the standardised error
-  vector (all eight religions together) of a country drawn at random from that decade. Drawing
-  the decade first keeps the common shock every country shared in it, which is what matters for
-  world totals; drawing the country within it gives each cell the whole pooled distribution rather
-  than the few errors its own history supplies. Shares are then clipped at zero and renormalised.
+  vector (all eight religions together) of one of its k = 15 nearest neighbours in that decade,
+  nearest meaning the smallest total-variation distance between the two countries' forecast
+  compositions (a k-nearest-neighbour bootstrap). Drawing the decade first keeps the common shock
+  every country shared in it, which is what matters for world totals; drawing among neighbours
+  gives each country many errors rather than the few its own history supplies, while an error
+  measured on a religion that was a tiny minority is never transplanted onto a country where it
+  is the majority. Shares are then clipped at zero and renormalised. On the history record this
+  scored better than resampling any country, resampling within share-size classes, or aligning
+  errors by rank, most of all for large shares and for world totals.
 
 4 Validate. Leave one origin out: b, beta and the resampling pool are re-estimated without it,
   and its forecasts are scored for coverage and for the interval score of Gneiting and Raftery
@@ -54,6 +59,7 @@ EPS = 1e-4                       # keeps the scale positive for shares of exactl
 BASE_H = 10                      # the horizon the resampling pool is built at
 MAX_REPORTED_HORIZON = 80        # 2020 -> 2100
 LEVELS = (0.5, 0.8, 0.9, 0.95)
+NEIGHBOURS = 15                  # k of the nearest-neighbour bootstrap
 
 
 # ----------------------------------------------------------------------------- the record
@@ -149,8 +155,8 @@ def fit(rec, exclude=None):
         centre = x['samples'].mean(0)
         u = np.full((len(m), K), np.nan)
         u[m] = (x['obs'][m] - centre[m]) / _scale(centre[m], b)
-        blocks.append(dict(label=f"{x['source']} {x['origin']}-{x['target']}", u=u, mask=m.copy()))
-    return dict(b=b, beta=beta, eps=EPS, base_horizon=BASE_H, mean_abs_standardised_error=mean_abs,
+        blocks.append(dict(label=f"{x['source']} {x['origin']}-{x['target']}", u=u, mask=m.copy(), s=centre.copy()))
+    return dict(b=b, beta=beta, eps=EPS, base_horizon=BASE_H, neighbours=NEIGHBOURS, mean_abs_standardised_error=mean_abs,
                 cells=cells, blocks=blocks, excluded=None if exclude is None else f'{exclude[0]} {exclude[1]}')
 
 
@@ -158,16 +164,31 @@ def growth(model, h):
     return (max(float(h), 1e-9) / model['base_horizon']) ** model['beta']
 
 
-def predictive(samples, horizon, model, rng, draws=10):
-    """Predictive draws [R * draws, n, K] from model draws `samples` [R, n, K] at `horizon` years."""
+def neighbours(centre, model, k=NEIGHBOURS):
+    """For every block, each target country's k nearest observed countries [n, k] (indices into the
+    block), by total-variation distance between the target's forecast composition `centre` [n, K]
+    and the block's forecast compositions."""
+    out = []
+    for blk in model['blocks']:
+        rows = np.flatnonzero(blk['mask'])
+        D = 0.5 * np.abs(centre[:, None, :] - blk['s'][rows][None, :, :]).sum(2)
+        kk = min(k, len(rows))
+        out.append(rows[np.argsort(D, axis=1)[:, :kk]])
+    return out
+
+
+def predictive(samples, horizon, model, rng, draws=10, nn=None):
+    """Predictive draws [R * draws, n, K] from model draws `samples` [R, n, K] at `horizon` years.
+    `nn` (from `neighbours`) is computed from the mean of `samples` when not given."""
     R, n, _ = samples.shape
     blocks = model['blocks']
+    nn = neighbours(samples.mean(0), model) if nn is None else nn
     g = growth(model, horizon)
     out = np.empty((R * draws, n, K))
     for j in range(R * draws):
-        blk = blocks[rng.integers(len(blocks))]
-        obs_rows = np.flatnonzero(blk['mask'])
-        u = blk['u'][obs_rows[rng.integers(len(obs_rows), size=n)]]
+        bi = rng.integers(len(blocks))
+        cand = nn[bi]
+        u = blocks[bi]['u'][cand[np.arange(n), rng.integers(cand.shape[1], size=n)]]
         s = samples[j // draws]
         x = np.clip(s + g * _scale(s, model['b']) * u, 0.0, None)
         out[j] = x / np.maximum(x.sum(1, keepdims=True), 1e-300)
@@ -260,7 +281,8 @@ def save(model, path=None):
     (path / 'forecast_error_model.json').write_text(json.dumps(meta, indent=2), encoding='utf8')
     np.savez_compressed(path / 'forecast_error_pool.npz',
                         **{f'u{i}': blk['u'] for i, blk in enumerate(model['blocks'])},
-                        **{f'm{i}': blk['mask'] for i, blk in enumerate(model['blocks'])})
+                        **{f'm{i}': blk['mask'] for i, blk in enumerate(model['blocks'])},
+                        **{f's{i}': blk['s'] for i, blk in enumerate(model['blocks'])})
 
 
 def load(path=None):
@@ -271,7 +293,10 @@ def load(path=None):
         return None
     meta = json.loads(jp.read_text(encoding='utf8'))
     z = np.load(npz)
-    meta['blocks'] = [dict(label=lab, u=z[f'u{i}'], mask=z[f'm{i}']) for i, lab in enumerate(meta['blocks'])]
+    if any(f's{i}' not in z for i in range(len(meta['blocks']))):
+        return None                                          # saved by an older version: rebuild
+    meta['blocks'] = [dict(label=lab, u=z[f'u{i}'], mask=z[f'm{i}'], s=z[f's{i}'])
+                      for i, lab in enumerate(meta['blocks'])]
     return meta
 
 
