@@ -1,6 +1,6 @@
 # Run report
 
-Generated 2026-11-10 11:13 UTC from `data/validation/`, `data/projections/` and `data/experiments/`. Shares are in percent; differences in percentage points (pp).
+Generated 2026-11-10 11:18 UTC from `data/validation/`, `data/projections/` and `data/experiments/`. Shares are in percent; differences in percentage points (pp).
 
 ## 1. Inputs
 
@@ -438,7 +438,7 @@ Countries where most runs change (parameter uncertainty only):
 
 Predictive probability of a change by 2050 and 2100 (`stabilising`), the 25 highest at 2100. 27 countries exceed 50% by 2100.
 
-| country_id | dominant_2020 | most_likely_2100 | prob_changed_by_2050_predictive | prob_changed_by_2100_predictive | prob_changed_by_2100 |
+| country_id | dominant_2020 | most_likely_new_2100_predictive | prob_changed_by_2050_predictive | prob_changed_by_2100_predictive | prob_changed_by_2100 |
 |---|---|---|---|---|---|
 | MNG | Buddhism | Unaffiliated | 0.71 | 0.92 | 1.00 |
 | SGP | Buddhism | Unaffiliated | 0.62 | 0.85 | 1.00 |
