@@ -1,7 +1,8 @@
 """Country-year religion shares from WRP (1945-2010), demography from WPP, and geography from
 Natural Earth, without geopandas. Used to fit and test the model on history.
 
-Share rules are those of scripts/prepare_pew_panel.py (WRP_FIELDS and normalize_valid). The COW -> ISO3 map is written out
+Share rules are those of scripts/prepare_pew_panel.py (WRP_FIELDS and normalize_valid). The COW -> ISO3
+map is written out
 here and checked against WPP population for every country-year (see check_population_match).
 Historic polities with no WPP counterpart are excluded rather than guessed.
 """
@@ -58,6 +59,10 @@ COW_TO_ISO3 = {
 # Natural Earth code -> WPP code where they differ.
 NE_ALIAS = {"KOS": "XKX"}
 
+
+
+def _num(s):
+    return pd.to_numeric(s, errors="coerce")
 
 def _dbf_frame(blob: bytes) -> pd.DataFrame:
     n, header_len, record_len = struct.unpack("<xxxxIHH", blob[:12])
@@ -167,11 +172,10 @@ def haversine_km(lat1, lon1, lat2, lon2):
 def load_wpp(raw: Path) -> pd.DataFrame:
     p = pd.read_csv(raw / "WPP2024_Demographic_Indicators_Medium.csv.gz", low_memory=False)
     p = p[p.ISO3_code.notna() & p.Variant.astype(str).str.lower().eq("medium")]
-    num = lambda s: pd.to_numeric(s, errors="coerce")
     return pd.DataFrame({
-        "country_id": p.ISO3_code.astype(str), "year": num(p.Time).astype(int),
-        "tfr": num(p.TFR), "median_age": num(p.MedianAgePop), "e0": num(p.LEx),
-        "pop": num(p.TPopulation1July) * 1000.0, "net_migrations": num(p.NetMigrations) * 1000.0,
+        "country_id": p.ISO3_code.astype(str), "year": _num(p.Time).astype(int),
+        "tfr": _num(p.TFR), "median_age": _num(p.MedianAgePop), "e0": _num(p.LEx),
+        "pop": _num(p.TPopulation1July) * 1000.0, "net_migrations": _num(p.NetMigrations) * 1000.0,
     }).reset_index(drop=True)
 
 

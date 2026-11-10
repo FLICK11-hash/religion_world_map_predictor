@@ -33,7 +33,8 @@ def sha256(path: Path) -> str:
 def content_sha256(path: Path) -> str | None:
     """SHA-256 of a text file's content, independent of gzip headers and line endings."""
     if path.suffix == ".gz":
-        data = gzip.open(path).read()
+        with gzip.open(path) as fh:
+            data = fh.read()
     elif path.suffix == ".csv":
         data = path.read_bytes()
     else:

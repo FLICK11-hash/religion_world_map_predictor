@@ -22,23 +22,31 @@ CATS, K, U = E.CATS, E.K, E.U
 SHARE_COLS = [f'share_{c}' for c in CATS]
 
 
+def _mid(r):
+    return 0.5 * (r[0] + r[1])
+
+
 def central_params(ctx, scenario='stabilising'):
-    """Deterministic parameter set at the middle of every range (no country noise)."""
+    """Deterministic parameter set at the middle of every range, with no country noise (the
+    unexplained fertility gaps, the noise on observed gaps and the post-2100 deviations are zero)."""
     rng = np.random.default_rng(0)
     p = SM.draw_run(ctx, rng, scenario)
     a = ctx.a
-    mid = lambda r: 0.5 * (r[0] + r[1])
     f, sw, mg, lr = a['fertility'], a['switching'], a['migration'], a['long_run_demography']
-    p.update(phi=mid(f['phi']['range']), w_add=mid(f['w_add']['range']), Hf=mid(f['gap_half_life_years']['range']),
-             m_g1=mid(f['first_generation_multiplier']['range']), m_g2=mid(f['second_generation_multiplier']['range']),
-             psi=mid(a['age_structure']['psi']['range']), h1=mid(sw['generation_intensity']['first']),
-             h2=mid(sw['generation_intensity']['second']),
-             g2_ratio=mid(a['generations']['second_generation_initial_ratio']['range']),
-             turnover=mid(mg['turnover_per_year']['range']), omega=mid(mg['omega_gravity_weight']['range']),
-             margin_rho=mid(mg.get('margin_rho', {}).get('range', [1.0, 1.0])),
-             lam_sel=0.0, theta=1.0, tfr_lr=mid(lr['tfr_long_run']), tfr_hl=mid(lr['tfr_half_life_years']),
-             e0_gain=mid(lr['e0_gain_per_year']), e0_cap=mid(lr['e0_cap']))
+    p.update(phi=_mid(f['phi']['range']), w_add=_mid(f['w_add']['range']), Hf=_mid(f['gap_half_life_years']['range']),
+             m_g1=_mid(f['first_generation_multiplier']['range']),
+             m_g2=_mid(f['second_generation_multiplier']['range']),
+             psi=_mid(a['age_structure']['psi']['range']), h1=_mid(sw['generation_intensity']['first']),
+             h2=_mid(sw['generation_intensity']['second']),
+             g2_ratio=_mid(a['generations']['second_generation_initial_ratio']['range']),
+             turnover=_mid(mg['turnover_per_year']['range']), omega=_mid(mg['omega_gravity_weight']['range']),
+             margin_rho=_mid(mg.get('margin_rho', {}).get('range', [1.0, 1.0])),
+             lam_sel=0.0, theta=1.0, tfr_lr=_mid(lr['tfr_long_run']), tfr_hl=_mid(lr['tfr_half_life_years']),
+             e0_gain=_mid(lr['e0_gain_per_year']), e0_cap=_mid(lr['e0_cap']),
+             phi_region=_mid(f['phi_region']['range']), tfr_country_sd=0.0,
+             selectivity_cap=_mid(mg.get('minority_selectivity_cap', {}).get('range', [np.inf, np.inf])))
     p['eps'] = np.zeros((ctx.n, K))
+    p['eps_obs'] = np.zeros((ctx.n, K))
     p['tfr_dev'] = np.zeros(ctx.n)
     return p
 
@@ -124,9 +132,9 @@ def survey_arrays(ctx):
     s = s.copy()
     s['survey_year'] = s['survey_year'].fillna(-1)
     s['source'] = s['source'].fillna('')
-    keys = list(dict.fromkeys(zip(s.country, s.raised, s.survey_year, s.source)))
+    keys = list(dict.fromkeys(zip(s.country, s.raised, s.survey_year, s.source, strict=True)))
     gidx = {k: g for g, k in enumerate(keys)}
-    group = np.array([gidx[k] for k in zip(s.country, s.raised, s.survey_year, s.source)], int)
+    group = np.array([gidx[k] for k in zip(s.country, s.raised, s.survey_year, s.source, strict=True)], int)
     country = s.country.to_numpy(int)
     raised = s.raised.to_numpy(int)
     current = s.current.to_numpy(int)
@@ -147,15 +155,54 @@ def survey_arrays(ctx):
                 group_country=gc, group_n=gn, group_z=z[gc], alpha=np.inf if alpha is None else float(alpha))
 
 
+_FITS: dict = {}
+
+
+def _fit_key(ctx, wins, use_survey, seed):
+    import hashlib
+    h = hashlib.sha256()
+    for w in wins:
+        h.update(f"{w['source']}{w['start']}{w['end']}".encode())
+        h.update(np.ascontiguousarray(w['resid']).tobytes())
+    return (h.hexdigest(), bool(use_survey), int(seed), ctx.n)
+
+
 def fit_switching(ctx, wins, use_survey=True, seed=7):
-    """Empirical Bayes fit on the given windows (and verified survey cells). Returns Hierarchy."""
+    """Empirical Bayes fit on the given windows (and verified survey cells). Returns Hierarchy.
+    Fits are cached in memory by their evidence, so the history tests and the forecast-error record,
+    which fit the same training decades, fit each only once."""
+    key = _fit_key(ctx, wins, use_survey, seed)
+    if key in _FITS:
+        return _FITS[key]
     sw = ctx.a['switching']
     hier = SW.Hierarchy(ctx.n, sw, M=sw['latent_draws'], seed=seed)
     net = net_arrays(ctx, wins, sw['net_evidence_weight']['value']) if wins else None
     survey = survey_arrays(ctx) if use_survey else None
     hier.fit(net=net, survey=survey)
     hier.net_scale = None if net is None else net['scale']
+    _FITS[key] = hier
     return hier
+
+
+def _fit_job(job):
+    ctx, wins, use_survey, seed = job
+    return fit_switching(ctx, wins, use_survey, seed)
+
+
+def fit_many(ctx, train_sets, use_survey=False, seed=7, workers=None):
+    """Fit every training set (a list of windows each) in parallel processes and fill the cache of
+    fit_switching; returns the fits in order."""
+    import os
+    todo = [t for t in train_sets if t and _fit_key(ctx, t, use_survey, seed) not in _FITS]
+    n = workers or int(os.environ.get('RELIGION_FORECAST_WORKERS', os.cpu_count() or 1))
+    if len(todo) > 1 and n > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        slim = [[{k: v for k, v in w.items() if k != 'P0'} for w in t] for t in todo]
+        with ProcessPoolExecutor(max_workers=min(n, len(todo))) as pool:
+            fits = list(pool.map(_fit_job, [(ctx, t, use_survey, seed) for t in slim]))
+        for t, h in zip(todo, fits, strict=True):
+            _FITS[_fit_key(ctx, t, use_survey, seed)] = h
+    return [fit_switching(ctx, t, use_survey, seed) if t else None for t in train_sets]
 
 
 def expected_switch_effect(hier, w):
@@ -199,12 +246,18 @@ def selectivity_targets(ctx):
 
 
 
-def calibrate_affinity(ctx, S=None, kappas=np.arange(0.0, 2.01, 0.1), lams=np.arange(0.0, 1.01, 0.05)):
+AFFINITY_GRID = np.arange(0.0, 2.01, 0.1)       # destination affinity kappa
+MINORITY_GRID = np.arange(0.0, 2.01, 0.05)      # minority effect lambda
+
+
+def calibrate_affinity(ctx, S=None, kappas=AFFINITY_GRID, lams=MINORITY_GRID):
     """Who migrates where, by religion: grid fit of destination affinity kappa (migrants go where their
     religion is common) and minority effect lambda, so that UN bilateral stocks (2020) reproduce Pew's
     published religious composition of migrants. Two parameters; replaces global religion propensities
-    (which fit worse and push every country's composition in the same direction over time)."""
+    (which fit worse and push every country's composition in the same direction over time). The
+    minority effect is bounded by the centre of migration.minority_selectivity_cap."""
     S = ctx.stock2020 if S is None else S
+    cap = _mid(ctx.a['migration'].get('minority_selectivity_cap', {}).get('range', [np.inf, np.inf]))
     T = selectivity_targets(ctx)
     if S is None or len(T) < 6:
         return None
@@ -212,7 +265,7 @@ def calibrate_affinity(ctx, S=None, kappas=np.arange(0.0, 2.01, 0.1), lams=np.ar
     sh = ctx.s2020
 
     def resid(kappa, lam):
-        X = S[:, :, None] * MG.corridor_mix(sh, lam, kappa)
+        X = S[:, :, None] * MG.corridor_mix(sh, lam, kappa, cap=cap)
         out = []
         for kind, mask, cat, target, _ in T:
             if kind == 'world':
@@ -229,7 +282,7 @@ def calibrate_affinity(ctx, S=None, kappas=np.arange(0.0, 2.01, 0.1), lams=np.ar
     grid = [(float(np.sqrt(np.mean(resid(k, l) ** 2))), float(k), float(l)) for k in kappas for l in lams]
     best = min(grid)
     mirror = float(np.sqrt(np.mean(resid(0.0, 0.0) ** 2)))
-    return dict(kind='affinity', kappa=best[1], lam=best[2], rmse_pp=best[0], rmse_mirror_pp=mirror,
+    return dict(kind='affinity', kappa=best[1], lam=best[2], cap=cap, rmse_pp=best[0], rmse_mirror_pp=mirror,
                 residuals=[(T[i][4], T[i][2], float(v)) for i, v in enumerate(resid(best[1], best[2]))],
                 propensity=np.ones(K))
 
@@ -251,7 +304,8 @@ def switching_table(ctx, hier, year=2020):
                          'mean': s['v_mean'][i, j], 'q05': s['v_q05'][i, j], 'q95': s['v_q95'][i, j],
                          'evidence': 'survey + prior' if c in surveyed else 'prior (not identified by net change)',
                          'posterior_ess': ess[i]})
-        rows.append({'country_id': c, 'religion': 'Unaffiliated', 'rate': 'affiliation (raised unaffiliated -> any religion)',
+        rows.append({'country_id': c, 'religion': 'Unaffiliated',
+                     'rate': 'affiliation (raised unaffiliated -> any religion)',
                      'mean': s['a_mean'][i], 'q05': s['a_q05'][i], 'q95': s['a_q95'][i],
                      'evidence': 'survey + net change' if c in surveyed else 'net change + hierarchical prior',
                      'posterior_ess': ess[i]})
@@ -271,14 +325,16 @@ def _completion_weights(ctx):
     return frac, ctx.wpp_at('pop', 2020) * wt.sum(1)
 
 
-def global_left_per_100(ctx, hier, shift_d=None, shift_a=0.0):
+def global_left_per_100(ctx, hier, shift_d=None, shift_a=0.0, H=None, w=None):
     """Model 'left per 100 raised' among adults 18-54, population-weighted over countries, by religion
     (Pew's 117-country measure). Uses posterior-weighted rates at 2015-2020 development, with the
-    survey-maximum caps of config/assumptions.json."""
+    survey-maximum caps of config/assumptions.json, at hyperparameters H (the fitted ones if None)
+    with posterior weights w (computed at H if None)."""
+    H = hier.H if H is None else H
     z = SW.development_index(ctx.wpp_mean('e0', 2015, 2020), ctx.wpp_mean('tfr', 2015, 2020), ctx.a)
-    d, v, a = hier.rates(z, hier.H, shift_d=shift_d, shift_a=shift_a)
+    d, v, a = hier.rates(z, H, shift_d=shift_d, shift_a=shift_a)
     d, v, a = SW.apply_caps(d, v, a, ctx.a['switching'].get('lifetime_outflow_cap', {}).get('by_group'))
-    w = hier.posterior_weights()
+    w = hier.posterior_weights(H) if w is None else w
     out_rel = np.einsum('nm,nmj->nj', w, d + v)
     out_u = (w * a).sum(1)
     frac, pop = _completion_weights(ctx)
@@ -297,10 +353,10 @@ def survey_targets():
         return {}
     df = pd.read_csv(p, comment='#')
     df = df[df.scope.eq('world_18_54') & df.measure.eq('left_per_100_raised')]
-    return dict(zip(df.religion, df.value.astype(float)))
+    return dict(zip(df.religion, df.value.astype(float), strict=True))
 
 
-def calibrate_survey_level(ctx, hier, masked=False):
+def calibrate_survey_level(ctx, hier, masked=False, H=None):
     """Logit shifts that make the fitted rates reproduce Pew's 117-country survey figures (adults
     18-54, left per 100 raised) for every religion with a published figure. Religions without a
     figure (here Judaism, Folk/Traditional, Other) get no shift.
@@ -310,10 +366,12 @@ def calibrate_survey_level(ctx, hier, masked=False):
     adults switch more in many countries, so the survey level stands for recent cohorts' rates.
     masked=True: only countries without their own survey cells for that religion are shifted (a
     sensitivity option; it pushes the whole gap onto unsurveyed countries). Caps always apply.
-    Returns dict or None."""
+    H: hyperparameters to calibrate at (the fitted ones if None). Returns dict or None."""
     tg = survey_targets()
     if not tg:
         return None
+    H = hier.H if H is None else H
+    w = hier.posterior_weights(H)
     n = ctx.n
     observed = np.zeros((n, K), bool)            # (country, raised religion) with its own survey cells
     if ctx.switch_obs is not None:
@@ -333,11 +391,11 @@ def calibrate_survey_level(ctx, hier, masked=False):
             mid = 0.5 * (lo + hi)
             if r == U:
                 sa = np.where(free, mid, 0.0)
-                val = global_left_per_100(ctx, hier, shift_d, sa)[g]
+                val = global_left_per_100(ctx, hier, shift_d, sa, H=H, w=w)[g]
             else:
                 sd = shift_d.copy()
                 sd[:, SW.REL.index(r)] = np.where(free, mid, 0.0)
-                val = global_left_per_100(ctx, hier, sd, shift_a)[g]
+                val = global_left_per_100(ctx, hier, sd, shift_a, H=H, w=w)[g]
             if val > tg[g]:
                 hi = mid
             else:
@@ -347,8 +405,8 @@ def calibrate_survey_level(ctx, hier, masked=False):
             shift_a = np.where(free, best, 0.0)
         else:
             shift_d[:, SW.REL.index(r)] = np.where(free, best, 0.0)
-    before = global_left_per_100(ctx, hier)
-    after = global_left_per_100(ctx, hier, shift_d, shift_a)
+    before = global_left_per_100(ctx, hier, H=H, w=w)
+    after = global_left_per_100(ctx, hier, shift_d, shift_a, H=H, w=w)
     def shown(g):
         x = shift_a if g == 'Unaffiliated' else shift_d[:, SW.REL.index(CATS.index(g))]
         nz = x[x != 0]
@@ -359,3 +417,35 @@ def calibrate_survey_level(ctx, hier, masked=False):
                            'countries_with_own_survey_cells': int(surveyed[:, CATS.index(g)].sum())}
                           for g in CATS])
     return dict(shift_d=shift_d, shift_a=shift_a, table=table)
+
+
+# ----------------------------------------------------------------- one run's switching draw
+class SwitchingDraw:
+    """What one Monte Carlo run uses from the switching model: the replicate fit, the run's
+    hyperparameters H, every country's posterior draw of its effects at H (indices into the fit's
+    latent draws) and the survey-level shifts recalibrated at H."""
+
+    def __init__(self, hier, H, idx, survey_level):
+        self.hier, self.H, self.idx, self.survey_level = hier, tuple(H), idx, survey_level
+
+    def kwargs(self):
+        """Arguments for model.simulate / model.hindcast."""
+        return dict(hier=self.hier, draw_idx=self.idx, H=self.H, survey_level=self.survey_level)
+
+
+def draw_switching(ctx, fit, r, rng):
+    """Run r's switching draw. `fit` is a switching.Ensemble (replicate r mod m is used) or one
+    Hierarchy. With switching.hyperparameter_uncertainty 'laplace' (the default), H is drawn from
+    the fit's truncated Laplace approximation, so the projection carries the estimation
+    uncertainty of the hyperparameters rather than conditioning on their estimate (Kass and
+    Steffey 1989); the country effects are then drawn from their posterior at that H, and the
+    survey-level shifts are recalibrated there, so the survey end of the level mixture still
+    reproduces Pew's figures. 'plug-in' uses the fitted H."""
+    h = fit.member(r) if hasattr(fit, 'member') else fit
+    mode = ctx.a['switching'].get('hyperparameter_uncertainty', {}).get('value', 'laplace')
+    H = h.draw_hyper(rng) if mode == 'laplace' else h.H
+    idx = h.sample_indices(rng, 1, H=H)[:, 0]
+    level = getattr(h, 'survey_level', None)
+    if level is not None and tuple(H) != tuple(h.H):
+        level = calibrate_survey_level(ctx, h, H=H)
+    return SwitchingDraw(h, H, idx, level)

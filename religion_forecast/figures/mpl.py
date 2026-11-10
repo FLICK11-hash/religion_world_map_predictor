@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 
 import geopandas as gpd
 import matplotlib
@@ -122,7 +121,7 @@ def chart_global(path, dpi):
     scen = list(dict.fromkeys(wt.scenario))
     cmap = plt.get_cmap('tab10')
     fig, axes = plt.subplots(4, 2, figsize=(14, 13), sharex=True)
-    for ax, g in zip(axes.flat, MD.GROUPS):
+    for ax, g in zip(axes.flat, MD.GROUPS, strict=False):
         for i, s in enumerate(scen):
             sub = wt[wt.scenario.eq(s) & wt.religion.eq(g)].sort_values('year')
             x, y = sub.year.to_numpy(), 100 * sub['mean'].to_numpy()
@@ -195,7 +194,7 @@ def chart_country_components(path, dpi):
     c = comp[comp.scenario.eq(ref) & comp.period.isin(['2020-2050', '2050-2100'])]
     ids = [x for x in SHOW_COUNTRIES if x in set(c.country_id)]
     fig, axes = plt.subplots(4, 4, figsize=(18, 15), sharex=False)
-    for ax, cid in zip(axes.flat, ids):
+    for ax, cid in zip(axes.flat, ids, strict=False):
         sub = c[c.country_id.eq(cid)].groupby('religion').sum(numeric_only=True).reindex(MD.GROUPS)
         keep = sub['share_pp_total'].abs() + sum(sub[m].abs() for m, _, _ in MECH) > 0.3
         sub = sub[keep]

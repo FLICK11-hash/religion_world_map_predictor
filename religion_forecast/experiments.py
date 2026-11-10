@@ -5,8 +5,10 @@
     sorting     does more migration make countries more religiously mixed, and under what
                 assumption about where migrants go
 
-Every experiment reuses the random draws of the main projection, run by run, so a difference
-between two variants comes from the change being tested and not from sampling noise.
+The ablations and the sorting experiment reuse the random draws of the main projection, run by
+run, so a difference between two variants comes from the change being tested and not from
+sampling noise. The sensitivity design uses its own runs (separate seeds), because it needs more
+of them than the projection has.
 
     python run.py experiments                 all three
     python run.py experiments --only ablation
@@ -31,6 +33,9 @@ OUT = config.EXPERIMENTS
 CATS = E.CATS
 YEARS = [2050, 2100, 2200, 2500, 3026]
 SORTING_SCENARIOS = ['low_migration', 'stabilising', 'rising_migration']
+# drawn values that are not parameters of the run: an RNG seed, the scenario name, and the minority
+# effect assumed when it cannot be calibrated (it is calibrated whenever the UN stocks are present)
+NOT_PARAMETERS = {'scenario', 'drift_seed', 'lam_sel'}
 
 # Mechanism ablations. Each is the reference scenario with one mechanism switched off.
 ABLATIONS = {
@@ -71,20 +76,15 @@ def _summary(ctx, res, dom0, **extra):
 
 
 # --------------------------------------------------------------------------------- ablations
-def ablation(ctx, hier, runs, seed, log=print):
+def ablation(ctx, hier, runs, seed, log=print, workers=None):
     """The reference scenario with one mechanism switched off at a time, on identical draws."""
-    cfg = ctx.a['scenarios'][ctx.a['reference_scenario']]
     dom0 = ctx.s2020.argmax(1)
     rows, t0 = [], time.time()
-    for name, off in ABLATIONS.items():
-        for r in range(runs):
-            rng = np.random.default_rng([seed, r])
-            p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-            h = hier.member(r)
-            idx = h.sample_indices(rng, 1)[:, 0]
-            res = SM.simulate(ctx, p, cfg, h, idx, **off)
-            rows += _summary(ctx, res, dom0, variant=name, run=r)
-        log(f'  ablation {name}: {runs} runs ({time.time() - t0:.0f}s)')
+    specs = [dict(scenario=ctx.a['reference_scenario'], r=r, options=off, variant=name)
+             for name, off in ABLATIONS.items() for r in range(runs)]
+    for sp, _, res, _ in FC.simulate_runs(ctx, hier, specs, seed, workers):
+        rows += _summary(ctx, res, dom0, variant=sp['variant'], run=sp['r'])
+    log(f'  ablations: {len(ABLATIONS)} variants x {runs} runs ({time.time() - t0:.0f}s)')
     return pd.DataFrame(rows)
 
 
@@ -152,19 +152,19 @@ def sensitivity(outcomes, params, outcome_cols):
     return pd.DataFrame(rows)
 
 
-def sensitivity_runs(ctx, hier, runs, seed, log=print):
+def sensitivity_runs(ctx, hier, runs, seed, log=print, workers=None):
     """Extra runs of the reference scenario used only for the sensitivity design: one row per run
     with its drawn parameters and its outcomes."""
-    cfg = ctx.a['scenarios'][ctx.a['reference_scenario']]
     dom0 = ctx.s2020.argmax(1)
     rows, t0 = [], time.time()
-    for r in range(runs):
-        rng = np.random.default_rng([seed, 10_000 + r])          # a design separate from the projection runs
-        p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-        h = hier.member(r)
-        idx = h.sample_indices(rng, 1)[:, 0]
-        res = SM.simulate(ctx, p, cfg, h, idx)
-        scalars = {k: float(v) for k, v in p.items() if np.ndim(v) == 0 and k != 'scenario'}
+    # a design separate from the projection runs
+    specs = [dict(scenario=ctx.a['reference_scenario'], r=r, stream=10_000 + r) for r in range(runs)]
+    for sp, p, res, H in FC.simulate_runs(ctx, hier, specs, seed, workers):
+        r = sp['r']
+        scalars = {k: float(v) for k, v in p.items() if np.ndim(v) == 0 and k not in NOT_PARAMETERS}
+        scalars.update(delta=H[0], beta_d=H[1], tau_u=H[2])
+        # a placebo: drawn like a parameter but used nowhere, so its coefficients show the noise floor
+        scalars['placebo'] = float(np.random.default_rng([seed, 10_000 + r, 99]).random())
         for row in _summary(ctx, res, dom0, run=r):
             rows.append({**scalars, **row})
         if (r + 1) % 20 == 0:
@@ -180,28 +180,19 @@ SORTING_VARIANTS = {
 }
 
 
-def migrant_sorting(ctx, hier, runs, seed, log=print):
+def migrant_sorting(ctx, hier, runs, seed, log=print, workers=None):
     """Does more migration make countries more religiously mixed? The answer depends on where
     migrants go, so each migration scenario is rerun under three assumptions about that."""
     calibrated = dict(ctx.selectivity)
     dom0 = ctx.s2020.argmax(1)
     rows, t0 = [], time.time()
-    try:
-        for name in SORTING_SCENARIOS:
-            cfg = ctx.a['scenarios'][name]
-            for r in range(runs):
-                for vname, override in SORTING_VARIANTS.items():
-                    ctx.selectivity = dict(calibrated, **override)
-                    rng = np.random.default_rng([seed, r])
-                    p = SM.draw_run(ctx, rng, name)
-                    h = hier.member(r)
-                    idx = h.sample_indices(rng, 1)[:, 0]
-                    res = SM.simulate(ctx, p, cfg, h, idx)
-                    rows += _summary(ctx, res, dom0, scenario=name, variant=vname, run=r,
-                                     kappa=ctx.selectivity['kappa'], lam=ctx.selectivity['lam'])
-            log(f'  sorting {name}: {runs} runs x {len(SORTING_VARIANTS)} variants ({time.time() - t0:.0f}s)')
-    finally:
-        ctx.selectivity = calibrated
+    specs = [dict(scenario=name, r=r, variant=vname, selectivity=dict(calibrated, **override))
+             for name in SORTING_SCENARIOS for r in range(runs) for vname, override in SORTING_VARIANTS.items()]
+    for sp, _, res, _ in FC.simulate_runs(ctx, hier, specs, seed, workers):
+        rows += _summary(ctx, res, dom0, scenario=sp['scenario'], variant=sp['variant'], run=sp['r'],
+                         kappa=sp['selectivity']['kappa'], lam=sp['selectivity']['lam'])
+    log(f'  sorting: {len(SORTING_SCENARIOS)} scenarios x {runs} runs x {len(SORTING_VARIANTS)} variants '
+        f'({time.time() - t0:.0f}s)')
     return pd.DataFrame(rows)
 
 
@@ -224,6 +215,8 @@ def main(argv=None):
     ap.add_argument('--sensitivity-runs', type=int, default=120, help='runs in the sensitivity design')
     ap.add_argument('--seed', type=int, default=None)
     ap.add_argument('--only', choices=['ablation', 'sensitivity', 'sorting'], default=None)
+    ap.add_argument('--workers', type=int, default=None,
+                    help='processes (default: all cores); results do not depend on it')
     args = ap.parse_args(argv)
     t0 = time.time()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -234,17 +227,18 @@ def main(argv=None):
     pd.set_option('display.width', 200)
 
     if 'ablation' in want:
-        df = ablation(ctx, hier, args.runs, seed)
+        df = ablation(ctx, hier, args.runs, seed, workers=args.workers)
         df.to_csv(OUT / 'ablation_runs.csv', index=False)
         eff = ablation_effects(df)
         eff.to_csv(OUT / 'ablation_effects.csv', index=False)
         show = eff[eff.year.isin([2050, 2100]) & eff.outcome.isin(
             ['world_Christianity', 'world_Islam', 'world_Unaffiliated', 'dominant_changed_countries'])]
         print('\nWhat each mechanism contributes (full model minus the run without it):')
-        print(show.pivot_table(index=['outcome', 'year'], columns='mechanism', values='contribution_mean').round(4).to_string())
+        print(show.pivot_table(index=['outcome', 'year'], columns='mechanism', values='contribution_mean')
+              .round(4).to_string())
 
     if 'sensitivity' in want:
-        runs = sensitivity_runs(ctx, hier, args.sensitivity_runs, seed)
+        runs = sensitivity_runs(ctx, hier, args.sensitivity_runs, seed, workers=args.workers)
         runs.to_csv(OUT / 'sensitivity_runs.csv', index=False)
         outcome_cols = [c for c in OUTCOMES if c in runs.columns and c != 'world_population']
         params = [c for c in runs.columns if c not in OUTCOMES and c not in ('year', 'run')]
@@ -260,7 +254,7 @@ def main(argv=None):
               [['year', 'outcome', 'parameter', 'coefficient', 'model_r2']].round(3).to_string(index=False))
 
     if 'sorting' in want:
-        df = migrant_sorting(ctx, hier, args.runs, seed)
+        df = migrant_sorting(ctx, hier, args.runs, seed, workers=args.workers)
         df.to_csv(OUT / 'migrant_sorting_runs.csv', index=False)
         eff = sorting_effect(df)
         eff.to_csv(OUT / 'migrant_sorting_effect.csv', index=False)

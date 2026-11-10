@@ -19,6 +19,14 @@ a fortiori; a bound such as "at most a few percent better" is less secure. And e
 is conditional on national demography: the WPP 2024 *estimates* for each historical window are
 used, not the projections available at the time, so real-time forecast error was larger.
 
+**Information that postdates the history windows.** Besides WPP's estimates, three inputs of the
+history runs were measured after the windows they are used in: the religion-of-migrants
+parameters κ and λ, fitted to 2020 bilateral stocks and Pew's 2020 migrant composition; the
+religion-specific fertility ratios, measured in the 2010s and applied from each origin; and the
+migrant stocks that seed the migration network (1990 onwards, the UN stock nearest the origin).
+None of them is fitted to the shares being forecast, and the switching evidence of each fold ends
+before its window, but the history tests are retrospective, not real-time, in these respects too.
+
 ## 2. The model's own bands are not forecast intervals; the predictive intervals are
 
 The Monte Carlo bands (`q05`, `q95`) contain the observed share 19-20% of the time at
@@ -92,7 +100,13 @@ country reports that could not be reached from the build environment.
 ## 6. Migration
 
 - The religion of migrants is calibrated to 19 published aggregate figures, not observed by
-  corridor; Pew's country-level migrant file needs an account.
+  corridor; Pew's country-level migrant file needs an account. Only one of the figures describes
+  emigrants of one origin (India), so the minority effect is weakly identified: unbounded, it
+  drained small minorities in high-emigration countries (Christians in Pakistan, 1.3% to 0.4% by
+  2050, in an earlier version). It is now bounded at 3-6 times an origin's average propensity, an
+  assumption with a stated range rather than an estimate. Country results for small minorities in
+  emigration countries (Christians in Pakistan, Bangladesh and Turkey; Hindus in Bangladesh) depend
+  on it, and origin-level migrant data are the evidence that would settle it.
 - Some projected corridors are much larger than the corresponding 2020 stocks, notably from
   Pakistan into the United Kingdom (`migration_corridor_concentration.csv`). WPP 2024 keeps South
   Asian emigration high while Gulf net immigration falls to almost zero after 2030, and the model

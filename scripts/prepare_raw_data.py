@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import gzip
 import hashlib
 import json
@@ -269,7 +269,7 @@ def main() -> int:
         results["pew"] = f"error: {exc}"
         print(f"[ERROR] Cannot inspect Pew: {exc}")
     manifest = {
-        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "created_utc": datetime.now(UTC).isoformat(),
         "source_urls": {k: v["url"] for k, v in SOURCES.items()},
         "files": {p.name: {"bytes": p.stat().st_size, "sha256": sha256(p)}
                   for p in sorted(raw.iterdir()) if p.is_file()},

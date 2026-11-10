@@ -41,3 +41,23 @@ religion-forecast = "religion_forecast.cli:main"
 
 [tool.setuptools]
 packages = { find = { include = ["religion_forecast", "religion_forecast.*"] } }
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["previous_grad_assignment"]
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, bugbear, pyupgrade, simplify, comprehensions, numpy-specific rules
+select = ["E", "F", "W", "B", "UP", "SIM", "C4", "NPY"]
+# C408: dict(a=..) is used deliberately for tables of keyword-like fields.
+# E741: I (identity) and l (lambda parameter) follow the notation of docs/METHODS.md.
+# SIM300: upper-case module arrays such as _FINE are not constants in the sense the rule assumes.
+ignore = ["C408", "E741", "SIM300"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# SVG/HTML templates and figure captions are long string literals; wrapping them obscures the markup.
+"religion_forecast/figures/*" = ["E501"]
