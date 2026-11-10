@@ -1,4 +1,4 @@
-"""Step 7 engine: country x religion x generation x age cohort-component model (numpy only).
+"""Cohort-component engine: country x religion x generation x age (numpy only).
 
 State P has shape [n, K, G, A] and holds persons:
   n countries, K = 8 religions, G = 3 generations, A = 17 five-year age groups (0-4 ... 75-79, 80+).
@@ -12,7 +12,6 @@ One 5-year step applies these sub-steps, in this order:
   3 switching    age-specific transition matrices (rows sum to one), with a generation intensity
   4 emigration   persons leave the origin (religion_forecast.migration computes who and how many)
   5 immigration  the same persons arrive at the destination as first generation
-  6 residual     optional zero-sum share adjustment (weight chosen by validation; default 0)
   calibration    (applied right after births, recorded separately) uniform rescale so the country's
                  NATURAL growth over the step equals WPP's (to 2100 only). It acts like a common
                  correction to fertility and mortality, leaves shares unchanged, and never touches
@@ -35,9 +34,8 @@ CHILD_GEN = np.array([0, 2, 0])            # generation of a child, by mother's 
 A = 17
 F0, F1 = 3, 10                             # reproductive ages 15-19 ... 45-49
 AGE_MID = np.array([2.5 + 5 * i for i in range(A - 1)] + [85.0])
-COMPONENTS = ['births', 'deaths', 'switch_in', 'switch_out', 'emigration', 'immigration',
-              'residual', 'calibration']
-SHARE_STEPS = ['survival', 'births', 'switching', 'emigration', 'immigration', 'residual', 'calibration']
+COMPONENTS = ['births', 'deaths', 'switch_in', 'switch_out', 'emigration', 'immigration', 'calibration']
+SHARE_STEPS = ['survival', 'births', 'switching', 'emigration', 'immigration', 'calibration']
 
 # ----------------------------------------------------------------------------- life tables
 _FINE = np.arange(0.0, 110.0, 0.25)
@@ -74,13 +72,16 @@ def _hazard_params(e0, q5=None):
 def life_table(e0, q5=None):
     """Survival quantities for one life expectancy e0 (and optional under-5 mortality q5, a
     probability). Returns (s [A-1], s_open, s_birth):
-      s[a]    person-year ratio 5L(a+1)/5L(a): survival from age group a to a+1 over 5 years,
-              with s[A-2] = T80/T75 (75-79 into 80+)
+      s[a]    person-year ratio 5L(a+1)/5L(a): survival from age group a to a+1 over 5 years.
+              For the last closed group this is 5L80/5L75, the share of those aged 75-79 who are
+              alive five years later (and then aged 80-84, inside the open group).
       s_open  T85/T80, survival of the open 80+ group over 5 years
-      s_birth L(0-5)/5, average survival to the end of the period of births spread over it."""
+      s_birth L(0-5)/5, average survival to the end of the period of births spread over it.
+    Together the last two give 80+(t+5) = 5L80/5L75 * N75(t) + T85/T80 * N80+(t), which in a
+    stationary population equals T80, as it must."""
     e0 = float(np.clip(e0, 40.0, 95.0))
     q5 = None if q5 is None or not np.isfinite(q5) else float(np.clip(q5, 0.001, 0.4))
-    key = (round(e0, 2), None if q5 is None else round(q5, 4))
+    key = (e0, q5)                       # exact: a rounded key would return a neighbouring table
     if key in _LT_CACHE:
         return _LT_CACHE[key]
     py = _survival_fine(*_hazard_params(e0, q5)) * 0.25
@@ -88,7 +89,9 @@ def life_table(e0, q5=None):
     T = lambda x: py[_FINE >= x].sum()
     s = np.empty(A - 1)
     s[:-1] = L[1:] / np.maximum(L[:-1], 1e-300)
-    s[-1] = T(80.0) / max(T(75.0), 1e-300)
+    # 75-79 -> 80-84. (An earlier version used T80/T75 here, which is the ratio for the combined
+    # 75+ population and understated this group's survival by about a sixth.)
+    s[-1] = (T(80.0) - T(85.0)) / max(L[-1], 1e-300)
     out = (s, float(T(85.0) / max(T(80.0), 1e-300)), float(L[0] / 5.0))
     _LT_CACHE[key] = out
     return out
@@ -271,25 +274,6 @@ def switch(P, Tg):
     return new, switch_in, switch_out
 
 
-def residual_transfer(P, rho, cap=0.3):
-    """Sub-step 6 (optional). Move persons so religious shares change by rho [n, K] (rows sum to 0).
-    Losses come from ages 15-54 in proportion; gains copy the age/generation mix of the losses."""
-    rho = np.asarray(rho, float)
-    total = P.sum((1, 2, 3))
-    want = rho * total[:, None]
-    adult = P[..., 3:11].sum((2, 3))
-    loss = np.minimum(np.maximum(-want, 0.0), cap * adult)
-    gain = np.maximum(want, 0.0)
-    gsum = gain.sum(1)
-    gain = gain * np.where(gsum > 0, loss.sum(1) / np.maximum(gsum, 1e-300), 0.0)[:, None]
-    removed = np.zeros_like(P)
-    removed[..., 3:11] = P[..., 3:11] * (loss / np.maximum(adult, 1e-300))[:, :, None, None]
-    pooled = removed.sum(1)
-    pooled = pooled / np.maximum(pooled.sum((1, 2), keepdims=True), 1e-300)
-    new = P - removed + gain[:, :, None, None] * pooled[:, None]
-    return new, new.sum((2, 3)) - P.sum((2, 3))
-
-
 class StepRecord:
     """Persons by component [n, K, len(COMPONENTS)] and share change by sub-step [n, K, len(SHARE_STEPS)]."""
 
@@ -306,13 +290,13 @@ class StepRecord:
         self.world_share += other.world_share
 
 
-def step(P, inp, emig=None, immig=None, migration_fn=None, rho=None, natural_growth=None):
+def step(P, inp, emig=None, immig=None, migration_fn=None, natural_growth=None):
     """One 5-year step. `inp` holds per-country arrays for the period:
       tfr [n], shape [n, 7], rel [n, K, G], female_share [n], s [n, A-1], s_open [n], s_birth [n],
       T [n, A, K, K] (or None for no switching), intensity [G].
     Migration: either precomputed (emig [n, K, G, A], immig [n, K, A]) or a callable
     migration_fn(P_after_switching) -> (emig, immig) so flows see the current religious mix.
-    rho [n, K] optional residual. natural_growth [n] optional WPP natural growth factor
+    natural_growth [n] optional WPP natural growth factor
     (WPP population at the end minus WPP net migration, over WPP population at the start).
     Returns (P_next, StepRecord)."""
     n = P.shape[0]
@@ -338,7 +322,7 @@ def step(P, inp, emig=None, immig=None, migration_fn=None, rho=None, natural_gro
         scale = np.where((now > 0) & np.isfinite(g), start * g / np.maximum(now, 1e-300), 1.0)
         before = Q.sum((2, 3))
         Q = Q * scale[:, None, None, None]
-        rec.persons[:, :, 7] = Q.sum((2, 3)) - before
+        rec.persons[:, :, 6] = Q.sum((2, 3)) - before
         rec.rescale = scale
     s2c, w2c = shares(Q), world(Q)
 
@@ -361,14 +345,9 @@ def step(P, inp, emig=None, immig=None, migration_fn=None, rho=None, natural_gro
         rec.persons[:, :, 5] = immig.sum(2)
     s5, w5 = shares(Q), world(Q)
 
-    if rho is not None:
-        Q, moved = residual_transfer(Q, rho)
-        rec.persons[:, :, 6] = moved
-    s6, w6 = shares(Q), world(Q)
-
-    for j, (a, b) in enumerate([(s0, s1), (s1, s2), (s2c, s3), (s3, s4), (s4, s5), (s5, s6), (s2, s2c)]):
+    for j, (a, b) in enumerate([(s0, s1), (s1, s2), (s2c, s3), (s3, s4), (s4, s5), (s2, s2c)]):
         rec.share[:, :, j] = b - a
-    for j, (a, b) in enumerate([(w0, w1), (w1, w2), (w2c, w3), (w3, w4), (w4, w5), (w5, w6), (w2, w2c)]):
+    for j, (a, b) in enumerate([(w0, w1), (w1, w2), (w2c, w3), (w3, w4), (w4, w5), (w2, w2c)]):
         rec.world_share[:, j] = b - a
     return Q, rec
 
@@ -421,16 +400,16 @@ def age_tilt_from_offsets(age_dist, offsets_years, width=12.0):
     return np.exp(np.clip(np.asarray(offsets_years)[..., None] * x / width ** 2, -30, 30))
 
 
-def stock_age_profile(flow_age, s, years=50):
+def stock_age_profile(flow_age, s, s_open, years=50):
     """Age distribution of a migrant STOCK built from constant arrivals with age profile flow_age,
-    aged forward with survival s [A-1] for `years`."""
+    aged forward with survival s [A-1] and open-group survival s_open for `years`."""
     stock = np.zeros(A)
     cur = flow_age.copy()
     for _ in range(int(years // 5)):
         stock += cur
         nxt = np.zeros(A)
         nxt[1:] = cur[:-1] * s
-        nxt[-1] += cur[-1] * s[-1]
+        nxt[-1] += cur[-1] * s_open
         cur = nxt
     return stock / stock.sum()
 

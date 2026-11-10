@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 DERIVED = HERE / "world_shares_wrp.csv"
 # The raw file is shared with the main forecasting package, at the project root's data/raw.
 # Only needed for --rebuild-data; the derived CSV above is committed so this runs on its own.
-# baselines/mixed_predictor/ -> project root is two levels up.
+# previous_grad_assignment/mixed_predictor/ -> project root is two levels up.
 RAW = HERE.parent.parent / "data" / "raw" / "WRP_national.csv"
 
 GROUPS = ["Christianity", "Islam", "Hinduism", "Buddhism",

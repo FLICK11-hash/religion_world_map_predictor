@@ -1,13 +1,13 @@
-"""Step 7 data layer: every input the model reads, with a record of what was found.
+"""Data layer: every input the model reads, with a record of what was found.
 
-Required (already used by earlier steps)
+Required
   data/raw/WPP2024_Demographic_Indicators_Medium.csv.gz   UN WPP 2024 national indicators 1950-2100
   data/raw/WRP_national.csv                                World Religion Project 1945-2010
   data/raw/ne_50m_admin_0_countries.zip                    Natural Earth (distances, borders, maps)
-  start state: data/processed/pew_harmonized.csv (Step 2, Pew 2010 and 2020, eight groups) or, if
-               absent, results_step5/headline_country_shares.csv (Pew 2020 start state exported by
-               Step 5D; no Pew 2010, so the 2010-2020 test cannot run)
-Optional (Step 7 uses them when present; see docs/DATA.md and run.py fetch)
+  start state: data/processed/pew_harmonized.csv (scripts/prepare_pew_panel.py: Pew 2010 and 2020,
+               eight groups) or, if absent, inputs/pew2020_start_state.csv (Pew 2020 only, so the
+               2010-2020 test window cannot run)
+Optional (used when present; see docs/DATA.md and run.py fetch)
   data/raw/extra/WPP2024_PopulationByAge5GroupSex_Medium.csv.gz   national age structure
   data/raw/extra/undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx  bilateral stocks
      or data/raw/extra/migrant_stock_bilateral.csv (origin_iso3, dest_iso3, year, migrants)
@@ -39,7 +39,6 @@ def _extra_file(name):
     hits = config.find_extra(name)
     return hits[0] if hits else config.RAW_EXTRA / name
 
-RESULTS5 = config.LEGACY_RESULTS
 TRACKED = config.INPUTS
 CATS, K = E.CATS, E.K
 SHARE_COLS = [f'share_{c}' for c in CATS]
@@ -120,19 +119,15 @@ def start_state():
                     s2010=s10[['country_id'] + SHARE_COLS].reset_index(drop=True),
                     source='data/processed/pew_harmonized.csv (Pew 2010 and 2020; Folk/Other split by WRP proxy)',
                     folk_method=fm)
-    fb = RESULTS5 / 'headline_country_shares.csv'
+    fb = config.FALLBACK_START_STATE
     if not fb.exists():
-        raise FileNotFoundError('Need data/processed/pew_harmonized.csv (run Step 2) or results_step5/')
-    df = pd.read_csv(fb)
-    df = df[df.year.eq(2020)].copy()
-    out = df[['country_id']].copy()
-    for c in CATS:
-        out[f'share_{c}'] = df[f'mean_{c}'].to_numpy(float)
-    tot = out[SHARE_COLS].sum(1)
-    out[SHARE_COLS] = out[SHARE_COLS].div(tot, axis=0)
-    _note('start_state', 'fallback', f'results_step5 2020 start state ({len(out)} countries); Pew 2010 unavailable')
-    return dict(s2020=out.reset_index(drop=True), s2010=None,
-                source='results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)',
+        raise FileNotFoundError('Need data/processed/pew_harmonized.csv (scripts/prepare_pew_panel.py) or '
+                                f'{fb.relative_to(config.PROJECT)}')
+    out = pd.read_csv(fb, comment='#')
+    out[SHARE_COLS] = out[SHARE_COLS].div(out[SHARE_COLS].sum(axis=1), axis=0)
+    _note('start_state', 'fallback', f'committed Pew 2020 start state ({len(out)} countries); Pew 2010 unavailable')
+    return dict(s2020=out[['country_id'] + SHARE_COLS].reset_index(drop=True), s2010=None,
+                source='inputs/pew2020_start_state.csv (Pew 2020; no 2010, so no Pew 2010-2020 test window)',
                 folk_method=None)
 
 

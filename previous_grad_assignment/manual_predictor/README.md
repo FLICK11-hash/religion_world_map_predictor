@@ -1,4 +1,4 @@
-# Naive linear-trend baseline
+# Hand-written linear-trend predictor
 
 The simplest possible version of the question: seven snapshots of the world's religious
 composition, an average annual change per group, and a straight-line extrapolation.
@@ -12,8 +12,8 @@ composition for 2100, 2500 and 3026, as raw dictionaries.
 
 ## What it is for
 
-It is the simplest reference forecast in the repository, the floor against which the trend baseline
-and the cohort-component model are read. It is useful precisely because its failures are easy to
+It is the simplest forecast in the repository, the floor against which the other two versions
+were read. It is useful precisely because its failures are easy to
 see. It was written by hand, which is why its folder is named `manual_predictor`.
 
 ## Its data
@@ -51,7 +51,7 @@ Given the same good data, this method is not worse than the more elaborate trend
 corrected, leakage-free evaluation in `../mixed_predictor/` its averaging algorithm scores 2.544 pp
 against 2.977 pp for persistence, beating it in 3 of 4 folds; neither it nor anything else is
 statistically distinguishable from persistence. Most of what was wrong with this baseline was its
-data, not its arithmetic. See `../../docs/COMPARABILITY.md`.
+data, not its arithmetic. See `../README.md`.
 
 ## Structure
 

@@ -1,4 +1,4 @@
-"""Step 7 estimation: the evidence that switching rates are fitted to.
+"""Estimation: the evidence that switching rates and the religion of migrants are fitted to.
 
 For each historical window (WRP decades 1950-2010; Pew 2010-2020 when data/processed has Pew 2010)
 a hindcast WITHOUT switching runs from the observed start shares with WPP estimates of fertility,
@@ -115,13 +115,36 @@ def net_arrays(ctx, wins, weight):
 
 
 def survey_arrays(ctx):
+    """Survey cells grouped into rows (country x religion raised x survey) for the multinomial
+    likelihood in switching.Hierarchy.loglik. A row's effective sample size is capped at 500."""
     s = ctx.switch_obs
     if s is None or not len(s):
         return None
     z = SW.development_index(ctx.wpp_mean('e0', 2015, 2020), ctx.wpp_mean('tfr', 2015, 2020), ctx.a)
-    return dict(country=s.country.to_numpy(int), raised=s.raised.to_numpy(int), current=s.current.to_numpy(int),
-                p=s.p.to_numpy(float), neff=np.minimum(s.neff.to_numpy(float), 500.0),
-                z=z[s.country.to_numpy(int)])
+    s = s.copy()
+    s['survey_year'] = s['survey_year'].fillna(-1)
+    s['source'] = s['source'].fillna('')
+    keys = list(dict.fromkeys(zip(s.country, s.raised, s.survey_year, s.source)))
+    gidx = {k: g for g, k in enumerate(keys)}
+    group = np.array([gidx[k] for k in zip(s.country, s.raised, s.survey_year, s.source)], int)
+    country = s.country.to_numpy(int)
+    raised = s.raised.to_numpy(int)
+    current = s.current.to_numpy(int)
+    # The model sends converts to other religions in proportion to their local prevalence; this is
+    # the fraction of conversions (or of affiliations, for those raised unaffiliated) that reach the
+    # reported destination, computed with the same weights as switching.lifetime_matrix.
+    w = SW.destination_weights(ctx.s2020[country])                                    # [S, K]
+    rows = np.arange(len(s))
+    excl = w.copy()
+    excl[:, U] = 0.0
+    excl[rows, raised] = np.where(raised != U, 0.0, excl[rows, raised])
+    dest_frac = excl[rows, current] / np.maximum(excl.sum(1), 1e-300)
+    n = np.minimum(s.neff.to_numpy(float), 500.0)
+    gn = np.array([n[group == g].min() for g in range(len(keys))])
+    gc = np.array([k[0] for k in keys], int)
+    alpha = ctx.a['switching'].get('survey_overdispersion_alpha', {}).get('value')
+    return dict(group=group, raised=raised, current=current, p=s.p.to_numpy(float), dest_frac=dest_frac,
+                group_country=gc, group_n=gn, group_z=z[gc], alpha=np.inf if alpha is None else float(alpha))
 
 
 def fit_switching(ctx, wins, use_survey=True, seed=7):

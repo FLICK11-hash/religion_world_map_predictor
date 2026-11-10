@@ -12,8 +12,9 @@ import pandas as pd
 
 from religion_forecast import datasets as D
 from religion_forecast import engine as E
-from religion_forecast import calibration as ES
+from religion_forecast import errors as ER
 from religion_forecast import model as SM
+from religion_forecast import switching as SW
 
 CATS, K = E.CATS, E.K
 TARGET_YEARS = [2020, 2050, 2100, 2200, 2500, 3026]
@@ -24,6 +25,34 @@ PERIOD_LABEL = {pr: f'{pr[0]}-{pr[1]}' for pr in SM.PERIODS}
 
 def q(x, a, axis=0):
     return np.quantile(x, a, axis=axis)
+
+
+# ------------------------------------------------------------------- predictive intervals
+PI_YEARS = [y for y in YEARS if 2020 < y <= 2020 + ER.MAX_REPORTED_HORIZON]
+
+
+def attach_predictive(stores, error_model, seed, draws=10):
+    """Predictive draws for every scenario and year to 2100: each Monte Carlo run of the model plus
+    errors resampled from the history record (religion_forecast.errors). The same random numbers are
+    used in every scenario, so scenario differences are unaffected. Stores, per scenario and year,
+    country quantiles (5%, 95%), world quantiles (5%, 10%, 90%, 95%) and how often each country's
+    largest religion differs from 2020's."""
+    for st in stores.values():
+        st.pred = {}
+        if error_model is None:
+            continue
+        R = st.R
+        dom0 = st.sh[:R, 0].astype(float).mean(0).argmax(1)
+        for y in PI_YEARS:
+            j = YEARS.index(y)
+            rng = np.random.default_rng([seed, 9090, y])
+            d = ER.predictive(st.sh[:R, j].astype(float), y - 2020, error_model, rng, draws)
+            pop = np.repeat(st.pop[:R, j], draws, axis=0)
+            w = pop / np.maximum(pop.sum(1, keepdims=True), 1e-300)
+            world = (d * w[:, :, None]).sum(1)
+            st.pred[y] = dict(country_q05=np.quantile(d, 0.05, axis=0), country_q95=np.quantile(d, 0.95, axis=0),
+                              world_q=np.quantile(world, [0.05, 0.10, 0.90, 0.95], axis=0),
+                              changed=(d.argmax(2) != dom0[None, :]).mean(0))
 
 
 def country_table(ctx, name, st):
@@ -46,11 +75,14 @@ def country_table(ctx, name, st):
                    'effective_number_mean': float(eff[:, j, i].mean()),
                    'foreign_born_share_mean': float(st.fb[:R, j, i].mean()),
                    'second_generation_share_mean': float(st.g2[:R, j, i].mean())}
+            pr = getattr(st, 'pred', {}).get(y)
             for k, g in enumerate(CATS):
                 v = st.sh[:R, j, i, k].astype(float)
                 row[f'mean_{g}'] = float(v.mean())
                 row[f'q05_{g}'] = float(q(v, .05))
                 row[f'q95_{g}'] = float(q(v, .95))
+                row[f'pi05_{g}'] = float(pr['country_q05'][i, k]) if pr else np.nan
+                row[f'pi95_{g}'] = float(pr['country_q95'][i, k]) if pr else np.nan
             rows.append(row)
     df = pd.DataFrame(rows)
     m = df[[f'mean_{g}' for g in CATS]].to_numpy()
@@ -59,12 +91,18 @@ def country_table(ctx, name, st):
 
 
 def world_table(name, st):
+    """World shares by year: mean and 5-95% of the model's runs (parameter uncertainty) and, to
+    2100, the 5/10/90/95% predictive quantiles (pi*), which add the forecast errors of the past."""
     rows = []
     for j, y in enumerate(STEPS):
+        pr = getattr(st, 'pred', {}).get(y)
         for k, g in enumerate(CATS):
             v = st.world[:st.R, j, k]
-            rows.append({'scenario': name, 'year': y, 'religion': g, 'mean': float(v.mean()),
-                         'q05': float(q(v, .05)), 'q95': float(q(v, .95))})
+            row = {'scenario': name, 'year': y, 'religion': g, 'mean': float(v.mean()),
+                   'q05': float(q(v, .05)), 'q95': float(q(v, .95))}
+            for qi, lab in enumerate(('pi05', 'pi10', 'pi90', 'pi95')):
+                row[lab] = float(pr['world_q'][qi, k]) if pr else np.nan
+            rows.append(row)
     df = pd.DataFrame(rows)
     i3025, i3030 = STEPS.index(3025), STEPS.index(3030)
     for k, g in enumerate(CATS):
@@ -141,6 +179,9 @@ def dominant_change(ctx, name, st):
             j = YEARS.index(y)
             pchg = float((dom[:, j, i] != base[:, i]).mean())
             row[f'prob_changed_by_{y}'] = pchg
+            pr = getattr(st, 'pred', {}).get(y)
+            if pr is not None:
+                row[f'prob_changed_by_{y}_predictive'] = float(pr['changed'][i])
             row[f'most_likely_{y}'] = CATS[int(np.bincount(dom[:, j, i], minlength=K).argmax())]
             if first is None and pchg > 0.5:
                 first = y
@@ -155,6 +196,7 @@ def uncertainty_split(world):
     for (y, g), sub in world[world.year.isin(TARGET_YEARS)].groupby(['year', 'religion']):
         rows.append({'year': y, 'religion': g,
                      'within_scenario_band_pp_mean': 100 * float((sub.q95 - sub.q05).mean()),
+                     'predictive_band_pp_mean': 100 * float((sub.pi95 - sub.pi05).mean()) if 'pi95' in sub else np.nan,
                      'between_scenario_range_pp': 100 * float(sub['mean'].max() - sub['mean'].min()),
                      'lowest_scenario': sub.loc[sub['mean'].idxmin(), 'scenario'],
                      'highest_scenario': sub.loc[sub['mean'].idxmax(), 'scenario']})

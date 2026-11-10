@@ -81,7 +81,7 @@ def save_png(fig, path, dpi):
 SHOW_COUNTRIES = ['USA', 'BRA', 'GBR', 'DEU', 'FRA', 'SWE', 'NGA', 'ETH', 'EGY', 'SAU', 'IND', 'CHN', 'JPN', 'KOR', 'IDN', 'AUS']
 MECH = [('share_pp_survival', 'Deaths and ageing', '#8C6D5A'), ('share_pp_births', 'Births', '#E58D36'),
         ('share_pp_switching', 'Religious switching', '#C94F68'), ('share_pp_emigration', 'Emigration', '#7FA7CF'),
-        ('share_pp_immigration', 'Immigration', '#3974A9'), ('share_pp_residual', 'Residual', '#999999')]
+        ('share_pp_immigration', 'Immigration', '#3974A9')]
 
 
 def join(borders, values):

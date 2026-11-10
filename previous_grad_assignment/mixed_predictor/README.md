@@ -1,7 +1,7 @@
 # Damped log-ratio trend: a global-aggregate baseline
 
 A deliberately simple forecaster of the **world's** religious composition, eight shares with no
-countries and no demographic mechanism. It exists to answer one question for the primary package:
+countries and no demographic mechanism. It exists to answer one question for the research model:
 how much does a trend fitted to the historical shares achieve on its own? It is a baseline, not a
 projection, and should not be cited as a forecast of anyone's religious future.
 
@@ -16,7 +16,7 @@ python main.py rebuild-data    regenerate world_shares_wrp.csv from the raw WRP 
 Standard library only, no install step. It reads one committed CSV and writes `results/`.
 Rebuilding that CSV from raw WRP (`rebuild-data`) reproduces the committed file byte for byte.
 
-**Read `docs/COMPARABILITY.md` before comparing any number here with the primary package.** This
+**Read `../README.md` before comparing any number here with the research model.** This
 baseline forecasts one world composition, scored after country errors cancel out; the primary
 package forecasts 200 countries and scores them before. Their errors are not on the same scale.
 
@@ -36,7 +36,7 @@ reproduces "nothing changes" exactly and `H = ∞` is plain extrapolation.
 from "google AI overview simply because I couldn't find reliable and easy to interpret data
 anywhere else". They are internally inconsistent: Islam goes 20.0% (1920) → 13.4% (1950) → 20.0%
 (1970), which did not happen, and the 1920 row matches 1990 in five of seven fields. This baseline
-reads the World Religion Project (Maoz & Henderson 2013) instead, as the primary package does.
+reads the World Religion Project (Maoz & Henderson 2013) instead, as the research model does.
 
 **2. A balanced country panel, and what it costs.** WRP follows the Correlates of War state system,
 so the set of countries changes over time: 65 states in 1945, 194 in 2010. Summing every country
@@ -105,7 +105,7 @@ Four things follow.
   when forecasts are compared one horizon at a time. A ranking that flips with the evaluation is
   itself evidence that there is no real difference to find.
 - **Nine global observations cannot separate any of these from assuming nothing changes.** That is
-  the result. It matches what the primary package finds by an entirely different route.
+  the result. It matches what the research model finds by an entirely different route.
 
 The original procedure is kept unchanged, as `cross_validated_comparison`, so the correction can be
 reproduced. The corrected one is `nested_forward_comparison`; the test is `sign_flip_test`. Results
@@ -196,7 +196,7 @@ and that applies to the method as much as to the model.
 - **Method.** Compiled from censuses, surveys and denominational records, with interpolation and
   estimation where those were missing.
 - **What is used here.** Count columns per denomination, summed into eight groups with the same
-  mapping as the primary package, aggregated over the balanced panel and converted to shares. The
+  mapping as the research model, aggregated over the balanced panel and converted to shares. The
   derivation is `data.py`; `world_shares_wrp.csv` carries its own provenance header.
 - **Descriptive statistics.** 9 years × 8 groups from 131 countries, covering 6.10 bn of the 6.83 bn
   people WRP records for 2010. Shares range from 0.22% (Judaism, 2010) to 31.6% (Christianity, 1975).

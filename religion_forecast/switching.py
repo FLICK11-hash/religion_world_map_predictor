@@ -1,4 +1,4 @@
-"""Step 7 religious switching: lifetime transition matrices, age-specific rates, and a hierarchical
+"""Religious switching: lifetime transition matrices, age-specific rates, and a hierarchical
 (empirical Bayes) estimate for every country with uncertainty.
 
 Vocabulary
@@ -29,7 +29,8 @@ Evidence used (each optional):
   net   residual share change over a decade that births, deaths, ageing and migration do not
         explain (from a demographic hindcast). Linked to the rates through the exposure of each
         religion's population to switching ages. Student-t likelihood (robust to source breaks).
-  survey observed lifetime matrix cells (raised r, current s, proportion, effective n), binomial.
+  survey observed lifetime matrix cells (raised r, current s, proportion, effective n), one
+        multinomial per survey row, with unreported cells pooled into a complement.
 Only the hindcast's UNEXPLAINED part informs switching, so demographic and migration change is
 not counted twice; the part switching cannot explain is treated as noise and not extrapolated.
 """
@@ -45,6 +46,25 @@ SWITCH_AGES = np.arange(3, 10)                 # 15-19 ... 45-49
 SWITCH_AGE_WEIGHTS = np.array([0.20, 0.27, 0.22, 0.14, 0.09, 0.05, 0.03])
 _W_AGE = np.zeros(A)
 _W_AGE[SWITCH_AGES] = SWITCH_AGE_WEIGHTS
+
+
+_LANCZOS = np.array([0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+                     -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6,
+                     1.5056327351493116e-7])
+
+
+def lgamma(x):
+    """log Gamma(x) for x > 0, vectorised (Lanczos approximation, g = 7; relative error ~1e-15),
+    with the reflection formula below 0.5."""
+    x = np.asarray(x, float)
+    small = x < 0.5
+    z = np.where(small, 1.0 - x, x) - 1.0
+    acc = np.full(z.shape, _LANCZOS[0])
+    for i in range(1, 9):
+        acc = acc + _LANCZOS[i] / (z + i)
+    t = z + 7.5
+    big = 0.5 * np.log(2 * np.pi) + (z + 0.5) * np.log(t) - t + np.log(acc)
+    return np.where(small, np.log(np.pi) - np.log(np.abs(np.sin(np.pi * x))) - big, big)
 
 
 def logit(p):
@@ -206,20 +226,32 @@ def development_index(e0, tfr, cfg):
 
 
 # ------------------------------------------------------------------ hierarchical model
+LATENT = K + 2          # per country: xi_u, xi_e (one per religion that can disaffiliate), xi_a, xi_v
+
+
 class Hierarchy:
     """Empirical Bayes fit of switching rates for n countries.
 
     prior: dict from config/assumptions.json['switching'] with keys mu_d (dict by religion, lifetime
-    probabilities at z = 0), mu_a, mu_v (dicts / float), beta_a, tau_e, tau_a, tau_v,
-    grids: delta, beta_d, tau_u. M latent draws per country (fixed seed)."""
+    probabilities at z = 0), mu_a, mu_v (dicts / float), beta_a, tau_e, tau_a, tau_v and a coarse
+    starting grid over delta, beta_d, tau_u. M latent draws per country (fixed seed).
+
+    The marginal likelihood of the hyperparameters H = (delta, beta_d, tau_u) integrates each
+    country's ten latent effects xi out by importance sampling. Draws from the prior N(0, I) are
+    inefficient for countries whose evidence is sharp (a survey row with n = 500 leaves a few prior
+    draws carrying all the weight), and the estimate then depends on the seed. The fit therefore
+    adapts the proposal: each country gets a Gaussian fitted to its own weighted draws, mixed with
+    the prior (a defensive mixture, so the estimator stays valid wherever the posterior is), and
+    the importance weights carry log prior - log proposal. Because the latent effects are standard
+    normal whatever H is, one set of draws serves every H, which makes the estimated marginal
+    likelihood a smooth function of H that can be maximised continuously."""
 
     def __init__(self, n, prior, M=256, seed=7):
         self.n, self.M, self.prior = n, M, prior
+        self.seed = seed
         rng = np.random.default_rng(seed)
-        self.xi_u = rng.standard_normal((n, M))
-        self.xi_e = rng.standard_normal((n, M, K - 1))
-        self.xi_a = rng.standard_normal((n, M))
-        self.xi_v = rng.standard_normal((n, M))
+        self._set_latent(rng.standard_normal((n, M, LATENT)))
+        self.log_ratio = np.zeros((n, M))            # log prior density - log proposal density
         names = [E.CATS[r] for r in REL]
         self.mu_d = logit(np.array([prior['mu_d'][c] for c in names]))
         self.mu_v = logit(np.array([prior['mu_v'][c] for c in names]))
@@ -227,6 +259,14 @@ class Hierarchy:
         self.H = None
         self.logw = None
         self.grid_table = None
+        self.search = []
+
+    def _latent(self):
+        return np.concatenate([self.xi_u[..., None], self.xi_e, self.xi_a[..., None], self.xi_v[..., None]], -1)
+
+    def _set_latent(self, Z):
+        self.xi_u, self.xi_e = Z[..., 0].copy(), Z[..., 1:K].copy()
+        self.xi_a, self.xi_v = Z[..., K].copy(), Z[..., K + 1].copy()
 
     def rates(self, z, H, idx=None, shift_d=None, shift_a=0.0):
         """Rates for latent draws: d [n, M, K-1], v [n, M, K-1], a [n, M] at development z [n].
@@ -274,48 +314,131 @@ class Hierarchy:
                 r = net['y'][:, t][:, None, :] - pred
                 lk = self._t_loglik(r, net['scale'][None, None, :]).sum(-1) * (7.0 / 8.0)
                 ll += np.where(m[:, None], lk * net['weight'][:, t][:, None], 0.0)
-        if survey is not None and len(survey['country']):
-            # survey: arrays country [S], raised [S], current [S], p [S], neff [S], z [S]
-            for i in np.unique(survey['country']):
-                rows = np.flatnonzero(survey['country'] == i)
-                d, v, a = self.rates(np.array([survey['z'][rows[0]]]), H, idx=np.array([i]))
-                d, v, a = d[0], v[0], a[0]
-                for row in rows:
-                    r, s = int(survey['raised'][row]), int(survey['current'][row])
-                    if r == U and s != U:
-                        prob = a
-                    elif r != U and s == U:
-                        prob = d[:, REL.index(r)]
-                    elif r != U and s == r:
-                        prob = 1.0 - d[:, REL.index(r)] - v[:, REL.index(r)]
-                    elif r == U and s == U:
-                        prob = 1.0 - a
+        if survey is not None and len(survey['group_country']):
+            # survey: one Dirichlet-multinomial per survey row (a country's adults raised in one
+            # religion, in one survey). Cell arrays: group [S], raised [S], current [S], p [S]
+            # (observed share of the row), dest_frac [S] (the model's split of conversions over
+            # destinations, by local prevalence, exactly as in lifetime_matrix). Row arrays:
+            # group_country [R], group_n [R], group_z [R]. Cells a survey did not report are pooled
+            # into one complement cell, so a row reporting only "raised r, now unaffiliated" is
+            # counted once and a row reporting several cells is not counted several times over.
+            # The concentration `alpha` allows for survey design effects and for the model's
+            # simplifications (one conversion effect per country, converts placed by prevalence):
+            # a row carries the information of at most about alpha respondents, however large the
+            # survey. alpha -> infinity is the multinomial.
+            alpha = float(survey.get('alpha', np.inf))
+            for i in np.unique(survey['group_country']):
+                rows = np.flatnonzero(survey['group_country'] == i)
+                d, v, a = self.rates(np.array([survey['group_z'][rows[0]]]), H, idx=np.array([i]))
+                d, v, a = d[0], v[0], a[0]                                   # [M, K-1], [M, K-1], [M]
+                for g in rows:
+                    cells = np.flatnonzero(survey['group'] == g)
+                    n_eff = float(survey['group_n'][g])
+                    probs, counts = [], []
+                    for c in cells:
+                        r, s_ = int(survey['raised'][c]), int(survey['current'][c])
+                        if r == U:
+                            prob = 1.0 - a if s_ == U else a * survey['dest_frac'][c]
+                        else:
+                            j = REL.index(r)
+                            if s_ == r:
+                                prob = 1.0 - d[:, j] - v[:, j]
+                            elif s_ == U:
+                                prob = d[:, j]
+                            else:
+                                prob = v[:, j] * survey['dest_frac'][c]
+                        probs.append(np.clip(prob, 1e-9, 1.0))
+                        counts.append(n_eff * survey['p'][c])
+                    rest = max(1.0 - sum(survey['p'][c] for c in cells), 0.0)
+                    probs.append(np.clip(1.0 - np.sum(probs, axis=0), 1e-9, 1.0))
+                    counts.append(n_eff * rest)
+                    probs, counts = np.array(probs), np.array(counts)[:, None]       # [C, M], [C, 1]
+                    if np.isfinite(alpha):
+                        ll[i] += (lgamma(alpha) - lgamma(n_eff + alpha)
+                                  + (lgamma(counts + alpha * probs) - lgamma(alpha * probs)).sum(0))
                     else:
-                        prob = v[:, REL.index(r)]
-                    prob = np.clip(prob, 1e-6, 1 - 1e-6)
-                    k_obs = survey['p'][row] * survey['neff'][row]
-                    ll[i] += k_obs * np.log(prob) + (survey['neff'][row] - k_obs) * np.log1p(-prob)
+                        ll[i] += (counts * np.log(probs)).sum(0)
         return ll
 
-    def fit(self, net=None, survey=None):
-        """Grid search over (delta, beta_d, tau_u) maximising the total log marginal likelihood
-        log mean_m exp(loglik). Keeps the best H and its importance log-weights per country."""
+    def log_marginal(self, H, net=None, survey=None):
+        """Estimated log marginal likelihood (summed over countries) and the per-draw log weights."""
+        ll = self.loglik(H, net, survey) + self.log_ratio
+        mx = ll.max(1, keepdims=True)
+        return float((mx[:, 0] + np.log(np.exp(ll - mx).mean(1))).sum()), ll
+
+    def adapt(self, H, net=None, survey=None, rounds=3, defensive=0.25, inflate=1.5, ridge=0.05):
+        """Replace the draws with a per-country defensive mixture proposal fitted at H:
+        q = defensive x N(0, I) + (1 - defensive) x N(m_c, inflate x S_c + ridge x I), where m_c and
+        S_c are the importance-weighted mean and covariance of country c's current draws."""
+        rng = np.random.default_rng([self.seed, 31])
+        I = np.eye(LATENT)
+        log2pi = LATENT * np.log(2 * np.pi)
+        for _ in range(rounds):
+            _, ll = self.log_marginal(H, net, survey)
+            w = np.exp(ll - ll.max(1, keepdims=True))
+            w = w / w.sum(1, keepdims=True)
+            Z = self._latent()
+            m = np.einsum('nm,nmd->nd', w, Z)
+            dZ = Z - m[:, None, :]
+            C = inflate * np.einsum('nm,nmd,nme->nde', w, dZ, dZ) + ridge * I
+            L = np.linalg.cholesky(C)
+            eps = rng.standard_normal((self.n, self.M, LATENT))
+            prior_draw = rng.random((self.n, self.M)) < defensive
+            Znew = np.where(prior_draw[..., None], eps, m[:, None, :] + np.einsum('nde,nme->nmd', L, eps))
+            logp = -0.5 * (Znew ** 2).sum(-1) - 0.5 * log2pi
+            sol = np.linalg.solve(L[:, None], (Znew - m[:, None, :])[..., None])[..., 0]
+            logg = -0.5 * (sol ** 2).sum(-1) - np.log(np.diagonal(L, axis1=1, axis2=2)).sum(-1)[:, None] - 0.5 * log2pi
+            logq = np.logaddexp(np.log(defensive) + logp, np.log1p(-defensive) + logg)
+            self._set_latent(Znew)
+            self.log_ratio = logp - logq
+        return self
+
+    def fit(self, net=None, survey=None, adapt=True):
+        """Maximise the estimated marginal likelihood over H = (delta, beta_d, tau_u).
+
+        1 coarse grid with prior draws; 2 adapt the proposal at the best point and repeat the grid;
+        3 adapt again and refine with Nelder-Mead on (delta, beta_d, log tau_u), within the bounds
+        of config/assumptions.json switching.bounds. Keeps the best H and its importance
+        log-weights per country; `search` records every evaluation."""
         g = self.prior['grid']
-        rows, best = [], (-np.inf, None, None)
-        for delta in g['delta']:
-            for beta in g['beta_d']:
-                for tau in g['tau_u']:
-                    H = (float(delta), float(beta), float(tau))
-                    ll = self.loglik(H, net, survey)
-                    mx = ll.max(1, keepdims=True)
-                    lm = (mx[:, 0] + np.log(np.exp(ll - mx).mean(1)))
-                    total = float(lm.sum())
-                    rows.append({'delta': H[0], 'beta_d': H[1], 'tau_u': H[2], 'log_marginal': total})
-                    if total > best[0]:
-                        best = (total, H, ll)
-        self.H = best[1]
-        self.logw = best[2] - best[2].max(1, keepdims=True)
-        self.grid_table = rows
+        bounds = self.prior.get('bounds', {'delta': [-3.0, 5.0], 'beta_d': [-1.0, 4.0], 'tau_u': [0.1, 5.0]})
+
+        def grid():
+            best = (-np.inf, None)
+            for delta in g['delta']:
+                for beta in g['beta_d']:
+                    for tau in g['tau_u']:
+                        H = (float(delta), float(beta), float(tau))
+                        lm, _ = self.log_marginal(H, net, survey)
+                        self.search.append({'stage': 'grid', 'delta': H[0], 'beta_d': H[1], 'tau_u': H[2],
+                                            'log_marginal': lm})
+                        if lm > best[0]:
+                            best = (lm, H)
+            return best[1]
+
+        H = grid()
+        if adapt:
+            self.adapt(H, net, survey)
+            H = grid()
+            self.adapt(H, net, survey)
+            lo = np.array([bounds['delta'][0], bounds['beta_d'][0], np.log(bounds['tau_u'][0])])
+            hi = np.array([bounds['delta'][1], bounds['beta_d'][1], np.log(bounds['tau_u'][1])])
+
+            def f(x):
+                x = np.clip(x, lo, hi)
+                Hx = (float(x[0]), float(x[1]), float(np.exp(x[2])))
+                lm, _ = self.log_marginal(Hx, net, survey)
+                self.search.append({'stage': 'nelder-mead', 'delta': Hx[0], 'beta_d': Hx[1], 'tau_u': Hx[2],
+                                    'log_marginal': lm})
+                return -lm
+            x = nelder_mead(f, np.array([H[0], H[1], np.log(H[2])]), np.array([0.5, 0.4, 0.3]))
+            x = np.clip(x, lo, hi)
+            H = (float(x[0]), float(x[1]), float(np.exp(x[2])))
+        lm, ll = self.log_marginal(H, net, survey)
+        self.H = H
+        self.log_marginal_value = lm
+        self.logw = ll - ll.max(1, keepdims=True)
+        self.grid_table = self.search
         return self
 
     def posterior_weights(self):
@@ -336,16 +459,106 @@ class Hierarchy:
     def posterior_summary(self, z):
         """Posterior mean and 5-95% of each rate at development z [n] (for reporting)."""
         d, v, a = self.rates(z, self.H)
-        w = self.posterior_weights()
-        out = {}
-        for name, x in (('d', d), ('v', v)):
-            mean = np.einsum('nm,nmj->nj', w, x)
-            out[name + '_mean'] = mean
-            out[name + '_q05'], out[name + '_q95'] = _weighted_quantiles(x, w, (0.05, 0.95))
-        out['a_mean'] = (w * a).sum(1)
-        qa = _weighted_quantiles(a[:, :, None], w, (0.05, 0.95))
-        out['a_q05'], out['a_q95'] = qa[0][:, 0], qa[1][:, 0]
-        return out
+        return _summary(d, v, a, self.posterior_weights())
+
+
+def _summary(d, v, a, w):
+    out = {}
+    for name, x in (('d', d), ('v', v)):
+        out[name + '_mean'] = np.einsum('nm,nmj->nj', w, x)
+        out[name + '_q05'], out[name + '_q95'] = _weighted_quantiles(x, w, (0.05, 0.95))
+    out['a_mean'] = (w * a).sum(1)
+    qa = _weighted_quantiles(a[:, :, None], w, (0.05, 0.95))
+    out['a_q05'], out['a_q95'] = qa[0][:, 0], qa[1][:, 0]
+    return out
+
+
+class Ensemble:
+    """Replicate empirical Bayes fits of the same evidence with independent latent draws.
+
+    The importance-sampling estimate of the marginal likelihood carries Monte Carlo error, so the
+    fitted hyperparameters differ a little between seeds. Rather than pick one, the projection uses
+    every replicate: Monte Carlo run r uses member r mod m, so that error is propagated into the
+    projection's spread instead of being fixed at one arbitrary value, and its size is reported
+    (`H_spread`)."""
+
+    def __init__(self, members):
+        self.members = list(members)
+        self.n, self.M = self.members[0].n, self.members[0].M
+
+    def member(self, r):
+        return self.members[int(r) % len(self.members)]
+
+    @property
+    def H(self):
+        return tuple(float(np.mean([m.H[i] for m in self.members])) for i in range(3))
+
+    def H_spread(self):
+        return tuple(float(np.std([m.H[i] for m in self.members], ddof=1)) if len(self.members) > 1 else 0.0
+                     for i in range(3))
+
+    @property
+    def net_scale(self):
+        return self.members[0].net_scale
+
+    @property
+    def survey_level(self):
+        """The members' survey-level tables, averaged (numeric columns)."""
+        tabs = [m.survey_level['table'] for m in self.members if getattr(m, 'survey_level', None) is not None]
+        if not tabs:
+            return None
+        t = tabs[0].copy()
+        num = t.select_dtypes('number').columns
+        t[num] = np.mean([x[num].to_numpy(float) for x in tabs], axis=0)
+        return dict(table=t)
+
+    def effective_sample_size(self):
+        return np.mean([m.effective_sample_size() for m in self.members], axis=0)
+
+    def posterior_summary(self, z):
+        """Pooled over members: each member's weighted draws, the members weighted equally."""
+        parts = [m.rates(z, m.H) for m in self.members]
+        w = np.concatenate([m.posterior_weights() / len(self.members) for m in self.members], 1)
+        d = np.concatenate([x[0] for x in parts], 1)
+        v = np.concatenate([x[1] for x in parts], 1)
+        a = np.concatenate([x[2] for x in parts], 1)
+        return _summary(d, v, a, w)
+
+
+def nelder_mead(f, x0, step, max_eval=150, xtol=1e-3, ftol=1e-3):
+    """Minimise f from x0 with the Nelder-Mead simplex (reflection 1, expansion 2, contraction 0.5,
+    shrink 0.5). Small and dependency-free; f is the negative estimated log marginal likelihood."""
+    n = len(x0)
+    pts = [np.asarray(x0, float)] + [np.asarray(x0, float) + step[i] * np.eye(n)[i] for i in range(n)]
+    vals = [f(x) for x in pts]
+    evals = n + 1
+    while evals < max_eval:
+        order = np.argsort(vals)
+        pts, vals = [pts[i] for i in order], [vals[i] for i in order]
+        if abs(vals[-1] - vals[0]) < ftol and max(np.abs(p - pts[0]).max() for p in pts[1:]) < xtol:
+            break
+        c = np.mean(pts[:-1], axis=0)
+        xr = c + (c - pts[-1])
+        fr = f(xr)
+        evals += 1
+        if fr < vals[0]:
+            xe = c + 2 * (c - pts[-1])
+            fe = f(xe)
+            evals += 1
+            pts[-1], vals[-1] = (xe, fe) if fe < fr else (xr, fr)
+        elif fr < vals[-2]:
+            pts[-1], vals[-1] = xr, fr
+        else:
+            xc = c + 0.5 * (pts[-1] - c) if fr >= vals[-1] else c + 0.5 * (xr - c)
+            fc = f(xc)
+            evals += 1
+            if fc < min(fr, vals[-1]):
+                pts[-1], vals[-1] = xc, fc
+            else:
+                pts = [pts[0]] + [pts[0] + 0.5 * (p - pts[0]) for p in pts[1:]]
+                vals = [vals[0]] + [f(p) for p in pts[1:]]
+                evals += n
+    return pts[int(np.argmin(vals))]
 
 
 def apply_caps(d, v, a, caps):
