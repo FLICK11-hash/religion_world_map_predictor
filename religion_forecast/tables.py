@@ -56,7 +56,8 @@ def attach_predictive(stores, error_model, seed, draws=25):
             st.pred[y] = dict(country_q05=np.quantile(d, 0.05, axis=0), country_q95=np.quantile(d, 0.95, axis=0),
                               world_q=np.quantile(world, [0.05, 0.10, 0.90, 0.95], axis=0),
                               world_median=np.quantile(world, 0.5, axis=0),
-                              changed=(d.argmax(2) != dom0[None, :]).mean(0))
+                              changed=(d.argmax(2) != dom0[None, :]).mean(0),
+                              new_group=_modal_new_group(d.argmax(2), dom0))
             if y in (2050, 2100):              # comparison: centred errors
                 rng = np.random.default_rng([seed, 9090])
                 db = ER.predictive(samples, y - 2020, error_model, rng, draws,
@@ -177,6 +178,17 @@ def corridors(ctx, name, st, top=400):
     return pd.DataFrame(rows)
 
 
+def _modal_new_group(top, dom0):
+    """For each country, the largest religion most often reached among the draws in which it
+    differs from 2020's (-1 where no draw changes). top [D, n] index of each draw's largest group."""
+    out = np.full(top.shape[1], -1)
+    for i in range(top.shape[1]):
+        t = top[:, i][top[:, i] != dom0[i]]
+        if len(t):
+            out[i] = int(np.bincount(t, minlength=K).argmax())
+    return out
+
+
 def predictive_sensitivity(stores, ref):
     """World shares in 2050 and 2100 (reference scenario): the model's mean, and the median and 90%
     predictive interval as projected (errors as recorded) and with centred errors (a comparison)."""
@@ -232,6 +244,8 @@ def dominant_change(ctx, name, st):
             pr = getattr(st, 'pred', {}).get(y)
             if pr is not None:
                 row[f'prob_changed_by_{y}_predictive'] = float(pr['changed'][i])
+                ng = int(pr['new_group'][i])
+                row[f'most_likely_new_{y}_predictive'] = CATS[ng] if ng >= 0 else ''
             row[f'most_likely_{y}'] = CATS[int(np.bincount(dom[:, j, i], minlength=K).argmax())]
             if first is None and pchg > 0.5:
                 first = y

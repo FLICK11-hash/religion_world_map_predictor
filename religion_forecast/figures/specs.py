@@ -95,13 +95,19 @@ def specs(ref='stabilising'):
                         colorbar='Change in Gini-Simpson index', footnote=_when(y)))
     dref = dch[dch.scenario.eq(ref)].set_index('country_id')
     for y in (2100, 3026):
-        changed = dref[f'prob_changed_by_{y}'] > 0.5
-        vals = dref[f'most_likely_{y}'].where(changed, 'Unchanged')
+        pcol = f'prob_changed_by_{y}_predictive'
+        predictive = pcol in dref and dref[pcol].notna().any()
+        changed = dref[pcol if predictive else f'prob_changed_by_{y}'] > 0.5
+        newcol = f'most_likely_new_{y}_predictive' if predictive else f'most_likely_{y}'
+        vals = dref[newcol].where(changed, 'Unchanged')
         cols = dict(COLORS, Unchanged='#D9DDE1')
         out.append(dict(name=f'dominant_changed_{y}', kind='categorical', values=vals, colors=cols,
-                        title=f'Countries whose dominant religion changes by {y}',
-                        subtitle=f'Coloured by the new dominant group where most runs change; grey = unchanged. Scenario: {ref}',
-                        footnote=_when(y)))
+                        title=f'Countries whose largest religion is more likely than not to change by {y}' if predictive
+                        else f'Countries whose largest religion changes by {y} in most runs (exploratory)',
+                        subtitle=(f'Predictive probability above one half (runs plus past forecast errors), coloured by the '
+                                  f'most likely new group; grey = unchanged. Scenario: {ref}') if predictive else
+                                 f'Coloured by the new largest group where most runs change; grey = unchanged. Scenario: {ref}',
+                        footnote='Predictive probability: share of predictive draws' if predictive else _when(y)))
         pcol = f'prob_changed_by_{y}_predictive'
         if pcol in dref and dref[pcol].notna().any():
             out.append(dict(name=f'prob_dominant_change_{y}', kind='sequential', values=dref[pcol],
