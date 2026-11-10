@@ -1,7 +1,7 @@
 {
-  "timestamp_utc": "2026-11-10T11:17:31.399112+00:00",
-  "runtime_seconds": 68.8,
-  "tabulated_from_saved_runs": true,
+  "timestamp_utc": "2026-11-10T22:10:02.170088+00:00",
+  "runtime_seconds": 626.3,
+  "tabulated_from_saved_runs": false,
   "countries": 200,
   "dropped_countries": [
     "CHI_ISLANDS"
@@ -67,8 +67,8 @@
   },
   "reference_scenario": "stabilising",
   "forecast_error_model": {
-    "b": 0.8500337520858434,
-    "beta": 0.34215686325182393,
+    "b": 0.8043157311434749,
+    "beta": 0.273889756964162,
     "blocks": [
       "WRP 1970-1980",
       "WRP 1980-1990",
@@ -78,173 +78,220 @@
     "note": "predictive intervals (pi*) to 2100 add resampled past forecast errors to every run; see religion_forecast/errors.py"
   },
   "switching_fit": {
-    "delta": -0.053078210278938005,
-    "beta_d": 1.1580576246468615,
-    "tau_u": 1.6103492084543742,
+    "delta": -0.06172136944239918,
+    "beta_d": 1.268596151309275,
+    "tau_u": 1.4584290270873084,
+    "hyperparameter_uncertainty": "laplace",
     "replicates": [
       {
-        "delta": -0.2380569412844159,
-        "beta_d": 1.1527773897994376,
-        "tau_u": 2.0,
-        "log_marginal": 5733.987211601222
+        "delta": -0.04569109824999451,
+        "beta_d": 1.2669856738468968,
+        "tau_u": 1.4311379649522484,
+        "se_delta": 0.17447132449903635,
+        "se_beta_d": 0.09456987281050014,
+        "se_log_tau_u": 0.1092615726714045,
+        "log_marginal": 5700.259021344629,
+        "optimisation": {
+          "starts": 3,
+          "starts_within_0_1": 3,
+          "best_minus_worst_start": 4.274453203834128e-06,
+          "converged": true,
+          "largest_move_at_each_refit": [
+            0.029192565546425575,
+            0.014259888544890187
+          ]
+        },
+        "min_posterior_ess": 163.80824907782034
       },
       {
-        "delta": 0.004831099099160819,
-        "beta_d": 1.1615995596896955,
-        "tau_u": 1.3815388338364956,
-        "log_marginal": 5734.356819104374
+        "delta": -0.04826472972659657,
+        "beta_d": 1.2787472423930577,
+        "tau_u": 1.4751076989331158,
+        "se_delta": 0.17880261648589438,
+        "se_beta_d": 0.10856281366730651,
+        "se_log_tau_u": 0.11381644983011516,
+        "log_marginal": 5699.367443845242,
+        "optimisation": {
+          "starts": 3,
+          "starts_within_0_1": 1,
+          "best_minus_worst_start": 1.203489804678611,
+          "converged": true,
+          "largest_move_at_each_refit": [
+            0.08425863880256146,
+            0.021259881420968796,
+            0.00900726762989612
+          ]
+        },
+        "min_posterior_ess": 79.02106413351946
       },
       {
-        "delta": 0.07399121134844105,
-        "beta_d": 1.1597959244514513,
-        "tau_u": 1.449508791526627,
-        "log_marginal": 5736.603841769193
+        "delta": -0.09120828035060646,
+        "beta_d": 1.2600555376878704,
+        "tau_u": 1.4690414173765614,
+        "se_delta": 0.19051020426504162,
+        "se_beta_d": 0.09860059384029861,
+        "se_log_tau_u": 0.12092521236692419,
+        "log_marginal": 5699.696179654413,
+        "optimisation": {
+          "starts": 3,
+          "starts_within_0_1": 1,
+          "best_minus_worst_start": 1.5038358204446922,
+          "converged": true,
+          "largest_move_at_each_refit": [
+            0.18685411544206576,
+            0.01704729609708061
+          ]
+        },
+        "min_posterior_ess": 105.04550524325286
       }
     ],
     "replicate_sd": {
-      "delta": 0.16388602281732562,
-      "beta_d": 0.004660894232990208,
-      "tau_u": 0.3391545124293633
+      "delta": 0.02556881559489517,
+      "beta_d": 0.009449348360553844,
+      "tau_u": 0.023828585718116614
     },
     "net_noise_scale_pp": [
-      2.621,
-      0.574,
+      2.659,
+      0.594,
       0.2,
       0.2,
       0.2,
-      0.272,
-      0.701,
-      0.655
+      0.285,
+      0.692,
+      0.673
     ],
-    "median_posterior_ess": 308.3484972549601,
+    "median_posterior_ess": 313.88558713046007,
     "latent_draws": 512
   },
   "switching_survey_level": {
     "logit_shift_by_religion": {
-      "Christianity": 0.42326192481050384,
-      "Islam": -0.662113761894337,
-      "Hinduism": -0.30349475709347945,
-      "Buddhism": 0.8557937644812531,
+      "Christianity": 0.45082750990089454,
+      "Islam": -0.6023612532723442,
+      "Hinduism": -0.31822661453164375,
+      "Buddhism": 0.856947303389461,
       "Judaism": 0.0,
       "Folk_Traditional": 0.0,
       "Other": 0.0,
-      "Unaffiliated": -0.14930273379892847
+      "Unaffiliated": -0.12652718354972117
     },
     "note": "survey level = fitted rates shifted so adults 18-54 match Pew 2025 (117 countries); runs mix the two levels"
   },
   "emigration_selectivity": {
     "model": "affinity",
-    "kappa": 0.5,
-    "lam": 0.65,
-    "rmse_pp": 2.213315558600551,
+    "kappa": 0.4,
+    "lam": 0.55,
+    "cap_at_calibration": 4.5,
+    "rmse_pp": 2.980974042020735,
     "rmse_if_mirror_origin_pp": 5.928812458305767,
     "residuals_pp": [
       [
         "world_migrants_2020",
         "Christianity",
-        -5.140140071676065
+        -5.274345790685203
       ],
       [
         "world_migrants_2020",
         "Islam",
-        1.0997557720924291
+        3.8920204466761206
       ],
       [
         "world_migrants_2020",
         "Unaffiliated",
-        3.2105172657873347
+        2.2003422922910634
       ],
       [
         "world_migrants_2020",
         "Hinduism",
-        -0.8423307074319331
+        -0.5836348468769401
       ],
       [
         "world_migrants_2020",
         "Buddhism",
-        -0.22314165515050766
+        -0.5224144158552426
       ],
       [
         "world_migrants_2020",
         "other",
-        1.39417500119968
+        0.1492093965520742
       ],
       [
         "world_migrants_2020",
         "Judaism",
-        -0.49883560482093936
+        -0.8611770821018683
       ],
       [
         "migrants_living_in_Europe_2020",
         "Christianity",
-        -1.2013047038116866
+        -2.4627650104526353
       ],
       [
         "migrants_living_in_Europe_2020",
         "Islam",
-        1.0219695897850087
+        7.497727071804597
       ],
       [
         "migrants_living_in_Europe_2020",
         "Unaffiliated",
-        0.3894491194958327
+        -2.491742675078079
       ],
       [
         "migrants_living_in_MENA_2020",
         "Christianity",
-        -3.0830228122353702
+        -3.570001105293329
       ],
       [
         "migrants_living_in_MENA_2020",
         "Islam",
-        2.9858748443369194
+        3.7504770309013367
       ],
       [
         "migrants_living_in_MENA_2020",
         "Hinduism",
-        0.3058585892926349
+        1.7802258266506392
       ],
       [
         "india_born_migrants_2020",
         "Christianity",
-        4.069933653354415
+        -0.4536293797500637
       ],
       [
         "us_foreign_born_adults_2023",
         "Christianity",
-        3.2624261494176565
+        3.557570249493608
       ],
       [
         "us_foreign_born_adults_2023",
         "Islam",
-        0.8442888681451448
+        2.3282741015970023
       ],
       [
         "us_foreign_born_adults_2023",
         "Unaffiliated",
-        -0.7444752311200027
+        -1.3151157130820827
       ],
       [
         "us_foreign_born_adults_2023",
         "Hinduism",
-        -1.5737348159673692
+        -1.0307227197867133
       ],
       [
         "us_foreign_born_adults_2023",
         "Buddhism",
-        -0.2863663808001098
+        -0.3278277036847981
       ]
     ]
   },
   "diagnostics": {
-    "mean_abs_log_rescale_to_2100": 0.0066427709702402745,
-    "migration_shortfall_persons_mean": 52708010.87107451
+    "mean_abs_log_rescale_to_2100": 0.006563761770304703,
+    "migration_shortfall_persons_mean": 199856.05817042652,
+    "migration_net_gap_to_wpp_mean": 0.265690689581204,
+    "migration_net_gap_note": "sum over countries of |realised net migration - WPP net| over sum |WPP net|, mean of 2020-2100 steps and runs; 0 with exact margins (margin_rho = 1)"
   },
   "cautions": [
     "Shares after 2100 rest on stated long-run assumptions; 2500 and 3026 are exploratory scenarios without predictive intervals.",
     "q05/q95 are parameter uncertainty only; use pi05/pi95 (to 2100) for predictive intervals.",
     "The Folk/Traditional vs Other split of Pew data is a WRP-based proxy; WRP and Pew classify China differently.",
     "Fertility gaps come from published world, regional or country figures (fertility_evidence.csv); the world and regional tiers are damped because a ratio measured across countries is not a within-country ratio.",
-    "The religion of migrants comes from a two-parameter model (minority effect, destination affinity) calibrated to Pew aggregates; corridor-level religion of migrants is not observed."
+    "The religion of migrants comes from a two-parameter model (minority effect, destination affinity) calibrated to Pew aggregates, with the minority effect bounded by an assumed cap; corridor-level religion of migrants is not observed."
   ]
 }

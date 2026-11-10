@@ -12,12 +12,14 @@ abstract: >-
   200 countries from 2020, by religion, migrant generation and five-year age
   group, driven by fertility, mortality, religious switching and international
   migration, with exact attribution of every change in share to its mechanism.
-  The model is evaluated out of sample on historical decades against
-  persistence and trend baselines, its interval calibration is measured, and
-  its projections are benchmarked against an independent published projection.
-  The evaluation finds no variant distinguishable from persistence at decadal
-  horizons and intervals several times too narrow, and shows that
-  disagreements between data vintages exceed disagreements between models.
+  Religious switching is estimated by empirical Bayes with Laplace importance
+  sampling, its hyperparameter uncertainty is propagated, and the estimator is
+  checked by a simulation study under the real design. The model is evaluated
+  out of sample on historical decades against persistence and trend baselines;
+  no variant is distinguishable from persistence at decadal horizons, the
+  model's own bands are several times too narrow, and predictive intervals
+  built from its past errors are close to nominal coverage out of sample.
+  Disagreements between data vintages exceed disagreements between models.
 keywords:
   - statistics
   - applied statistics

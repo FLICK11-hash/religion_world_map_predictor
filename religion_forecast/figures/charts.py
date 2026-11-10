@@ -157,6 +157,16 @@ def nice_ticks(lo, hi, n=5):
     return [round(start + i * step, 10) for i in range(int((hi - start) / step) + 1)]
 
 
+def pct_format(ticks):
+    """A percentage format with just enough decimals to show the tick step exactly (0.05% steps
+    need two), so that no two tick labels read the same."""
+    step = 100 * (ticks[1] - ticks[0]) if len(ticks) > 1 else 1.0
+    decimals = 0
+    while decimals < 4 and abs(round(step, decimals) - step) > 1e-9:
+        decimals += 1
+    return '{:.' + str(decimals) + '%}'
+
+
 # ------------------------------------------------------------------------------- the figures
 def fig_world_projection(F, out):
     """Each religion's world share 2020-2100: the reference scenario's mean, its parameter band and
@@ -193,7 +203,8 @@ def fig_world_projection(F, out):
         rng_ = sub.groupby('year')['mean'].agg(['min', 'max'])
         hi = max(float(rp.pi95.max()) if len(rp) else 0.0, float(r.q95.max()), float(rng_['max'].max())) * 1.06
         p = Panel(cv, X0 + 44, Y0 + 34, pw - 92, ph - 62, (2020, 2100), (0, hi), title=MD.label(g))
-        p.grid_y(nice_ticks(0, hi), fmt='{:.1%}' if hi < 0.05 else '{:.0%}')
+        ticks = nice_ticks(0, hi)
+        p.grid_y(ticks, fmt=pct_format(ticks))
         p.grid_x([2020, 2050, 2100], fmt='{:.0f}')
         p.axis_line()
         if len(rp):
@@ -246,7 +257,8 @@ def fig_world_composition(F, out):
         rng_ = sub.groupby('year')['mean'].agg(['min', 'max'])
         hi = max(float(r.q95.max()), float(rng_['max'].max())) * 1.05
         p = Panel(cv, X0 + 44, Y0 + 34, pw - 92, ph - 62, (0, 1), (0, hi), title=MD.label(g))
-        p.grid_y(nice_ticks(0, hi), fmt='{:.1%}' if hi < 0.05 else '{:.0%}')
+        ticks = nice_ticks(0, hi)
+        p.grid_y(ticks, fmt=pct_format(ticks))
         p.vline(float(xpos(2100)))
         p.axis_line()
         for yr in (2020, 2100, 2500, 3026):

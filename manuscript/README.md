@@ -27,6 +27,7 @@ regenerates (`python run.py all`). If the run changes, the numbers below change 
 | mechanism contributions | `results/ablation_effects.csv` |
 | sensitivity | `results/sensitivity_coefficients.csv` |
 | switching fit | `results/projection_report.json` (`switching_fit`), `results/switching_check_vs_pew.csv` |
+| estimator simulation study | `results/estimator_recovery.csv`, `results/estimator_recovery_runs.csv` |
 | country changes | `results/dominant_change.csv` |
 
 ## Before submission
@@ -41,3 +42,6 @@ regenerates (`python run.py all`). If the run changes, the numbers below change 
 3. Choose a licence, tag a release and archive it (Zenodo) for a DOI to cite in the data and code
    availability statement.
 4. Check the target journal's policy on AI-assisted work and adapt the statement.
+5. Decide whether to report a calibrated correction of the predictive intervals. They are a few
+   points too narrow out of sample; any correction estimated on the four decades would have to be
+   validated on the same decades, so the draft reports the shortfall instead.
