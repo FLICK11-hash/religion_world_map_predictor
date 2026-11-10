@@ -401,7 +401,7 @@ def main(argv=None):
                    'lambda': ctx.selectivity['lam'], 'rmse_pp': ctx.selectivity['rmse_pp'],
                    'rmse_if_migrants_mirror_origin_pp': ctx.selectivity['rmse_mirror_pp']},
                forecast_error_model=None if calib is None else {k: v for k, v in json.loads(
-                   (OUT / 'forecast_error_model.json').read_text()).items() if k not in ('blocks',)},
+                   (OUT / 'forecast_error_model.json').read_text()).items() if k != 'mean_u'},
                notes=['WPP 2024 estimates are used inside each historical window (retrospective, not real-time).',
                       'The World Religion Project and Pew classify some populations differently (notably folk '
                       'religion and the unaffiliated in China); windows never mix sources.'])

@@ -169,7 +169,9 @@ def main(argv=None):
         L.append(md(inf[['scope', 'model', 'country_windows', 'mean_difference_pp', 'ci95_low_pp', 'ci95_high_pp',
                          'p_bootstrap', 'share_better', 'windows_better', 'windows', 'p_window']], 3))
 
-    em = vrep.get('forecast_error_model')
+    em = dict(vrep.get('forecast_error_model') or {})
+    if (V / 'forecast_error_model.json').exists():
+        em.update({k: v for k, v in json.loads((V / 'forecast_error_model.json').read_text()).items() if k != 'mean_u'})
     cal = _read(V / 'predictive_calibration.csv')
     if em or cal is not None:
         L.append('\n## 3. Forecast errors and predictive intervals\n')
