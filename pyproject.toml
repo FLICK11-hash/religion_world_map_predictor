@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "religion-forecast"
+version = "1.0.0"
+description = "Probabilistic cohort-component projection of religious composition by country, with switching, migration and out-of-sample evaluation."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Conrad Flick" }]
+# No licence has been chosen yet; see README.md.
+keywords = ["statistics", "statistical demography", "population projection", "cohort-component model",
+            "probabilistic forecasting", "forecast evaluation", "religious demography"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Sociology",
+]
+# Abstract dependencies: the ranges the package is intended to work with.
+# Only the exact set in requirements-lock.txt has been tested end to end.
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "openpyxl>=3.1,<4",   # pandas engine for the UN migrant-stock workbook
+    "requests>=2.31,<3",  # run.py fetch; the projection itself never touches the network
+]
+
+[project.optional-dependencies]
+# matplotlib PNG versions of the maps. The SVG figures the results use need none of this.
+maps = ["matplotlib>=3.8,<4", "geopandas>=1.0,<2", "pyogrio>=0.9"]
+# scripts/prepare_pew_panel.py: rebuild the 2010/2020 start state from the Pew workbook.
+prepare = ["geopandas>=1.0,<2", "pyogrio>=0.9", "pycountry>=22.3"]
+
+[project.scripts]
+religion-forecast = "religion_forecast.cli:main"
+
+[tool.setuptools]
+packages = { find = { include = ["religion_forecast", "religion_forecast.*"] } }
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["previous_grad_assignment"]
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, bugbear, pyupgrade, simplify, comprehensions, numpy-specific rules
+select = ["E", "F", "W", "B", "UP", "SIM", "C4", "NPY"]
+# C408: dict(a=..) is used deliberately for tables of keyword-like fields.
+# E741: I (identity) and l (lambda parameter) follow the notation of docs/METHODS.md.
+# SIM300: upper-case module arrays such as _FINE are not constants in the sense the rule assumes.
+ignore = ["C408", "E741", "SIM300"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# SVG/HTML templates and figure captions are long string literals; wrapping them obscures the markup.
+"religion_forecast/figures/*" = ["E501"]

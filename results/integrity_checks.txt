@@ -1,0 +1,60 @@
+PASS  1a shares non-negative and finite (48000 rows)
+PASS  1b shares sum to 100% in every country, year and scenario
+PASS  1c q05 bands within 0-100%
+PASS  1c q95 bands within 0-100%
+PASS  2a sub-step contributions sum to the total
+PASS  2b components reproduce the simulated change of mean shares (max error 7.22e-07 pp)
+PASS  3a migration conserves people by religion worldwide (max imbalance 0.0 persons of 1,051,071,471)
+PASS  3b migration leaves world religious shares unchanged
+PASS  4a world shares sum to 100%
+PASS  4b world population finite and positive to 3030 (range 1.42-10.31 billion)
+PASS  5a dominant-change probabilities in [0, 1]
+PASS  5b switching rates are probabilities
+PASS  5c diversity index within [0, 0.875]
+PASS  8a country predictive intervals ordered and within 0-100% (25600 rows, 2025-2100)
+PASS  8b world predictive quantiles ordered; at least as wide as the run spread in 100% of rows
+
+Inputs used:
+  wpp_indicators         used      237 countries, 1950-2100
+  start_state            fallback  committed Pew 2020 start state (201 countries); Pew 2010 unavailable
+  wrp                    used      1730 usable country-years of 1995
+  natural_earth          used      242 map units
+  wpp_age                used      200 of 200 countries, 1950-2100 (5-year points)
+  bilateral_stock        used      undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx: 68941 country pairs x years, years [np.int64(1990), np.int64(1995), np.int64(2000), np.int64(2005), np.int64(2010), np.int64(2015), np.int64(2020), np.int64(2024)] (cached parse)
+  migrant_religion       missing   no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv)
+  switching_survey       used      67 verified cells, 33 countries
+  religion_fertility     used      8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back
+  unhcr                  used      64809 rows 2010-2022
+  pew_2015_projection    used      5 years, 234 countries
+PASS  6a start state reported: inputs/pew2020_start_state.csv (Pew 2020; no 2010, so no Pew 2010-2020 test window)
+      NOTE: Pew 2010 was not available, so the Pew 2010-2020 window was neither fitted nor tested.
+
+Switching fit: {'delta': -0.06172136944239918, 'beta_d': 1.268596151309275, 'tau_u': 1.4584290270873084, 'hyperparameter_uncertainty': 'laplace', 'replicates': [{'delta': -0.04569109824999451, 'beta_d': 1.2669856738468968, 'tau_u': 1.4311379649522484, 'se_delta': 0.17447132449903635, 'se_beta_d': 0.09456987281050014, 'se_log_tau_u': 0.1092615726714045, 'log_marginal': 5700.259021344629, 'optimisation': {'starts': 3, 'starts_within_0_1': 3, 'best_minus_worst_start': 4.274453203834128e-06, 'converged': True, 'largest_move_at_each_refit': [0.029192565546425575, 0.014259888544890187]}, 'min_posterior_ess': 163.80824907782034}, {'delta': -0.04826472972659657, 'beta_d': 1.2787472423930577, 'tau_u': 1.4751076989331158, 'se_delta': 0.17880261648589438, 'se_beta_d': 0.10856281366730651, 'se_log_tau_u': 0.11381644983011516, 'log_marginal': 5699.367443845242, 'optimisation': {'starts': 3, 'starts_within_0_1': 1, 'best_minus_worst_start': 1.203489804678611, 'converged': True, 'largest_move_at_each_refit': [0.08425863880256146, 0.021259881420968796, 0.00900726762989612]}, 'min_posterior_ess': 79.02106413351946}, {'delta': -0.09120828035060646, 'beta_d': 1.2600555376878704, 'tau_u': 1.4690414173765614, 'se_delta': 0.19051020426504162, 'se_beta_d': 0.09860059384029861, 'se_log_tau_u': 0.12092521236692419, 'log_marginal': 5699.696179654413, 'optimisation': {'starts': 3, 'starts_within_0_1': 1, 'best_minus_worst_start': 1.5038358204446922, 'converged': True, 'largest_move_at_each_refit': [0.18685411544206576, 0.01704729609708061]}, 'min_posterior_ess': 105.04550524325286}], 'replicate_sd': {'delta': 0.02556881559489517, 'beta_d': 0.009449348360553844, 'tau_u': 0.023828585718116614}, 'net_noise_scale_pp': [2.659, 0.594, 0.2, 0.2, 0.2, 0.285, 0.692, 0.673], 'median_posterior_ess': 313.88558713046007, 'latent_draws': 512}
+Emigration selectivity: {'model': 'affinity', 'kappa': 0.4, 'lam': 0.55, 'cap_at_calibration': 4.5, 'rmse_pp': 2.980974042020735, 'rmse_if_mirror_origin_pp': 5.928812458305767, 'residuals_pp': [['world_migrants_2020', 'Christianity', -5.274345790685203], ['world_migrants_2020', 'Islam', 3.8920204466761206], ['world_migrants_2020', 'Unaffiliated', 2.2003422922910634], ['world_migrants_2020', 'Hinduism', -0.5836348468769401], ['world_migrants_2020', 'Buddhism', -0.5224144158552426], ['world_migrants_2020', 'other', 0.1492093965520742], ['world_migrants_2020', 'Judaism', -0.8611770821018683], ['migrants_living_in_Europe_2020', 'Christianity', -2.4627650104526353], ['migrants_living_in_Europe_2020', 'Islam', 7.497727071804597], ['migrants_living_in_Europe_2020', 'Unaffiliated', -2.491742675078079], ['migrants_living_in_MENA_2020', 'Christianity', -3.570001105293329], ['migrants_living_in_MENA_2020', 'Islam', 3.7504770309013367], ['migrants_living_in_MENA_2020', 'Hinduism', 1.7802258266506392], ['india_born_migrants_2020', 'Christianity', -0.4536293797500637], ['us_foreign_born_adults_2023', 'Christianity', 3.557570249493608], ['us_foreign_born_adults_2023', 'Islam', 2.3282741015970023], ['us_foreign_born_adults_2023', 'Unaffiliated', -1.3151157130820827], ['us_foreign_born_adults_2023', 'Hinduism', -1.0307227197867133], ['us_foreign_born_adults_2023', 'Buddhism', -0.3278277036847981]]}
+Diagnostics: {'mean_abs_log_rescale_to_2100': 0.006563761770304703, 'migration_shortfall_persons_mean': 199856.05817042652, 'migration_net_gap_to_wpp_mean': 0.265690689581204, 'migration_net_gap_note': 'sum over countries of |realised net migration - WPP net| over sum |WPP net|, mean of 2020-2100 steps and runs; 0 with exact margins (margin_rho = 1)'}
+
+History tests (lower is better; negative change = better than persistence):
+        scope                model  popw_tv_pp  change_vs_persistence_pp
+WRP 1970-2010          persistence       4.406                     0.000
+WRP 1970-2010                trend       5.974                     1.568
+WRP 1970-2010       trend_residual       5.853                     1.446
+WRP 1970-2010           demography       4.377                    -0.029
+WRP 1970-2010 demography_migration       4.371                    -0.036
+WRP 1970-2010        switching_0.5       4.680                     0.274
+WRP 1970-2010          switching_1       5.156                     0.749
+WRP 1970-2010   switching_selected       4.592                     0.185
+WRP 1990-2010          persistence       4.623                     0.000
+WRP 1990-2010                trend       7.054                     2.431
+WRP 1990-2010       trend_residual       6.834                     2.211
+WRP 1990-2010           demography       4.572                    -0.052
+WRP 1990-2010 demography_migration       4.562                    -0.061
+WRP 1990-2010        switching_0.5       4.787                     0.164
+WRP 1990-2010          switching_1       5.087                     0.464
+WRP 1990-2010   switching_selected       4.562                    -0.061
+PASS  7a modelled countries drawn on the map (195 of 200, 19 as points because they are smaller than a pixel; missing: GLP, GUF, MTQ, MYT, REU)
+      46 map polygons have no estimate and are drawn grey
+PASS  9a replicate fits agree: spread / standard error delta 0.14, beta_d 0.09, tau_u 0.14
+PASS  9b importance sampling has not degenerated (smallest country ESS 79 of 512)
+PASS  9c estimator recovers known hyperparameters (90% coverage, bias): delta 85% / -0.081, beta_d 95% / +0.007, log_tau_u 85% / -0.031
+
+RESULT: all checks passed

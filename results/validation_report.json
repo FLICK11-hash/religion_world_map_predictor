@@ -1,0 +1,95 @@
+{
+  "timestamp_utc": "2026-11-10T21:59:35.906496+00:00",
+  "start_state": "inputs/pew2020_start_state.csv (Pew 2020; no 2010, so no Pew 2010-2020 test window)",
+  "inputs": {
+    "wpp_indicators": {
+      "status": "used",
+      "detail": "237 countries, 1950-2100"
+    },
+    "start_state": {
+      "status": "fallback",
+      "detail": "committed Pew 2020 start state (201 countries); Pew 2010 unavailable"
+    },
+    "wrp": {
+      "status": "used",
+      "detail": "1730 usable country-years of 1995"
+    },
+    "natural_earth": {
+      "status": "used",
+      "detail": "242 map units"
+    },
+    "wpp_age": {
+      "status": "used",
+      "detail": "200 of 200 countries, 1950-2100 (5-year points)"
+    },
+    "bilateral_stock": {
+      "status": "used",
+      "detail": "undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx: 68941 country pairs x years, years [np.int64(1990), np.int64(1995), np.int64(2000), np.int64(2005), np.int64(2010), np.int64(2015), np.int64(2020), np.int64(2024)] (cached parse)"
+    },
+    "migrant_religion": {
+      "status": "missing",
+      "detail": "no country-level Pew migrant file; religion of migrants from the affinity model calibrated to Pew published aggregates (inputs/migrant_religion_published.csv)"
+    },
+    "switching_survey": {
+      "status": "used",
+      "detail": "67 verified cells, 33 countries"
+    },
+    "religion_fertility": {
+      "status": "used",
+      "detail": "8 world, 5 regional (2 regions), 10 country figures (4 countries); 7 rows held back"
+    },
+    "unhcr": {
+      "status": "used",
+      "detail": "64809 rows 2010-2022"
+    }
+  },
+  "switching_strength_choice": {
+    "switching_strength_scores_popw_tv_pp": {
+      "0.0": 4.3705638962168205,
+      "0.5": 4.680404528602319,
+      "1.0": 5.155867307681973
+    }
+  },
+  "projection_uses": {
+    "switching_strength": "1, with the level of switching varied through survey_level_weight; see docs/METHODS.md. The strength chosen on earlier windows is reported in out_of_sample_choices.csv, and the projection setting is scored as switching_1."
+  },
+  "emigration_selectivity": {
+    "model": "affinity",
+    "kappa": 0.4,
+    "lambda": 0.55,
+    "rmse_pp": 2.980974042020735,
+    "rmse_if_migrants_mirror_origin_pp": 5.928812458305767
+  },
+  "forecast_error_model": {
+    "b": 0.8043157311434749,
+    "beta": 0.273889756964162,
+    "beta_source": "estimated",
+    "eps": 0.0001,
+    "base_horizon": 10,
+    "neighbours": 15,
+    "mean_abs_standardised_error": {
+      "10": 0.31644665791614335,
+      "20": 0.36887744129056776,
+      "30": 0.441580012070419,
+      "40": 0.465231465715672
+    },
+    "cells": {
+      "10": 558,
+      "20": 391,
+      "30": 253,
+      "40": 117
+    },
+    "entries_used": 10,
+    "excluded": null,
+    "blocks": [
+      "WRP 1970-1980",
+      "WRP 1980-1990",
+      "WRP 1990-2000",
+      "WRP 2000-2010"
+    ]
+  },
+  "notes": [
+    "WPP 2024 estimates are used inside each historical window (retrospective, not real-time).",
+    "The World Religion Project and Pew classify some populations differently (notably folk religion and the unaffiliated in China); windows never mix sources."
+  ]
+}

@@ -1,0 +1,54 @@
+# Total fertility by religious group, from published sources. Collected 2026-10-24.
+#
+# The model needs RATIOS (group TFR / national or regional TFR), not levels, so every row carries the
+# reference TFR that the SAME source reports for the same population and period. Ratios computed
+# against a reference from a different source or period would be wrong.
+#
+# Columns
+#   scope          country | region | world  (country beats region beats world for a given cell)
+#   area           ISO3 country code, a Pew region name, or WORLD
+#   religion       one of the eight model categories
+#   tfr            the group's fertility in `period`
+#   reference_tfr  the same source's fertility for the whole area in the same period
+#   measure        period_tfr  = a period total fertility rate
+#                  completed_fertility = children ever born to women aged 40-59 (reflects births
+#                                        spread over the previous ~25 years, so it lags a period TFR)
+#   evidence       primary_quoted   = the publishing body's own wording was read in a search result
+#                  secondary_quoted = a reputable source quoting the primary was read
+#                  modelled_estimate = a peer-reviewed reconstruction, not a published survey table
+#   verified       yes = used by the model. no = kept for the record but not used.
+#
+# None of these documents could be opened directly from the build environment (every host was
+# unreachable), so each figure was read in search-result text that quotes the source. Rows whose
+# only trace is a single uncited compilation are marked verified=no.
+scope,area,religion,tfr,reference_tfr,period,measure,source,url,evidence,verified,note
+world,WORLD,Christianity,2.7,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions: Population Growth Projections 2010-2050",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,"also in config/assumptions.json as the global tier"
+world,WORLD,Islam,3.1,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,
+world,WORLD,Hinduism,2.4,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,
+world,WORLD,Buddhism,1.6,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,"corrects 1.7 used before, which came from an earlier file that recorded it as entered from memory"
+world,WORLD,Judaism,2.3,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,
+world,WORLD,Folk_Traditional,1.8,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,"Pew's 'folk religions'"
+world,WORLD,Other,1.7,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,"Pew's 'other religions'"
+world,WORLD,Unaffiliated,1.7,2.5,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions",https://www.pewresearch.org/religion/2015/04/02/religious-projections-2010-2050/,primary_quoted,yes,
+region,Europe,Islam,2.1,1.6,2010-2015,period_tfr,"Pew Research Center (2015), Projected Religious Population Changes in Europe",https://www.pewresearch.org/religion/2015/04/02/europe/,primary_quoted,yes,
+region,Europe,Christianity,1.6,1.6,2010-2015,period_tfr,"Pew Research Center (2015), Projected Religious Population Changes in Europe",https://www.pewresearch.org/religion/2015/04/02/europe/,primary_quoted,yes,"Christians are AT the regional average in Europe, unlike the global figure"
+region,Europe,Unaffiliated,1.4,1.6,2010-2015,period_tfr,"Pew Research Center (2015), Projected Religious Population Changes in Europe",https://www.pewresearch.org/religion/2015/04/02/europe/,primary_quoted,yes,
+region,Sub-Saharan Africa,Islam,5.6,4.8,2010-2015,period_tfr,"Pew Research Center (2015), Main Factors Driving Population Growth",https://www.pewresearch.org/religion/2015/04/02/main-factors-driving-population-growth/,primary_quoted,yes,
+region,Sub-Saharan Africa,Christianity,4.5,4.8,2010-2015,period_tfr,"Pew Research Center (2015), The Future of World Religions (full report)",https://assets.pewresearch.org/wp-content/uploads/sites/11/2015/03/PF_15.04.02_ProjectionsFullReport.pdf,primary_quoted,yes,
+country,IND,Hinduism,1.94,2.0,2019-2021,period_tfr,"National Family Health Survey 5 (IIPS/MoHFW), reported by Factly and The Quint fact-checks",https://factly.in/no-it-is-not-hindus-who-have-the-highest-fertility-rate-across-all-religious-groups/,secondary_quoted,yes,"two independent fact-checkers quote the same NFHS-5 figures"
+country,IND,Islam,2.36,2.0,2019-2021,period_tfr,"National Family Health Survey 5 (IIPS/MoHFW), reported by The Quint fact-check",https://www.thequint.com/news/webqoof/religion-wise-fertility-rate-muslim-women-misleading-claim-fact-check,secondary_quoted,yes,"Hindu-Muslim gap 0.42 children, down from 1.1 in 1992"
+country,IND,Christianity,1.88,2.0,2019-2021,period_tfr,"National Family Health Survey 5, via an uncited compilation",https://storyvibe.in/total-fertility-rates-global-religious-and-regional/,secondary_quoted,no,"single uncited compilation; check against the IIPS NFHS-5 national report before use"
+country,IND,Buddhism,1.39,2.0,2019-2021,period_tfr,"National Family Health Survey 5, via an uncited compilation",https://storyvibe.in/total-fertility-rates-global-religious-and-regional/,secondary_quoted,no,"single uncited compilation"
+country,ISR,Judaism,3.03,2.9,2022,period_tfr,"Israel CBS, reproduced in Taub Center, Israel's Demography 2023",https://www.taubcenter.org.il/wp-content/uploads/2024/01/Demography-ENG-2023-2.pdf,secondary_quoted,yes,"Jewish fertility overtook Muslim fertility in Israel around 2020; by 2024 CBS reports 3.06 vs 2.75"
+country,ISR,Islam,2.91,2.9,2022,period_tfr,"Israel CBS, reproduced in Taub Center, Israel's Demography 2023",https://www.taubcenter.org.il/wp-content/uploads/2024/01/Demography-ENG-2023-2.pdf,secondary_quoted,yes,
+country,ISR,Christianity,1.68,2.9,2022,period_tfr,"Israel CBS, reproduced in Taub Center, Israel's Demography 2023",https://www.taubcenter.org.il/wp-content/uploads/2024/01/Demography-ENG-2023-2.pdf,secondary_quoted,yes,
+country,NGA,Christianity,4.5,5.6,2013,period_tfr,"Stonawski, Potancokova, Cantele and Skirbekk (2016), The changing religious composition of Nigeria, IIASA",https://pure.iiasa.ac.at/13485/,modelled_estimate,yes,"reconstruction from pooled DHS rounds, not a published survey table; a competing write-up gives 4.7 and 7.1 for 2008, the same 1.5 ratio"
+country,NGA,Islam,6.8,5.6,2013,period_tfr,"Stonawski, Potancokova, Cantele and Skirbekk (2016), IIASA",https://pure.iiasa.ac.at/13485/,modelled_estimate,yes,"reference TFR is the Nigeria 2013 DHS national figure"
+country,USA,Christianity,2.2,2.1,2023-2024,completed_fertility,"Pew Research Center (2025), Religion, Fertility and Child-Rearing (Religious Landscape Study)",https://www.pewresearch.org/religion/2025/02/26/religion-fertility-and-child-rearing/,primary_quoted,yes,"children ever born, women 40-59; used as a ratio only"
+country,USA,Unaffiliated,1.8,2.1,2023-2024,completed_fertility,"Pew Research Center (2025), Religion, Fertility and Child-Rearing",https://www.pewresearch.org/religion/2025/02/26/religion-fertility-and-child-rearing/,primary_quoted,yes,
+country,USA,Judaism,2.0,2.1,2023-2024,completed_fertility,"Pew Research Center (2025), Religion, Fertility and Child-Rearing",https://www.pewresearch.org/religion/2025/02/26/religion-fertility-and-child-rearing/,primary_quoted,yes,
+country,MYS,Islam,1.9,1.6,2024,period_tfr,"Department of Statistics Malaysia, Vital Statistics Malaysia 2025 (ethnic Malay)",https://www.dosm.gov.my/portal-main/release-content/vital-statistics-malaysia-2025,primary_quoted,no,"ethnic Malay is near-exactly Muslim by Malaysian legal definition, but it is an ethnic statistic; excluded by default"
+country,AUT,Islam,2.4,1.33,2001,period_tfr,"Goujon, Skirbekk et al., New times, old beliefs: the future of religions in Austria and Switzerland",https://www.researchgate.net/publication/259938822,secondary_quoted,no,"25 years old; Muslim fertility in Austria has fallen by about 0.8 since"
+country,AUT,Unaffiliated,0.9,1.33,2001,period_tfr,"Goujon, Skirbekk et al.",https://www.researchgate.net/publication/259938822,secondary_quoted,no,"25 years old"
+country,CHE,Islam,2.4,1.39,2001,period_tfr,"Goujon, Skirbekk et al.",https://www.researchgate.net/publication/259938822,secondary_quoted,no,"25 years old"
+country,CHE,Unaffiliated,1.1,1.39,2001,period_tfr,"Goujon, Skirbekk et al.",https://www.researchgate.net/publication/259938822,secondary_quoted,no,"25 years old"

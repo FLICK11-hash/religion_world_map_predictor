@@ -1,0 +1,5 @@
+strategy,n,mean_difference,p_value_two_sided,smallest_attainable_p
+manual,4,0.4329208359850871,0.375,0.125
+undamped,4,0.5516964160744097,0.25,0.125
+damped,4,0.015158198348657198,1.0,0.125
+adaptive,4,0.023699282452172232,1.0,0.125

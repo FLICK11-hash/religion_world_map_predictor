@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      - name: Lint (ruff; settings in pyproject.toml)
+        run: |
+          pip install ruff
+          ruff check religion_forecast scripts tests run.py
+      - name: Unit tests (integration tests skip without data/)
+        run: python run.py test
+      - name: Previous assignment self-tests
+        run: python previous_grad_assignment/mixed_predictor/main.py selftest

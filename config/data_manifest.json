@@ -1,0 +1,123 @@
+{
+  "about": "Every input the forecasting package reads, with where it came from and the checksum of the exact bytes the committed results were produced from. data/ is git-ignored, so this file is the record. Run `python scripts/verify_data.py` to compare a local data/ against it.",
+  "verified_in": "Python 3.13.16; checksums computed 2026-10-27 from the files the committed results used",
+  "caveat": "Upstream URLs could not be fetched from the verification environment (network policy), so they are recorded as documented by the download scripts, not re-confirmed. WPP and WRP are periodically revised: a fresh download may differ from these bytes, and the checksum tells you.",
+  "required": [
+    {
+      "path": "data/raw/WRP_national.csv",
+      "bytes": 870713,
+      "sha256": "ba1f3b73fdccbee9f3591d20326d14d86169eb6c40d4b196cf78b6c1678eba60",
+      "stage": "start state (WRP years), all backtests, mixed baseline",
+      "source": "Correlates of War, World Religion Project v1.1 (Maoz & Henderson 2013), national file",
+      "url": "https://correlatesofwar.org/wp-content/uploads/WRP_national.csv",
+      "fetched_by": "scripts/prepare_raw_data.py",
+      "licence": "Correlates of War terms of use; see correlatesofwar.org",
+      "content_sha256": "772a90ea8d3192761571030d22173d16619acc2a76b301813d0dd808744593de"
+    },
+    {
+      "path": "data/raw/WPP2024_Demographic_Indicators_Medium.csv.gz",
+      "bytes": 16557272,
+      "sha256": "286ac36bb1415e2e1ade03acfef0a29f0e4c087e2f78e38c48f50c5df89082bc",
+      "stage": "demography to 2100 (fertility, mortality, migration)",
+      "source": "UN DESA Population Division, World Population Prospects 2024, medium variant",
+      "url": "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_Demographic_Indicators_Medium.csv.gz",
+      "fetched_by": "scripts/prepare_raw_data.py",
+      "licence": "UN DESA Population Division terms of use; see population.un.org",
+      "content_sha256": "b2080e73ff44eb46a2e05bb2cdd193041ed60313c71ca38b82227405c0c0ee6d"
+    },
+    {
+      "path": "data/raw/ne_50m_admin_0_countries.zip",
+      "bytes": 799734,
+      "sha256": "5fed433373581fa648920435f937d95f2d3c0200e067409c6478dcdf1b853139",
+      "stage": "maps and country geometry",
+      "source": "Natural Earth 1:50m cultural vectors, admin 0 countries",
+      "url": "https://naturalearth.s3.amazonaws.com/50m_cultural/ne_50m_admin_0_countries.zip",
+      "fetched_by": "scripts/prepare_raw_data.py",
+      "licence": "public domain"
+    }
+  ],
+  "optional": [
+    {
+      "path": "data/raw/step7/WPP2024_age5_condensed.csv.gz",
+      "bytes": 1307064,
+      "sha256": "4ba8f3cd8e80539e2e58c806b13cdfdea2502764e174ee94c97c7fb6f86ff55f",
+      "stage": "age structure (falls back to stable populations without it)",
+      "source": "UN WPP 2024 population by 5-year age group and sex, condensed to the columns used",
+      "url": "https://population.un.org/wpp/assets/Excel%20Files/1_Indicator%20(Standard)/CSV_FILES/WPP2024_PopulationByAge5GroupSex_Medium.csv.gz",
+      "mirror_used": "https://github.com/open-numbers/ddf--unpop--wpp_population (population_age5)",
+      "fetched_by": "run.py fetch",
+      "derived": true,
+      "content_sha256": "4bcf4f22388d480503393c346b8fd124963cbd3cb35ef407399786c5a813a2fd"
+    },
+    {
+      "path": "data/raw/step7/undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx",
+      "bytes": 6005287,
+      "sha256": "0e10179d05186041a65cf5c6200943b2231701f9c1fd33cbbe21d23b8ea47316",
+      "stage": "migration corridors and calibration",
+      "source": "UN DESA International Migrant Stock 2024, by destination and origin",
+      "url": "https://www.un.org/development/desa/pd/content/international-migrant-stock",
+      "mirror_used": "https://github.com/tigi/2026-migrant-stock",
+      "fetched_by": "run.py fetch",
+      "licence": "UN DESA terms of use; see un.org"
+    },
+    {
+      "path": "data/raw/step7/ims_bilateral_parsed.csv.gz",
+      "bytes": 366687,
+      "sha256": "641cdbf34492cccc5c64264afeb2527b0d53d3331d997b10e1069a43ed0585fc",
+      "stage": "cache of the workbook above; rebuilt automatically if absent",
+      "source": "derived from the UN migrant-stock workbook by religion_forecast.datasets",
+      "derived": true,
+      "content_sha256": "1f8eb5c0442cfc6d53e20465ec32970e6bead36f8e467d98be719b3efd60bd54"
+    },
+    {
+      "path": "data/raw/step7/unhcr_population.csv",
+      "bytes": 1209305,
+      "sha256": "8738d63e76c80274c9a5e325da0f0b342a520292ffa3f974a1d9c1436571c4f6",
+      "stage": "refugee flows (diagnostics)",
+      "source": "UNHCR Refugee Population Statistics",
+      "url": "https://api.unhcr.org/population/v1/population/",
+      "mirror_used": "https://github.com/rfordatascience/tidytuesday (data/2023/2023-08-22)",
+      "fetched_by": "run.py fetch",
+      "content_sha256": "8738d63e76c80274c9a5e325da0f0b342a520292ffa3f974a1d9c1436571c4f6"
+    },
+    {
+      "path": "data/raw/step7/pew2015_rounded_population.csv",
+      "bytes": 176395,
+      "sha256": "ed1f5ab33089bd78e3a8153d7bbcaa8cf1ef006b87ff7cd98973e8f6fcb63adc",
+      "stage": "external benchmark against Pew's 2015 projection",
+      "source": "Pew Research Center, The Future of World Religions (2015), country projections",
+      "mirror_used": "https://github.com/datasets/world-religion-projections (rounded_population.csv)",
+      "fetched_by": "run.py fetch",
+      "note": "lossy: the mirror rounds populations below 10,000 up to 10,000",
+      "content_sha256": "ed1f5ab33089bd78e3a8153d7bbcaa8cf1ef006b87ff7cd98973e8f6fcb63adc"
+    }
+  ],
+  "not_on_disk_manual": [
+    {
+      "path": "data/raw/pew_2010_2020.xlsx",
+      "stage": "the preferred 2010 and 2020 start state, via scripts/prepare_pew_panel.py -> data/processed/pew_harmonized.csv",
+      "source": "Pew Research Center, Dataset of global religious composition estimates for 2010 and 2020",
+      "url": "https://www.pewresearch.org/dataset/dataset-of-global-religious-composition-estimates-for-2010-and-2020/",
+      "access": "free Pew account; not redistributable here, so it is not committed",
+      "consequence_if_absent": "the package falls back to the committed inputs/pew2020_start_state.csv (Pew 2020 only), and the Pew 2010-2020 test window cannot run. Prepare it with scripts/prepare_pew_panel.py when the workbook is present."
+    },
+    {
+      "path": "data/raw/extra/pew_migrants_religion.csv",
+      "stage": "religion of migrants, used to fit the migrant-sorting parameters",
+      "source": "Pew Research Center, Religious Composition of the World's Migrants, 1990-2020",
+      "access": "free Pew account",
+      "consequence_if_absent": "sorting is fitted to the 19 published figures in inputs/migrant_religion_published.csv instead"
+    }
+  ],
+  "committed_substitutes": [
+    {
+      "path": "inputs/pew2020_start_state.csv",
+      "role": "2020 start state when the Pew workbook is absent: the Pew 2020 composition as harmonised by scripts/prepare_pew_panel.py, committed so the package runs without a Pew account (formerly results_step5/headline_country_shares.csv).",
+      "sha256": "f49ab2cf400069f43e25cdf4c8fcedb984e38a1b3aaf2f070368a7b7603014b7"
+    },
+    {
+      "path": "inputs/",
+      "role": "hand-curated published figures (switching cells, migrant composition, religion-specific fertility), each row with its source and a verified flag; see docs/DATA.md"
+    }
+  ]
+}

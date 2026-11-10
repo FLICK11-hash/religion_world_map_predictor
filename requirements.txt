@@ -1,0 +1,7 @@
+# Installs the exact set the pipeline was verified under. Kept so that older
+# instructions (`pip install -r requirements.txt`) keep working.
+#
+#   Ranges and optional extras:  pyproject.toml
+#   Exact tested versions:       requirements-lock.txt
+#   Editable install + command:  pip install -e .         then  religion-forecast --help
+-r requirements-lock.txt

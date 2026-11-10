@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite it using these metadata."
+type: software
+title: "Projecting the religious composition of countries: a probabilistic cohort-component model and its out-of-sample evaluation"
+authors:
+  - family-names: Flick
+    given-names: Conrad
+version: 1.0.0
+repository-code: "https://github.com/FLICK11-hash/religion_world_map_predictor"
+abstract: >-
+  A probabilistic cohort-component projection of the religious composition of
+  200 countries from 2020, by religion, migrant generation and five-year age
+  group, driven by fertility, mortality, religious switching and international
+  migration, with exact attribution of every change in share to its mechanism.
+  Religious switching is estimated by empirical Bayes with Laplace importance
+  sampling, its hyperparameter uncertainty is propagated, and the estimator is
+  checked by a simulation study under the real design. The model is evaluated
+  out of sample on historical decades against persistence and trend baselines;
+  no variant is distinguishable from persistence at decadal horizons, the
+  model's own bands are several times too narrow, and predictive intervals
+  built from its past errors are close to nominal coverage out of sample.
+  Disagreements between data vintages exceed disagreements between models.
+keywords:
+  - statistics
+  - applied statistics
+  - statistical demography
+  - population projection
+  - cohort-component model
+  - probabilistic forecasting
+  - forecast evaluation
+  - interval calibration
+  - religious demography
+  - religious switching
+  - international migration
