@@ -35,6 +35,14 @@ measurement. This module measures that error directly and adds it back.
   scored better than resampling any country, resampling within share-size classes, or aligning
   errors by rank, most of all for large shares and for world totals.
 
+  The errors are used as recorded, not centred. Subtracting the pooled mean standardised error
+  was tested: it calibrates slightly worse out of sample, and because that mean is dominated by
+  the many small shares it pushes the errors of large countries in the wrong direction, moving
+  world medians away from the model's central path. The record does have a consistent direction,
+  the unaffiliated share observed below the forecast in every decade, which mostly reflects
+  post-communist and Chinese religious revival as one source measured it, and it is carried into
+  the intervals. The centred version is reported for comparison (`centred=True`).
+
 4 Validate. Leave one origin out: b, beta and the resampling pool are re-estimated without it,
   and its forecasts are scored for coverage and for the interval score of Gneiting and Raftery
   (2007), against the parameter-only intervals.
@@ -148,7 +156,8 @@ def fit(rec, exclude=None):
     else:
         beta = 0.5                                     # random-walk growth when there is no record
     beta = float(np.clip(beta, 0.0, 1.0))
-    # resampling pool: one block per ten-year forecast, each country's standardised error vector
+    # resampling pool: one block per ten-year forecast, each country's standardised error vector,
+    # and the pool's mean vector (subtracted when the errors are centred)
     blocks = []
     for x in base:
         m = x['mask']
@@ -156,7 +165,9 @@ def fit(rec, exclude=None):
         u = np.full((len(m), K), np.nan)
         u[m] = (x['obs'][m] - centre[m]) / _scale(centre[m], b)
         blocks.append(dict(label=f"{x['source']} {x['origin']}-{x['target']}", u=u, mask=m.copy(), s=centre.copy()))
-    return dict(b=b, beta=beta, eps=EPS, base_horizon=BASE_H, neighbours=NEIGHBOURS, mean_abs_standardised_error=mean_abs,
+    mean_u = np.nanmean(np.concatenate([blk['u'][blk['mask']] for blk in blocks]), axis=0)
+    return dict(b=b, beta=beta, eps=EPS, base_horizon=BASE_H, neighbours=NEIGHBOURS, mean_u=mean_u.tolist(),
+                mean_abs_standardised_error=mean_abs,
                 cells=cells, blocks=blocks, excluded=None if exclude is None else f'{exclude[0]} {exclude[1]}')
 
 
@@ -177,18 +188,20 @@ def neighbours(centre, model, k=NEIGHBOURS):
     return out
 
 
-def predictive(samples, horizon, model, rng, draws=10, nn=None):
+def predictive(samples, horizon, model, rng, draws=10, nn=None, centred=False):
     """Predictive draws [R * draws, n, K] from model draws `samples` [R, n, K] at `horizon` years.
-    `nn` (from `neighbours`) is computed from the mean of `samples` when not given."""
+    `nn` (from `neighbours`) is computed from the mean of `samples` when not given. centred=True
+    subtracts the pooled mean standardised error (a comparison, not the projection's choice)."""
     R, n, _ = samples.shape
     blocks = model['blocks']
     nn = neighbours(samples.mean(0), model) if nn is None else nn
     g = growth(model, horizon)
+    shift = np.asarray(model.get('mean_u', np.zeros(K)), float) if centred else np.zeros(K)
     out = np.empty((R * draws, n, K))
     for j in range(R * draws):
         bi = rng.integers(len(blocks))
         cand = nn[bi]
-        u = blocks[bi]['u'][cand[np.arange(n), rng.integers(cand.shape[1], size=n)]]
+        u = blocks[bi]['u'][cand[np.arange(n), rng.integers(cand.shape[1], size=n)]] - shift
         s = samples[j // draws]
         x = np.clip(s + g * _scale(s, model['b']) * u, 0.0, None)
         out[j] = x / np.maximum(x.sum(1, keepdims=True), 1e-300)
@@ -230,16 +243,22 @@ def _score_draws(draws, x, levels=LEVELS):
 
 
 def validate(rec, seed=None, draws=25, log=print):
-    """Leave-one-origin-out coverage and interval score of the parameter-only and the
-    error-calibrated intervals, at every horizon the held-out origin has."""
+    """Leave-one-origin-out coverage and interval score of the parameter-only intervals, the
+    error-calibrated intervals (as projected) and, for comparison, the same with centred errors,
+    at every horizon the held-out origin has."""
     seed = 2026 if seed is None else seed
     rows, world_rows = [], []
     for source, origin in sorted({(x['source'], x['origin']) for x in rec}):
         model = fit(rec, exclude=(source, origin))
         for x in [y for y in rec if (y['source'], y['origin']) == (source, origin)]:
-            rng = np.random.default_rng([seed, origin, x['horizon']])
-            for method, d in (('model draws (parameter uncertainty)', x['samples']),
-                              ('error-calibrated', predictive(x['samples'], x['horizon'], model, rng, draws))):
+            nn = neighbours(x['samples'].mean(0), model)
+            variants = (('model draws (parameter uncertainty)', x['samples']),
+                        ('error-calibrated', predictive(x['samples'], x['horizon'], model,
+                                                        np.random.default_rng([seed, origin, x['horizon']]), draws, nn)),
+                        ('error-calibrated, centred',
+                         predictive(x['samples'], x['horizon'], model,
+                                    np.random.default_rng([seed, origin, x['horizon']]), draws, nn, centred=True)))
+            for method, d in variants:
                 cells, world = _score_draws(d, x)
                 base = dict(window=f"{source} {origin}-{x['target']}", source=source, origin=origin,
                             horizon=x['horizon'], method=method, countries=int(x['mask'].sum()),

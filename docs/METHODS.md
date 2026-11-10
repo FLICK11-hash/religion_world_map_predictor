@@ -269,10 +269,24 @@ neighbour bootstrap). The first stage keeps the common shock a decade's countrie
 is what matters for world totals. The second gives each country many errors rather than the few
 its own history supplies, without ever transplanting an error measured on a religion that was a
 tiny minority onto a country where it is the majority, which a standardised error can otherwise
-turn into an absurd change. Shares are clipped at zero and renormalised. On the history record,
-leave one origin out, this scored better than resampling any country (interval score 14.2 against
-16.3 at 90%, 34 against 42 for shares above one half; world-total coverage 92.5% against 87.5%),
-resampling within share-size classes, or aligning errors by rank.
+turn into an absurd change. Shares are clipped at zero and renormalised. On the history record
+(the 8-run trial record, uncentred errors), leave one origin out, this scored better than
+resampling any country (interval score 14.2 against 16.3 at 90%, 34 against 42 for shares above
+one half; world-total coverage 92.5% against 87.5%), resampling within share-size classes, or
+aligning errors by rank.
+
+The errors are used as recorded, not centred. Centring them (subtracting the pooled mean
+standardised error) was tested: it calibrates slightly worse out of sample (interval score 14.4
+against 13.9 at 90%), and because that mean is dominated by the many small shares, it pushes the
+errors of large countries in the wrong direction and moves world medians away from the model's
+central path (the 2100 median Christian share 28.9% against a central path of 25.8%, against
+25.9% uncentred). The record does have a consistent direction, the unaffiliated share observed
+below the forecast in every origin and horizon, by 0.6 to 4.5 pp of world population, mostly
+post-communist and Chinese religious revival as the World Religion Project measured it, and it is
+carried into the intervals: the predictive median of the world unaffiliated share in 2100 lies
+below the central path. Centring each country's neighbourhood separately was also tested and
+calibrates worse (86.7% at nominal 90%). `predictive_sensitivity_centring.csv` gives the centred
+intervals for comparison.
 
 **Validation.** Leave one origin out: `b`, `β` and the resampling pool are re-estimated without
 the origin being tested, and its forecasts are scored for coverage and for the interval score of

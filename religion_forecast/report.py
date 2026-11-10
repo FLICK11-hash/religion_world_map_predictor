@@ -41,7 +41,7 @@ SMALL = ['global_share_by_scenario.csv', 'components_world_period.csv', 'dominan
          'world_population_by_scenario.csv', 'parameter_provenance.csv', 'migration_corridors_reference.csv',
          'migration_corridor_concentration.csv', 'world_share_shift_share.csv', 'adherents_by_country.csv',
          'fertility_evidence.csv', 'group_fertility_2020_2025.csv', 'benchmark_vs_pew2015.csv',
-         'benchmark_pew2015_skill.csv', 'run_outcomes.csv', 'projection_report.json']
+         'benchmark_pew2015_skill.csv', 'run_outcomes.csv', 'predictive_sensitivity_centring.csv', 'projection_report.json']
 SMALL_X = ['ablation_effects.csv', 'sensitivity_coefficients.csv', 'migrant_sorting_effect.csv']
 SMALL_V = ['validation_summary.csv', 'validation_by_window.csv', 'validation_by_country.csv', 'inference.csv',
            'data_ablations_summary.csv', 'switching_fit_by_fold.csv', 'out_of_sample_choices.csv',
@@ -65,7 +65,7 @@ def export_results():
             made.append(name)
     for name in SMALL_V:
         if (V / name).exists():
-            shutil.copy2(V / name, EXPORT / ('validation_' + name if not name.startswith('validation') else name))
+            shutil.copy2(V / name, EXPORT / name)
             made.append(name)
     for name in SMALL_X:
         if (X / name).exists():
@@ -253,6 +253,15 @@ def main(argv=None):
         lr = wt[wt.scenario.eq(ref) & wt.year.isin([2200, 2500, 3026])].pivot(index='year', columns='religion',
                                                                               values='mean')[CATS] * 100
         L.append(md(lr.reset_index(), 1))
+    ps = _read(F / 'predictive_sensitivity_centring.csv')
+    if ps is not None and len(ps):
+        L.append('\n**Predictive medians, and the effect of centring the errors.** The intervals use the record\'s errors '
+                 'as they were; centring them (subtracting the pooled mean standardised error) is shown for comparison.\n')
+        t = ps.copy()
+        for c in t.columns:
+            if c not in ('scenario', 'year', 'religion'):
+                t[c] = 100 * t[c]
+        L.append(md(t.drop(columns='scenario'), 1))
     us = _read(F / 'uncertainty_model_vs_scenario.csv')
     if us is not None:
         L.append('\n### Three kinds of uncertainty (world shares, pp)\n')

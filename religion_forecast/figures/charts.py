@@ -445,7 +445,7 @@ def fig_sensitivity(E, out, outcomes=('world_Christianity', 'world_Islam', 'worl
         return None
     sc = pd.read_csv(f)
     sc = sc[sc.basis.eq('rank')]
-    years = [y for y in (2100, 3026) if y in set(sc.year)]
+    years = [y for y in (2050, 2100) if y in set(sc.year)]
     rows, cols = len(outcomes), max(len(years), 1)
     pw, ph = 420, 190
     cv = Canvas(120 + cols * (pw + 150), 200 + rows * (ph + 76), 'Which assumptions move the results',

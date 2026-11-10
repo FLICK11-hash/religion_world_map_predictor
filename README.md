@@ -9,101 +9,83 @@
 | arXiv category | `stat.AP` (Statistics: Applications) |
 | MSC 2020 | 62P25 (applications of statistics to the social sciences), 91D20 (mathematical demography), 62M20 (prediction) |
 | JEL | C53 (forecasting and simulation methods), J11 (demographic trends and forecasts), Z12 (religion) |
-| Keywords | cohort-component projection, religious switching, international migration, Monte Carlo uncertainty, backtesting, interval calibration, shift-share decomposition |
+| Keywords | cohort-component projection, religious switching, international migration, empirical Bayes, forecast evaluation, predictive intervals, interval score, shift-share decomposition |
 
-The model is a demographic simulation of how the religious composition of every country may change
-from 2020, through births, deaths, ageing, religious switching and international migration.
-Populations are held as persons by country (200), religion (8), migrant generation (3) and five-year
-age group (17), and moved forward in five-year steps under eight scenarios. Parameter uncertainty is
-propagated by Monte Carlo. Every mechanism's contribution to every change in share is recorded, so
-the components add up exactly to the simulated change.
+A demographic simulation of how the religious composition of every country may change from 2020,
+through births, deaths, ageing, religious switching and international migration. Populations are
+held as persons by country (200), religion (8), migrant generation (3) and five-year age group (17)
+and moved forward in five-year steps under eight scenarios. Every mechanism's contribution to every
+change in share is recorded, so the components add up exactly to the simulated change. The model
+is evaluated on the decades 1970-2010 with everything fitted only on earlier data, and its
+predictive intervals are built from the errors it actually made there.
 
 ## Research questions
 
-1. Which mechanisms account for projected change in religious composition, within countries and
-   for the world as a whole?
-2. Does a mechanistic projection forecast historical decades better than naive baselines?
-3. Are its probabilistic intervals calibrated?
-4. How far does disagreement between data sources limit what any projection can be scored against?
-
-The contribution is less a forecast than an account of **what a forecast of this kind can and
-cannot support**. The model's historical validation shows that no version of it can be
-distinguished from assuming nothing changes, that its uncertainty bands are several times too
-narrow, and that two vintages of the published figures it is scored against differ by more than two
-independent models differ about the next thirty years.
-
-**What it is not.** It is not a prediction of the religious future. The 2050 and 2100 horizons are
-projections conditional on stated assumptions. 2200, 2500 and 3026 are exploratory simulations of
-what those assumptions imply, and are labelled that way in every table and figure.
+1. Does a mechanistic projection forecast historical decades better than assuming no change?
+2. How large is its forecast error, how does that error grow with horizon, and can it be turned
+   into predictive intervals that are calibrated out of sample?
+3. Conditional on stated assumptions, which mechanisms account for projected change to 2100, and
+   how much of it is change within countries rather than in where the world's population lives?
 
 ## Main findings
 
-All figures are from the committed run in `results/` (the `stabilising` reference scenario, 40
-Monte Carlo runs, seed 2026) unless stated. `docs/RESULTS.md` has the full tables.
+All numbers are from the committed run in `results/`; `docs/RESULTS.md` has the tables.
 
-**1. Most projected change in world shares comes from where people live, not from conversion.** An
-exact shift-share decomposition of 2020-2100 splits each change in world share into change within
-countries and change in which countries hold the population:
+**1. Nothing beats assuming no change at decadal horizons.** Over 558 country-decades, births and
+deaths alone differ from persistence by −0.02 pp of total-variation error (95% interval −0.10 to
++0.06), so they are at most about 2% better. Switching fitted to historical net change is no better
+(+0.48 pp, −0.19 to +1.15), and repeating the last decade's change is clearly worse (+1.71 pp,
++1.03 to +2.25).
 
-| Religion | Change in world share | Within countries | Population weighting | Interaction |
-|---|---|---|---|---|
-| Islam | +13.4 pp | +3.0 | +10.4 | +0.1 |
-| Christianity | −2.2 pp | −7.9 | +6.4 | −0.8 |
-| Unaffiliated | −5.8 pp | +6.3 | −12.5 | +0.5 |
+**2. The model's own uncertainty bands are not forecast intervals, but calibrated ones can be
+built.** The Monte Carlo bands contain the observed share 19-20% of the time at nominal 90%.
+Adding the model's past errors, resampled by decade from compositionally similar countries and
+scaled by horizon, gives predictive intervals that cover 89-92% at nominal 90% for horizons of 10 to
+40 years in leave-one-origin-out tests (90% for world totals), with interval scores less than half
+as large. Error grows as (horizon/10)^0.34, more slowly than a random walk.
 
-The unaffiliated share rises inside countries and falls globally because the countries it is
-concentrated in grow more slowly. These are properties of the projection, conditional on its
-assumptions, not observations.
+**3. To 2100 the intervals are wide, but they still separate the largest groups.**
+In the reference scenario the world Muslim share
+rises from 25.6% in 2020 to 38.7% in 2100 (90% predictive interval 36.5-42.5%) and the Christian
+share falls from 28.8% to 25.8% (22.3-29.3%), so the two intervals no longer overlap. The
+unaffiliated share falls from 24.2% to 19.6% (12.5-21.1%) and the Hindu share from 14.9% to 12.1%
+(8.1-13.4%). In 27 countries the largest religion is more likely than not to change by 2100,
+almost all from Christianity to no religion (France 78%, United Kingdom 75%, Germany 69%, United
+States 47%).
 
-**2. Within the model, switching drives country-level change and migration barely moves world
-shares.** Mechanism ablations on identical random draws, at 2100: switching accounts for −7.2 pp of
-the Christian share, +8.1 pp of the unaffiliated share and 29 of the countries whose largest group
-changes; fertility differences within countries account for +2.0 pp of the Muslim share. Migration
-moves no world share by more than 0.22 pp: it relocates people, and changes world shares only
-through what happens to them after they move.
+**4. Most of Islam's projected growth is about where people live.** Of the Muslim share's projected rise of
+13.0 pp by 2100, 10.4 pp comes from population weighting, the faster growth of Muslim-majority
+countries, and 2.7 pp from change within countries. The unaffiliated share rises within countries
+(+7.2 pp) but falls in the world (−4.5 pp), because the countries where it is concentrated grow
+more slowly (−12.5 pp). These are properties of the projection under its assumptions.
 
-**3. The model cannot be shown to beat assuming nothing changes.** Scored on four historical decades,
-1970-2010, every configuration beats persistence in exactly 2 of 4 windows. An exact paired test gives
-p ≥ 0.75, and with four windows no test could return p below 0.125. Extrapolating the last decade is
-worse than persistence in all four windows.
+**5. Within countries, switching drives the change.** Switching off one mechanism at a time on identical
+draws, switching accounts for −8.1 pp of the world Christian share in 2100 and +9.5 pp of the
+unaffiliated share, and for the change of largest religion in about 41 countries. Within-country
+fertility differences add 2.0 pp to the Muslim share. Migration moves no world share by more than a
+quarter of a point.
 
-**4. Its uncertainty is badly understated.** Nominal 90% intervals contain the observed share 13-19%
-of the time across three historical windows. Adding measured data noise raises coverage to 67-77%,
-which says most of the shortfall is measurement error the model does not represent.
+**6. A correction to the switching evidence.** Surveys of religious switching were previously
+scored with a likelihood that counted respondents several times over and compared single
+conversion cells with the probability of any conversion. Corrected (one Dirichlet-multinomial per
+survey row), the switching level fitted to history and the level Pew's 2025 surveys report are
+13.0 and 17.1 Christians leaving per 100 raised, much closer than the 11.7 against 17.1 Christians leaving per 100 raised reported
+before.
 
-**5. The data disagree about the present by more than the models disagree about the future.**
-Against Pew's independent 2015 projection, this model's change in world share over 2020-2050 agrees
-within 1.3 pp for every group, and in direction for six of eight (not Christianity: −0.9 here, +0.2
-in Pew). Their starting points for 2020 differ by up to 8.6 pp (the unaffiliated), mostly because
-Pew's 2015 baseline and its later data classify China differently. Scored country by country, Pew's 2015
-projection of 2020 misses Pew's later measurement by 10.7 pp population-weighted, barely better
-than freezing 2010 (10.9), and China is 69% of that.
+**What it is not.** It is not a prediction of the religious future. The intervals are conditional
+on the UN's national demography (WPP 2024), which is not uncertain in the model. 2200, 2500 and 3026
+are exploratory simulations of stated long-run assumptions, labelled that way everywhere and
+without predictive intervals.
 
-**6. The most influential assumption is not demographic.** In a global sensitivity analysis over 23
-parameters, the largest effect on the 2100 Christian share (standardised rank coefficient −0.88) is
-`survey_weight`: whether switching follows the rate fitted to historical net change or the higher
-rate Pew's surveys report. The model is most sensitive to a disagreement between two kinds of
-evidence, which better switching measurement would settle.
+## Repository
 
-## The model and its reference baselines
-
-| | Method | Forecast unit | Role |
-|---|---|---|---|
-| `religion_forecast/` | probabilistic cohort-component projection | 200 countries × 8 religions | the model |
-| `baselines/mixed_predictor/` | damped log-ratio trend, half-life tuned out of sample | world, 8 groups | trend baseline |
-| `baselines/manual_predictor/` | linear trend on shares, clipped and renormalised | world, 7 groups | naive baseline |
-
-The baselines contain no demographic mechanism. They measure how much a trend alone achieves. Their
-folder names record how each was first written (see History).
-
-The baselines forecast one world composition rather than 200 countries, so **their errors are not on
-the same scale as the model's** and must not be ranked against it. `docs/COMPARABILITY.md` explains
-why and gives the one legitimate comparison: each model against its own persistence baseline. By that
-measure the two approaches agree that nothing is distinguishable from persistence at decadal horizons.
-
-The trend baseline's first evaluation leaked, tuning its parameter with knowledge of each fold's
-target years, and reported a 9% advantage that vanished once corrected. The correction is kept beside
-the original, with a test that tells them apart (`baselines/README.md`).
+| | |
+|---|---|
+| `religion_forecast/` | the model: engine, switching, migration, estimation, projection, evaluation, figures |
+| `manuscript/` | the working draft of the paper, with a map from each number to its source file |
+| `results/` | one complete run, committed, with its figures, report, commit stamp and check output |
+| `docs/` | methods, data, results, limitations, reproducibility |
+| `previous_grad_assignment/` | the two simpler programs from the course exercise the project began as |
 
 ## Quick start
 
@@ -113,134 +95,115 @@ pip install -r requirements-lock.txt              # the exact versions everythin
 pip install -e .                                  # optional: adds the `religion-forecast` command
 
 python scripts/verify_data.py                     # is data/ the data the committed results used?
-python run.py test                                # 16 tests
-python run.py all --quick                         # whole pipeline, fewer runs, about ten minutes
-python run.py all                                 # the full run, about an hour
+python run.py test                                # 22 tests
+python run.py all --quick                         # whole pipeline, fewer runs; results/ is left alone
+python run.py all                                 # the full run, about two hours; rewrites results/
 ```
 
-`python run.py <stage> --help` lists each stage's options. The stages, in order:
+To look at the committed results without running anything, open `results/figures/index.html` and
+`results/comparison_report.md`.
 
 | Stage | What it does | Writes |
 |---|---|---|
 | `fetch` | downloads the optional datasets, once | `data/raw/extra/` |
-| `test` | unit and integration tests | — |
-| `backtest` | history tests, interval calibration, migration checks | `data/validation/` |
-| `project` | the scenario × Monte Carlo projection | `data/projections/` |
-| `experiments` | ablations, global sensitivity, migrant sorting | `data/experiments/` |
-| `checks` | integrity checks; exit code 0 means every check passed | — |
+| `test` | unit and integration tests | – |
+| `backtest` | history tests, country-level inference, the forecast-error record and its calibration, migration checks | `data/validation/` |
+| `project` | the scenario × Monte Carlo projection with predictive intervals to 2100 | `data/projections/` |
+| `experiments` | mechanism ablations, global sensitivity, migrant sorting | `data/experiments/` |
+| `checks` | integrity checks; exit code 0 means every check passed | – |
 | `figures` | maps and charts as SVG, `--png` for matplotlib versions | `outputs/figures/` |
-| `report` | the generated report, and `results/` with `--export` | `outputs/`, `results/` |
+| `report` | the run report, and `results/` with `--export` | `outputs/`, `results/` |
 
 ## Data
 
-`data/` is git-ignored. `config/data_manifest.json` records every input: its source URL, the
-SHA-256 and size of the exact file the committed results used, the stage that needs it, and its
-licence where that could be stated with confidence. `python scripts/verify_data.py` compares a local
-`data/` against it.
+`data/` is git-ignored. `config/data_manifest.json` records every input with its source, the
+SHA-256 of the exact file the committed results used and, for text files, a hash of the content
+that is independent of platform. `python scripts/verify_data.py` checks a local `data/` against it.
 
-Three files are required. `python scripts/prepare_raw_data.py` downloads them; it imports geopandas,
-so install `pip install -e '.[prepare]'` first.
+Three files are required and `python scripts/prepare_raw_data.py` downloads them (install
+`pip install -e '.[prepare]'` first): the World Religion Project national file, UN World Population
+Prospects 2024 indicators, and Natural Earth boundaries. `python run.py fetch` adds the optional
+datasets: UN bilateral migrant stocks, WPP population by age and sex, UNHCR refugee statistics and
+Pew's 2015 projection.
 
-- `WRP_national.csv`, World Religion Project v1.1, national composition 1945-2010
-- `WPP2024_Demographic_Indicators_Medium.csv.gz`, UN World Population Prospects 2024
-- `ne_50m_admin_0_countries.zip`, Natural Earth 1:50m boundaries
-
-`python run.py fetch` adds the optional datasets, each used only if present: UN bilateral migrant
-stocks, WPP population by age and sex, UNHCR refugee statistics, World Bank covariates and Pew's 2015
-projection.
-
-**One input needs a manual download, and its absence shapes every committed result.** The preferred
-2010 and 2020 starting composition is built by `scripts/prepare_pew_panel.py` from a Pew workbook that
-requires a free account. Without it the package starts from `results_step5/headline_country_shares.csv`,
-a committed export of the same Pew 2020 data from an earlier model. **Every result in `results/` used
-that fallback, and the Pew 2010-2020 validation window could not run.** Supplying the workbook will
-change the numbers slightly and add that window.
-
-`docs/DATA.md` gives each dataset's coverage, dates and limitations. Two that bear on the validation:
-the World Religion Project is missing Indonesia, the largest Muslim-majority country, for 1980 and
-1985, so the two earliest test windows omit it; and its country coverage grows over time, so the four
-windows score 117, 137, 140 and 164 countries respectively.
+**The Pew 2010-2020 workbook needs a free account, and the committed run did not have it.** Without
+it the model starts from `inputs/pew2020_start_state.csv`, the same Pew 2020 composition but no 2010,
+so the Pew 2010-2020 decade is neither fitted nor tested. With the workbook in `data/raw/`, run
+`python scripts/prepare_pew_panel.py` and then `python run.py all`. `docs/DATA.md` describes every
+dataset and its limitations.
 
 ## Reproducibility
 
-- **Pinned environment.** `requirements-lock.txt` is what was verified: Python 3.13.16, numpy 2.5.3,
-  pandas 3.0.5. `pyproject.toml` declares the ranges and three optional extras: `maps`, `prepare`,
-  `legacy`.
-- **Seeds.** Every stage derives its draws from `random_seed` in `config/assumptions.json`, and run *r*
-  uses the same draws in every scenario, so a difference between scenarios is the assumption, not noise.
-- **Determinism, demonstrated.** Re-exporting `results/` from this layout reproduces every committed
-  file exactly; only the generation timestamp differs.
-- **Provenance per run.** `results/run_stamp.json` records the commit a run was made at, whether the
-  working tree was clean, and whether the integrity checks passed. `projection_report.json` records
-  which inputs were used, which fell back and which were missing.
-- **Tests.** 16 package tests, the integrity checks, the four archived Step 5D/5E suites, 17 property
-  checks and 5 methodology checks in the trend baseline. All pass.
+- **Pinned environment.** `requirements-lock.txt`: Python 3.13.16, numpy 2.5.3, pandas 3.0.5.
+- **Seeds.** Every stage derives its draws from `random_seed` in `config/assumptions.json`; run *r*
+  uses the same draws in every scenario, so a difference between scenarios is the assumption.
+- **Provenance per run.** `results/run_stamp.json` records the commit, whether the code was clean,
+  and whether the integrity checks passed; `projection_report.json` records which inputs were used.
+- **Tests.** 22 tests in `tests/test_model.py`, run on every push by `.github/workflows/tests.yml`,
+  plus the integrity checks of `run.py checks`.
 
-`docs/REPRODUCIBILITY.md` has the checklist, including what remains open: no container, and no
-archived snapshot of the inputs, which matters because WPP and the migrant stocks are revised.
+`docs/REPRODUCIBILITY.md` has the checklist and what remains open (a container, an archived
+snapshot of the inputs).
 
 ## Layout
 
 ```
-religion_forecast/      the package: engine, switching, migration, model, calibration,
-                        projection, backtest, experiments, tables, report, checks, figures, cli
+religion_forecast/      the package
+  engine.py               the cohort-component step (numpy only, reads no files)
+  switching.py            lifetime matrices, the hierarchical model and its estimation
+  migration.py            origin-destination flows that conserve people exactly
+  model.py                run parameters, scenarios, the initial state, simulate, hindcast
+  calibration.py          the evidence switching and the religion of migrants are fitted to
+  errors.py               the forecast-error record, error model and predictive draws
+  projection.py tables.py the Monte Carlo projection and its output tables
+  backtest.py             history tests, inference, calibration of the intervals
+  experiments.py          ablations, global sensitivity, migrant sorting
+  report.py checks.py     the run report and integrity checks
+  figures/                maps and charts
 run.py                  entry point; the same commands install as `religion-forecast`
-tests/                  unit and integration tests
 config/                 assumptions.json (every non-data number) and data_manifest.json
 inputs/                 published figures transcribed with citations, one evidence grade per row
 scripts/                prepare_raw_data.py, prepare_pew_panel.py, verify_data.py
-results/                one complete run, committed, with its commit stamp and check output
-results_step5/          the Step 5D export; holds the fallback start state
-baselines/              manual_predictor/ (naive linear trend), mixed_predictor/ (damped log-ratio trend)
-legacy/                 archived experiments: Steps 1-6 machine learning, Steps 5D-5E cohort model
-docs/                   methods, data, limitations, reproducibility, results, comparability
-CITATION.cff            citation metadata
+tests/                  unit and integration tests
+results/                one complete run, committed
+manuscript/             the paper draft
+docs/                   methods, data, results, limitations, reproducibility
+previous_grad_assignment/  the course-exercise programs, kept as a record
 data/  outputs/         generated, git-ignored
 ```
 
 ## History
 
-The project originated in October 2026 as a course exercise in which the same forecasting question
-was implemented three ways: written by hand, generated by prompting an AI coding assistant, and
-written jointly with one. It has since been developed as an independent research project. The
-AI-generated version grew into this package. The other two are kept as its reference baselines,
-which is why their folders are named `manual_predictor` and `mixed_predictor`.
+The project began in October 2026 as a graduate course exercise in which the same forecasting
+question was implemented three ways: by hand, by prompting an AI coding assistant, and jointly
+with one. The AI-generated version grew into this model and has since been developed as a research
+project; the other two are kept in `previous_grad_assignment/`. Earlier generations of the model, a
+machine-learning pipeline and a first cohort model, were removed from the working tree in this
+revision and remain in the git history at the tags `archive/pre-merge-main` and
+`archive/pre-merge-research`.
 
-The package itself went through two generations. Steps 1 to 6 were a machine-learning pipeline that
-trained LightGBM and a neural network to predict five-year changes in each religion's share. Steps
-5D and 5E replaced it with the first cohort-component model and its first history tests, because a
-learned model of share changes cannot represent the mechanisms behind them, and those mechanisms
-are what the questions are about. The current package, Step 7, descends directly from 5D and 5E.
-`legacy/README.md` records what each step tested.
-
-The work was kept in two unrelated git histories, one holding the baselines and the first
-generation, the other the cohort model. They were merged when the repository was restructured,
-without rewriting either. `git log --follow` traces any file through both, and the state of each
-before the merge is tagged: `archive/pre-merge-main` and `archive/pre-merge-research`.
-
-**Use of AI tools.** Most of the package's code and documentation was written with an AI coding
-assistant (Claude, by Anthropic), under the author's direction. Every reported number is regenerated
-by the code from documented inputs, and the corrections recorded in `docs/` came from auditing that
-work rather than accepting it.
+**Use of AI tools.** Most of the code and documentation was written with an AI coding assistant
+(Claude, by Anthropic), under the author's direction. Every reported number is regenerated by the
+code from documented inputs, and the corrections recorded in `docs/` came from auditing that work
+rather than accepting it.
 
 ## How to cite
 
-`CITATION.cff` holds the citation metadata, and GitHub shows it as "Cite this repository". There is
-no archived release or DOI yet. A tagged release deposited on Zenodo would provide both.
-
-## Documentation
-
-- `docs/METHODS.md`: the model, equation by equation, and what is estimated rather than assumed
-- `docs/DATA.md`: every dataset, with coverage, dates, licence and limitations
-- `docs/COMPARABILITY.md`: why the model's and the baselines' errors cannot be ranked, and what can be compared
-- `docs/LIMITATIONS.md`: what the validation does and does not support
-- `docs/RESULTS.md`: findings from the committed run
-- `docs/REPRODUCIBILITY.md`: the checklist and exact commands
-- `docs/AUDIT_STATIC.md`: the audit of the earlier pipeline that the current model answers
-- `results/comparison_report.md`: the report generated by the run itself
+`CITATION.cff` holds the citation metadata (GitHub shows it as "Cite this repository"). There is no
+archived release or DOI yet; a tagged release deposited on Zenodo would provide both.
 
 ## Licence
 
 The repository has no licence file yet, so until one is added the code is under default copyright.
 Each dataset keeps its own terms, recorded per file in `config/data_manifest.json`. The Pew
 workbooks are not redistributed.
+
+## Documentation
+
+- `docs/METHODS.md`: the model, its estimation and the error model, equation by equation
+- `docs/RESULTS.md`: findings of the committed run
+- `docs/LIMITATIONS.md`: what the evaluation does and does not support
+- `docs/DATA.md`: every dataset, with coverage, licence and limitations
+- `docs/REPRODUCIBILITY.md`: the checklist and exact commands
+- `results/comparison_report.md`: the report generated by the run itself
+- `manuscript/manuscript.md`: the paper draft
