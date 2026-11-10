@@ -15,7 +15,7 @@ python scripts/prepare_pew_panel.py  # writes data/processed/pew_harmonized.csv
 
 python run.py fetch               # the optional datasets, once
 python scripts/verify_data.py     # compare data/ against the committed checksums
-python run.py all                 # test, backtest, project, experiments, checks, figures, report
+python run.py all                 # test, backtest, project, recovery, experiments, checks, figures, report
 ```
 
 `python run.py all` takes about two hours on four cores and rewrites `results/`.
@@ -30,6 +30,7 @@ python run.py test
 python run.py backtest                     # --quick: point forecasts and inference only
 python run.py project --runs 40            # --scenarios stabilising,high_retention to narrow it
 python run.py project --tabulate-only      # tables and intervals again from the saved runs
+python run.py recovery --reps 20           # simulation study of the switching estimator
 python run.py experiments --only ablation  # ablation | sensitivity | sorting
 python run.py checks                       # exit code 0 = every check passed
 python run.py figures                      # --png also draws the matplotlib maps
@@ -41,13 +42,15 @@ python run.py report --export              # writes results/
 | | Item | How it is met |
 |---|---|---|
 | ☑ | Fixed seeds | `random_seed` in `config/assumptions.json` (2026). Every stage derives its draws from it. Run *r* uses the same draws in every scenario. |
+| ☑ | Parallel and deterministic | Monte Carlo runs, replicate fits and history fits use every core (`--workers N`, or `RELIGION_FORECAST_WORKERS`). Each run draws from its own streams, so results do not depend on the number of processes; `test_integration_reproducible_and_exact` checks one process against two. |
 | ☑ | One entry point | `run.py`, with one subcommand per stage and `all` for the pipeline. After `pip install -e .` the same commands run as `religion-forecast <stage>`. |
 | ☑ | Pinned environment | `requirements-lock.txt` pins the exact versions everything was verified under (Python 3.13.16, numpy 2.5.3, pandas 3.0.5). `pyproject.toml` declares the ranges and two optional extras: `maps` and `prepare`. Core needs only numpy, pandas, openpyxl and requests. |
 | ☑ | Centralised configuration | `config/assumptions.json` holds every non-data number with a `status` field; `religion_forecast/config.py` holds every path. No module computes a path from its own location. |
 | ☑ | Documented data sources | `docs/DATA.md`: coverage, dates, licence, access route and limitation for each; `inputs/*.csv` carry a citation and an evidence grade per row. |
 | ☑ | Data provenance recorded per run | `data/projections/projection_report.json` lists every input with `used`, `fallback` or `missing` and a detail string; `parameter_provenance.csv` tags every parameter observed / estimated / assumption / unverified. |
-| ☑ | Automated tests | `tests/test_model.py`, 22 tests. Unit tests use synthetic data and read no files: among them a stationary life table, the survey likelihood against its closed form, recovery of a planted forecast-error model and of a planted improvement over persistence. Integration tests use the real inputs and skip cleanly if absent. Run by `run.py test`, and first in `run.py all`. |
-| ☑ | Data validation checks | `run.py checks`: shares non-negative and summing to 100%, components adding up to the simulated change, migration conserving people by religion, probabilities in range, diversity in range, start state reported, map coverage. Non-zero exit if any fails. |
+| ☑ | Automated tests and lint | `tests/test_model.py`, 28 tests, and `ruff` with the settings in `pyproject.toml`, both run in CI. Unit tests use synthetic data and read no files: among them a stationary life table, the survey likelihood against its closed form, the first-order switching effect against two engine steps for young and old populations, the importance-sampling estimator against a brute-force reference, the optimiser reaching its own optimum, the bounded minority effect, migration volume under soft margins, half-lives, the non-overlapping validation rule, and recovery of a planted forecast-error model and of a planted improvement over persistence. Integration tests use the real inputs and skip cleanly if absent. Run by `run.py test`, and first in `run.py all`. |
+| ☑ | Data validation checks | `run.py checks`: shares non-negative and summing to 100%, components adding up to the simulated change, migration conserving people by religion, probabilities in range, diversity in range, start state reported, map coverage, and the switching estimator (replicates agreeing within half a standard error, no degenerate importance sampling, recovery of known hyperparameters). Non-zero exit if any fails. |
+| ☑ | Estimator checked by simulation | `run.py recovery` refits the switching model to evidence simulated from known hyperparameters with the real design, and reports bias, RMSE and interval coverage (`estimator_recovery.csv`). |
 | ☑ | Reproducible experiment commands | the table above; each stage writes its own report JSON with a UTC timestamp and its settings. |
 | ☑ | Figures regenerable | `run.py figures` rebuilds every map and chart from the output CSVs. No figure contains a number that is not in a CSV. |
 | ☑ | Committed results | `results/` holds small copies of one run plus the report, the git commit it was produced at (and whether the code was clean, ignoring `results/` itself), and the captured output of `run.py checks`. |

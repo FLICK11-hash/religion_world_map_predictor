@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 import re
 
@@ -130,7 +130,8 @@ def get_cow_crosswalk() -> pd.DataFrame:
 
 def build_cow_mapper(crosswalk: pd.DataFrame):
     groups = {int(k): group.copy() for k, group in crosswalk.dropna(subset=["cow_id"]).groupby("cow_id")}
-    code_overrides = {58: "ATG", 713: "TWN", 221: "MCO", 223: "LIE", 347: "XKX", 816: "VNM"}  # known crosswalk gaps/errors
+    # known crosswalk gaps and errors
+    code_overrides = {58: "ATG", 713: "TWN", 221: "MCO", 223: "LIE", 347: "XKX", 816: "VNM"}
 
     def lookup(code: int, year: int) -> tuple[str | None, str, str]:
         special = historical_entity(code, year)
@@ -194,12 +195,12 @@ def wrp_data(lookup) -> pd.DataFrame:
         "dualrelig": pd.to_numeric(wrp["dualrelig"], errors="coerce"),
         "wrp_total_recorded": clean_num(wrp["total"]) if "total" in wrp else np.nan,
         "wrp_reliability": wrp["reliabilevel"].astype(str) if "reliabilevel" in wrp else "",
-        "wrp_datatype": wrp["datatype"] if "datatype" in wrp else np.nan,
+        "wrp_datatype": wrp.get("datatype", np.nan),
     })
     for religion, cols in WRP_FIELDS.items():
         vals = pd.concat([clean_num(wrp[c]) for c in cols], axis=1)
         out[f"share_{religion}"] = vals.sum(axis=1, min_count=len(cols))
-    ids = [lookup(int(code), int(year)) for code, year in zip(out.cow_id, out.year)]
+    ids = [lookup(int(code), int(year)) for code, year in zip(out.cow_id, out.year, strict=True)]
     out["country_id"] = [x[0] for x in ids]
     out["country_match_method"] = [x[1] for x in ids]
     out["historical_country_note"] = [x[2] for x in ids]
@@ -356,7 +357,8 @@ def main() -> None:
     selected["source_break_from_previous"] = (selected.previous_source.notna() &
         selected.source.ne(selected.previous_source))
     selected["dominant_religion"] = selected[SHARES].idxmax(axis=1).str.removeprefix("share_")
-    selected = selected.merge(wpp.drop(columns=["wpp_is_projection"]), on=["country_id", "year"], how="left", validate="many_to_one")
+    selected = selected.merge(wpp.drop(columns=["wpp_is_projection"]), on=["country_id", "year"], how="left",
+                              validate="many_to_one")
     # Flag 2024+ projection years separately when constructing future prediction features.
     map_codes = set(world.map_iso3.dropna())
     selected["mapped_on_natural_earth"] = selected.country_id.isin(map_codes)
@@ -378,7 +380,7 @@ def main() -> None:
     world.to_csv(OUT / "natural_earth_country_keys.csv", index=False)
 
     report = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "wrp_rows_raw": int(len(wrp)),
         "wrp_rows_accepted": int(wrp.quality_pass.sum()),
         "wrp_dual_affiliation_rows": int(wrp.dualrelig.eq(1).sum()),

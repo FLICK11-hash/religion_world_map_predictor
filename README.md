@@ -95,9 +95,9 @@ pip install -r requirements-lock.txt              # the exact versions everythin
 pip install -e .                                  # optional: adds the `religion-forecast` command
 
 python scripts/verify_data.py                     # is data/ the data the committed results used?
-python run.py test                                # 22 tests
+python run.py test                                # 28 tests
 python run.py all --quick                         # whole pipeline, fewer runs; results/ is left alone
-python run.py all                                 # the full run, about two hours; rewrites results/
+python run.py all                                 # the full run; rewrites results/
 ```
 
 To look at the committed results without running anything, open `results/figures/index.html` and
@@ -109,6 +109,7 @@ To look at the committed results without running anything, open `results/figures
 | `test` | unit and integration tests | – |
 | `backtest` | history tests, country-level inference, the forecast-error record and its calibration, migration checks | `data/validation/` |
 | `project` | the scenario × Monte Carlo projection with predictive intervals to 2100 | `data/projections/` |
+| `recovery` | simulation study: does the switching estimator recover known hyperparameters under the real design | `data/validation/` |
 | `experiments` | mechanism ablations, global sensitivity, migrant sorting | `data/experiments/` |
 | `checks` | integrity checks; exit code 0 means every check passed | – |
 | `figures` | maps and charts as SVG, `--png` for matplotlib versions | `outputs/figures/` |
@@ -137,10 +138,13 @@ dataset and its limitations.
 - **Pinned environment.** `requirements-lock.txt`: Python 3.13.16, numpy 2.5.3, pandas 3.0.5.
 - **Seeds.** Every stage derives its draws from `random_seed` in `config/assumptions.json`; run *r*
   uses the same draws in every scenario, so a difference between scenarios is the assumption.
+- **Parallel runs.** Monte Carlo runs and replicate fits use every core (`--workers N` or
+  `RELIGION_FORECAST_WORKERS` to change it); each run has its own random streams, so results do not
+  depend on the number of processes, which a test checks.
 - **Provenance per run.** `results/run_stamp.json` records the commit, whether the code was clean,
   and whether the integrity checks passed; `projection_report.json` records which inputs were used.
-- **Tests.** 22 tests in `tests/test_model.py`, run on every push by `.github/workflows/tests.yml`,
-  plus the integrity checks of `run.py checks`.
+- **Tests and lint.** 28 tests in `tests/test_model.py` and `ruff` (settings in `pyproject.toml`),
+  run on every push by `.github/workflows/tests.yml`, plus the integrity checks of `run.py checks`.
 
 `docs/REPRODUCIBILITY.md` has the checklist and what remains open (a container, an archived
 snapshot of the inputs).
@@ -155,6 +159,7 @@ religion_forecast/      the package
   model.py                run parameters, scenarios, the initial state, simulate, hindcast
   calibration.py          the evidence switching and the religion of migrants are fitted to
   errors.py               the forecast-error record, error model and predictive draws
+  recovery.py             simulation study of the switching estimator
   projection.py tables.py the Monte Carlo projection and its output tables
   backtest.py             history tests, inference, calibration of the intervals
   experiments.py          ablations, global sensitivity, migrant sorting

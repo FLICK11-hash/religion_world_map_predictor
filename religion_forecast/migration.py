@@ -137,6 +137,11 @@ def sinkhorn(Km, row, col, iters=500, tol=1e-10, rho=1.0, rho_col=1.0):
             break
         b = b_new
     F = a[:, None] * Km * b[None, :] * scale
+    if rho != 1.0 or rho_col != 1.0:
+        # Soft margins are meant to move flows between corridors, not to change how many people
+        # move: the power updates also shrink the total (by about a fifth at rho = 0.75), so the
+        # world total is restored to the requested one.
+        F = F * (row0.sum() / max(F.sum(), 1e-300))
     errs = [np.abs(F.sum(1) - row0).max() / max(row0.max(), 1.0)] if rho == 1.0 else []
     errs += [np.abs(F.sum(0) - col0).max() / max(col0.max(), 1.0)] if rho_col == 1.0 else []
     return F, a * scale, b, float(max(errs, default=0.0))
@@ -218,12 +223,22 @@ def realise(F, P, selectivity=None, cap=0.5, iters=12):
     return emig, immig, F, float(np.maximum(E_req - E_used, 0.0).sum())
 
 
-def minority_selectivity(shares, lam):
-    """Scenario option: religious minorities over-represented among emigrants,
-    selectivity_r proportional to share_r^(-lam), normalised so the origin's mean is 1. lam = 0: none."""
+def minority_selectivity(shares, lam, cap=np.inf, iters=6):
+    """Relative emigration propensity per person of each religion [n, K]: proportional to
+    share^(-lam), so religious minorities are over-represented among emigrants (lam = 0: none),
+    normalised so that the population-weighted mean in each origin is 1, and at most `cap` times
+    that mean. Without the cap the propensity grows without bound as a minority shrinks, and a small
+    minority in a country with large emigration is drained within decades (Christians in Pakistan
+    lost two thirds of their share by 2050 in an earlier version), which no census shows."""
     s = np.maximum(np.asarray(shares, float), 1e-4)
     sel = s ** (-float(lam))
-    return sel / np.maximum((sel * s).sum(1, keepdims=True), 1e-300)
+    sel = sel / np.maximum((sel * s).sum(-1, keepdims=True), 1e-300)
+    if np.isfinite(cap):
+        for _ in range(iters):            # cap, renormalise, repeat: capped groups stay at the cap
+            sel = np.minimum(sel, cap)
+            sel = sel / np.maximum((sel * s).sum(-1, keepdims=True), 1e-300)
+        sel = np.minimum(sel, cap)
+    return sel
 
 
 def selectivity_from_migrant_composition(origin_shares, emigrant_shares, lo=0.1, hi=10.0):
@@ -243,19 +258,20 @@ def congestion_attraction(b2100, pop, pop2100, theta=1.0):
     return np.asarray(b2100, float) * ratio ** (-float(theta))
 
 
-def corridor_mix(P_or_shares, lam, kappa, eps=0.01, base=None):
+def corridor_mix(P_or_shares, lam, kappa, eps=0.01, base=None, cap=np.inf):
     """Religious mix of each corridor m[o, d, r] (rows sum to 1 over r): origin availability (people
-    who can move, times the minority effect share^-lam) x destination affinity (share_d,r + eps)^kappa.
-    Pew (2024): migrants tend to move where their religion is common, and minorities emigrate more."""
+    who can move, times the minority effect, minority_selectivity) x destination affinity
+    (share_d,r + eps)^kappa. Pew (2024): migrants tend to move where their religion is common, and
+    minorities emigrate more."""
     sh = np.asarray(P_or_shares, float)
     if base is None:
-        base = sh * (minority_selectivity(sh, lam) if lam > 0 else 1.0)
+        base = sh * (minority_selectivity(sh, lam, cap) if lam > 0 else 1.0)
     aff = (sh + eps) ** float(kappa)
     m = base[:, None, :] * aff[None, :, :]
     return m / np.maximum(m.sum(2, keepdims=True), 1e-300)
 
 
-def realise_affinity(F, P, lam, kappa, cap=0.5, iters=12, eps=0.01):
+def realise_affinity(F, P, lam, kappa, cap=0.5, iters=12, eps=0.01, sel_cap=np.inf):
     """Like realise(), but each corridor (o, d) carries its own religious mix (corridor_mix), so
     for example Christians from Kazakhstan go to Russia and Muslims to Turkey. Emigrants of religion r
     from o are drawn from its generation x age cells in proportion to age and generation propensity,
@@ -266,9 +282,10 @@ def realise_affinity(F, P, lam, kappa, cap=0.5, iters=12, eps=0.01):
     w = P * AGE_PROPENSITY[None, None, None, :] * GEN_PROPENSITY[None, None, :, None]   # [n, K, G, A]
     avail = w.sum((2, 3))
     sh = P.sum((2, 3)) / np.maximum(P.sum((1, 2, 3))[:, None], 1e-300)
-    base = avail * (minority_selectivity(sh, lam) if lam > 0 else 1.0)
+    base = avail * (minority_selectivity(sh, lam, sel_cap) if lam > 0 else 1.0)
     m = corridor_mix(sh, lam, kappa, eps, base=base)                      # [o, d, r]
-    want = (F[:, :, None] * m).sum(1)                                     # emigrants by origin, religion
+    FX = F[:, :, None] * m                                                # [o, d, r] persons requested
+    want = FX.sum(1)                                                      # emigrants by origin, religion
     room = cap * P
     emig = np.zeros_like(P)
     remaining = want.copy()
@@ -284,8 +301,9 @@ def realise_affinity(F, P, lam, kappa, cap=0.5, iters=12, eps=0.01):
         active = np.where(emig < room * (1 - 1e-12), w, 0.0)
     got = emig.sum((2, 3))
     f = np.where(want > 0, got / np.maximum(want, 1e-300), 1.0)           # realised fraction by (o, r)
-    X = F[:, :, None] * m * f[:, None, :]                                 # [o, d, r] persons
-    agefrac = emig.sum(2) / np.maximum(got[:, :, None], 1e-300)           # [o, r, a]
-    # immig[d, r, a] = sum_o X[o, d, r] agefrac[o, r, a], as a batched matrix product over religions
-    immig = np.matmul(X.transpose(2, 1, 0), agefrac.transpose(1, 0, 2)).transpose(1, 0, 2)
-    return emig, immig, X.sum(2), float(np.maximum(want - got, 0.0).sum())
+    # realised persons X[o, d, r] = FX[o, d, r] f[o, r]; arrivals take the ages of who actually left:
+    # immig[d, r, a] = sum_o X[o, d, r] agefrac[o, r, a] = sum_o FX[o, d, r] (f agefrac)[o, r, a],
+    # a batched matrix product over religions
+    g = f[:, :, None] * emig.sum(2) / np.maximum(got[:, :, None], 1e-300)          # [o, r, a]
+    immig = np.matmul(FX.transpose(2, 1, 0), g.transpose(1, 0, 2)).transpose(1, 0, 2)
+    return emig, immig, np.einsum('odr,or->od', FX, f), float(np.maximum(want - got, 0.0).sum())

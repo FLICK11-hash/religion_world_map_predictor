@@ -14,9 +14,9 @@ Exit code 0 = every check passed. Checks:
 """
 from __future__ import annotations
 
+import itertools
 import json
 import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -54,10 +54,11 @@ def main(argv=None):
 
     comp = pd.read_csv(F / 'components_country_period.csv')
     sub_cols = [c for c in comp.columns if c.startswith('share_pp_') and c != 'share_pp_total']
-    check(np.allclose(comp[sub_cols].sum(1), comp.share_pp_total, atol=1e-6), '2a sub-step contributions sum to the total')
+    check(np.allclose(comp[sub_cols].sum(1), comp.share_pp_total, atol=1e-6),
+          '2a sub-step contributions sum to the total')
     errs = []
     piv = ct.set_index(['scenario', 'country_id', 'year'])
-    for (y0, y1) in zip(BOUNDS[:-1], BOUNDS[1:]):
+    for y0, y1 in itertools.pairwise(BOUNDS):
         per = comp[comp.period.eq(f'{y0}-{y1}')]
         if per.empty:
             continue
@@ -66,13 +67,15 @@ def main(argv=None):
             a = piv.xs(y0, level='year')[f'mean_{c}'].reindex(sel.index)
             b = piv.xs(y1, level='year')[f'mean_{c}'].reindex(sel.index)
             errs.append(float(np.nanmax(np.abs(100 * (b - a) - sel))))
-    check(max(errs) < 1e-3, f'2b components reproduce the simulated change of mean shares (max error {max(errs):.2e} pp)')
+    check(max(errs) < 1e-3,
+          f'2b components reproduce the simulated change of mean shares (max error {max(errs):.2e} pp)')
 
     wc = pd.read_csv(F / 'components_world_period.csv')
     imbalance = (wc.persons_emigration + wc.persons_immigration).abs()
     scale = wc.persons_immigration.abs().max()
     check(float(imbalance.max()) <= 1e-6 * max(scale, 1.0) + 1.0,
-          f'3a migration conserves people by religion worldwide (max imbalance {imbalance.max():.1f} persons of {scale:,.0f})')
+          f'3a migration conserves people by religion worldwide (max imbalance {imbalance.max():.1f} persons '
+          f'of {scale:,.0f})')
     check(np.allclose(wc.world_share_pp_emigration + wc.world_share_pp_immigration, 0, atol=1e-6),
           '3b migration leaves world religious shares unchanged')
 
@@ -88,7 +91,8 @@ def main(argv=None):
     pc = dc[[c for c in dc.columns if c.startswith('prob_changed_by_')]].to_numpy()
     check(((pc >= 0) & (pc <= 1)).all(), '5a dominant-change probabilities in [0, 1]')
     sw = pd.read_csv(F / 'switching_rates_2020.csv')
-    check(((sw['mean'] >= 0) & (sw['mean'] <= 1) & (sw.q05 <= sw.q95 + 1e-12)).all(), '5b switching rates are probabilities')
+    check(((sw['mean'] >= 0) & (sw['mean'] <= 1) & (sw.q05 <= sw.q95 + 1e-12)).all(),
+          '5b switching rates are probabilities')
     dv = ct.diversity_gini_simpson_mean
     check(((dv >= 0) & (dv <= 0.875 + 1e-9)).all(), '5c diversity index within [0, 0.875]')
 
@@ -100,10 +104,12 @@ def main(argv=None):
               f'8a country predictive intervals ordered and within 0-100% ({len(pc)} rows, 2025-2100)')
         wp_ = wt[wt.year.le(2100) & wt.year.gt(2020) & wt.pi05.notna()] if 'pi05' in wt else wt.iloc[:0]
         if len(wp_):
-            ordered = ((wp_.pi05 <= wp_.pi10 + 1e-12) & (wp_.pi10 <= wp_.pi90 + 1e-12) & (wp_.pi90 <= wp_.pi95 + 1e-12)).all()
+            ordered = ((wp_.pi05 <= wp_.pi10 + 1e-12) & (wp_.pi10 <= wp_.pi90 + 1e-12)
+                       & (wp_.pi90 <= wp_.pi95 + 1e-12)).all()
             wider = float(((wp_.pi95 - wp_.pi05) >= (wp_.q95 - wp_.q05) - 1e-9).mean())
             check(bool(ordered) and wider >= 0.95,
-                  f'8b world predictive quantiles ordered; at least as wide as the run spread in {100 * wider:.0f}% of rows')
+                  f'8b world predictive quantiles ordered; at least as wide as the run spread in '
+                  f'{100 * wider:.0f}% of rows')
     else:
         print('      NOTE: no predictive intervals in this run (no forecast-error model)')
 
@@ -111,7 +117,8 @@ def main(argv=None):
     print('\nInputs used:')
     for k, v in inputs.items():
         print(f'  {k:22s} {v["status"]:9s} {v["detail"]}')
-    check(rep.get('start_state', '').startswith('data/processed') or 'pew2020_start_state' in rep.get('start_state', ''),
+    start = rep.get('start_state', '')
+    check(start.startswith('data/processed') or 'pew2020_start_state' in start,
           f"6a start state reported: {rep.get('start_state')}")
     if 'pew2020_start_state' in rep.get('start_state', ''):
         print('      NOTE: Pew 2010 was not available, so the Pew 2010-2020 window was neither fitted nor tested.')
@@ -138,11 +145,37 @@ def main(argv=None):
         pd.DataFrame({'country_id': missing_polygon}).to_csv(F / 'map_countries_without_polygon.csv', index=False)
         pd.DataFrame({'map_id': no_estimate}).to_csv(F / 'map_polygons_without_estimate.csv', index=False)
         check(len(missing_polygon) <= 10,
-              f'7a modelled countries drawn on the map ({len(ids) - len(missing_polygon)} of {len(ids)}, {len(set(dots) & mapped)} as points because they are smaller than a pixel; '
+              f'7a modelled countries drawn on the map ({len(ids) - len(missing_polygon)} of {len(ids)}, '
+              f'{len(set(dots) & mapped)} as points because they are smaller than a pixel; '
               f'missing: {", ".join(missing_polygon) if missing_polygon else "none"})')
         print(f'      {len(no_estimate)} map polygons have no estimate and are drawn grey')
     except Exception as exc:                                  # a missing shapefile must not fail the run
         print(f'      map coverage not checked: {exc}')
+
+    # 9 the switching estimator: Monte Carlo error small beside statistical error, a sampler that has
+    # not degenerated, and (when run.py recovery has run) recovery of known hyperparameters
+    sf = rep.get('switching_fit', {})
+    reps = sf.get('replicates', [])
+    if len(reps) > 1 and 'se_delta' in reps[0]:
+        names = (('delta', 'se_delta'), ('beta_d', 'se_beta_d'), ('tau_u', 'se_log_tau_u'))
+        ratios = []
+        for k, se in names:
+            vals = np.array([r[k] for r in reps], float)
+            vals = np.log(vals) if k == 'tau_u' else vals
+            ratios.append(float(vals.std(ddof=1) / max(np.mean([r[se] for r in reps]), 1e-12)))
+        check(max(ratios) < 0.5, '9a replicate fits agree: spread / standard error '
+              + ', '.join(f'{k} {v:.2f}' for (k, _), v in zip(names, ratios, strict=True)))
+        ess = min(r['min_posterior_ess'] for r in reps)
+        check(ess >= 20, f'9b importance sampling has not degenerated (smallest country ESS {ess:.0f} of '
+                         f"{sf.get('latent_draws')})")
+    rec = pd.read_csv(V / 'estimator_recovery.csv') if (V / 'estimator_recovery.csv').exists() else None
+    if rec is not None and rec.replications.min() < 10:
+        print(f'      9c not judged: the recovery study has {int(rec.replications.min())} replications '
+              '(a quick run); run.py recovery runs 20')
+    elif rec is not None:
+        ok = (rec.coverage_90 >= 0.7) & (rec.bias.abs() <= rec.mean_laplace_se)
+        check(bool(ok.all()), '9c estimator recovers known hyperparameters (90% coverage, bias): '
+              + ', '.join(f'{r.parameter} {r.coverage_90:.0%} / {r.bias:+.3f}' for r in rec.itertuples()))
 
     print('\nRESULT:', 'all checks passed' if not failures else f'{len(failures)} check(s) failed')
     return 0 if not failures else 1

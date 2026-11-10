@@ -179,11 +179,13 @@ def lifetime_from_five_year(T):
 def exposure(P, intensity=(1.0, 0.5, 0.8), steps=2):
     """Fraction of the national population, by religion, exposed to switching over `steps` 5-year
     steps [n, K]: sum over ages of persons x (sum of age weights the cohort passes through) x
-    generation intensity, divided by the total population."""
+    generation intensity, divided by the total population. The engine ages people before it
+    switches them, so a cohort in age group a at the start meets the matrices of groups
+    a + 1, ..., a + steps."""
     P = np.asarray(P, float)
     wsum = np.zeros(A)
     for a in range(A):
-        wsum[a] = _W_AGE[a:min(a + steps, A)].sum()
+        wsum[a] = _W_AGE[min(a + 1, A - 1):min(a + 1 + steps, A)].sum()
     h = np.asarray(intensity, float)
     ex = (P * wsum[None, None, None, :] * h[None, None, :, None]).sum((2, 3))
     return ex / np.maximum(P.sum((1, 2, 3))[:, None], 1e-300)
@@ -227,6 +229,8 @@ def development_index(e0, tfr, cfg):
 
 # ------------------------------------------------------------------ hierarchical model
 LATENT = K + 2          # per country: xi_u, xi_e (one per religion that can disaffiliate), xi_a, xi_v
+FIT_VERSION = 3          # bump when the estimation algorithm changes (invalidates cached fits)
+DEFAULT_BOUNDS = {'delta': [-3.0, 5.0], 'beta_d': [-1.0, 4.0], 'tau_u': [0.1, 5.0]}
 
 
 class Hierarchy:
@@ -302,18 +306,26 @@ class Hierarchy:
         if net is not None:
             # net: dict with z [n, D], Bd [n, D, K-1, K], Bv [n, D, K-1, K], Ba [n, D, K],
             #      y [n, D, K], mask [n, D], scale [K], weight [n, D]
-            D = net['y'].shape[1]
-            for t in range(D):
-                m = net['mask'][:, t]
-                if not m.any():
+            # Only the countries observed in a decade are evaluated, and the conversion rates v,
+            # which depend on neither H nor development, once for all decades. The factor 7/8
+            # counts the K shares, which sum to one, as K - 1 independent residuals.
+            delta, beta, tau_u = H
+            p = self.prior
+            v_all = expit(self.mu_v[None, None, :] + p['tau_v'] * self.xi_v[:, :, None])
+            base_d = self.mu_d[None, None, :] + delta + tau_u * self.xi_u[:, :, None] + p['tau_e'] * self.xi_e
+            base_a = self.mu_a + p['tau_a'] * self.xi_a
+            for t in range(net['y'].shape[1]):
+                idx = np.flatnonzero(net['mask'][:, t])
+                if not len(idx):
                     continue
-                d, v, a = self.rates(net['z'][:, t], H)
-                pred = (np.einsum('nmj,njk->nmk', d, net['Bd'][:, t])
-                        + np.einsum('nmj,njk->nmk', v, net['Bv'][:, t])
-                        + a[:, :, None] * net['Ba'][:, t][:, None, :])
-                r = net['y'][:, t][:, None, :] - pred
+                z = net['z'][idx, t]
+                d = expit(base_d[idx] + beta * z[:, None, None])
+                a = expit(base_a[idx] + p['beta_a'] * z[:, None])
+                pred = (np.matmul(d, net['Bd'][idx, t]) + np.matmul(v_all[idx], net['Bv'][idx, t])
+                        + a[:, :, None] * net['Ba'][idx, t][:, None, :])
+                r = net['y'][idx, t][:, None, :] - pred
                 lk = self._t_loglik(r, net['scale'][None, None, :]).sum(-1) * (7.0 / 8.0)
-                ll += np.where(m[:, None], lk * net['weight'][:, t][:, None], 0.0)
+                ll[idx] += lk * net['weight'][idx, t][:, None]
         if survey is not None and len(survey['group_country']):
             # survey: one Dirichlet-multinomial per survey row (a country's adults raised in one
             # religion, in one survey). Cell arrays: group [S], raised [S], current [S], p [S]
@@ -366,92 +378,301 @@ class Hierarchy:
         mx = ll.max(1, keepdims=True)
         return float((mx[:, 0] + np.log(np.exp(ll - mx).mean(1))).sum()), ll
 
-    def adapt(self, H, net=None, survey=None, rounds=3, defensive=0.25, inflate=1.5, ridge=0.05):
-        """Replace the draws with a per-country defensive mixture proposal fitted at H:
-        q = defensive x N(0, I) + (1 - defensive) x N(m_c, inflate x S_c + ridge x I), where m_c and
-        S_c are the importance-weighted mean and covariance of country c's current draws."""
+    def log_posterior(self, Z, H, net=None, survey=None):
+        """Unnormalised log posterior of the country effects, log N(Z; 0, I) + log-likelihood, at
+        arbitrary latent values Z [n, m, LATENT] (the stored draws are left untouched)."""
+        saved = (self.xi_u, self.xi_e, self.xi_a, self.xi_v, self.M)
+        self._set_latent(Z)
+        self.M = Z.shape[1]
+        try:
+            ll = self.loglik(H, net, survey)
+        finally:
+            self.xi_u, self.xi_e, self.xi_a, self.xi_v, self.M = saved
+        return ll - 0.5 * (Z ** 2).sum(-1)
+
+    def posterior_modes(self, H, net=None, survey=None, iters=25, h=1e-3, floor=1.0):
+        """Each country's posterior mode of the effects and the curvature there, by damped Newton
+        steps with finite-difference derivatives (all countries at once: the 1 + 2D + 2D(D-1)
+        stencil points of every country are one likelihood evaluation). Starts from the best
+        stored draw. Returns (mode [n, D], precision [n, D, D]); the precision's eigenvalues are
+        floored at `floor` (the prior's own precision), so a direction the evidence does not inform
+        is never proposed more widely than the prior."""
+        D = LATENT
+        I = np.eye(D)
+        start = self.log_posterior(self._latent(), H, net, survey)
+        x = self._latent()[np.arange(self.n), start.argmax(1)]
+        fx = start.max(1)
+        pairs = [(i, j) for i in range(D) for j in range(i + 1, D)]
+        offs = [np.zeros(D)] + [s * h * I[i] for i in range(D) for s in (1, -1)]
+        offs += [h * (si * I[i] + sj * I[j]) for i, j in pairs for si, sj in ((1, 1), (1, -1), (-1, 1), (-1, -1))]
+        offs = np.array(offs)
+        mu = np.full(self.n, 1e-3)
+        prec = np.tile(I, (self.n, 1, 1))
+        for _ in range(iters):
+            v = self.log_posterior(x[:, None, :] + offs[None], H, net, survey)        # [n, P]
+            f0 = v[:, 0]
+            g = (v[:, 1:2 * D + 1:2] - v[:, 2:2 * D + 2:2]) / (2 * h)
+            Hs = np.zeros((self.n, D, D))
+            idx = np.arange(D)
+            Hs[:, idx, idx] = (v[:, 1:2 * D + 1:2] - 2 * f0[:, None] + v[:, 2:2 * D + 2:2]) / h ** 2
+            q = v[:, 2 * D + 1:].reshape(self.n, len(pairs), 4)
+            cross = (q[..., 0] - q[..., 1] - q[..., 2] + q[..., 3]) / (4 * h * h)
+            for k, (i, j) in enumerate(pairs):
+                Hs[:, i, j] = Hs[:, j, i] = cross[:, k]
+            ev, V = np.linalg.eigh(-Hs)
+            prec = np.einsum('nij,nj,nkj->nik', V, np.maximum(ev, floor), V)
+            step = np.linalg.solve(prec + mu[:, None, None] * I, g[..., None])[..., 0]
+            trial = x + step
+            ft = self.log_posterior(trial[:, None, :], H, net, survey)[:, 0]
+            ok = ft > f0 - 1e-9
+            x = np.where(ok[:, None], trial, x)
+            fx = np.where(ok, ft, f0)
+            mu = np.where(ok, mu * 0.3, mu * 10.0)
+            if np.abs(step[ok]).max(initial=0.0) < 1e-6 and ok.all():
+                break
+        self.mode_log_posterior = fx
+        return x, prec
+
+    def adapt(self, H, net=None, survey=None, weights=(0.2, 0.4, 0.4), inflate=1.5, df=5.0, shrink=20.0,
+              weak=50.0):
+        """Laplace importance sampling with a moment-matched second component. Country c's draws
+        are replaced by draws from the mixture
+
+            q_c = w0 N(0, I) + w1 t_df(m_c, inflate P_c^-1) + w2 t_df(mu_c, inflate S_c),
+
+        where m_c is the country's posterior mode at H and P_c the (floored) curvature there, and
+        mu_c, S_c are the importance-weighted mean and covariance of draws from the first two
+        components, S_c shrunk towards P_c^-1 by `shrink` pseudo-draws when the weights are few.
+        The Laplace component finds sharp posteriors (a survey row with n = 500); the moment
+        component covers curved or skewed ones, where the curvature at the mode understates the
+        spread (two effects trading off along a ridge); the prior component keeps the estimator
+        valid wherever the posterior is. Countries whose effective sample size is still below
+        `weak` get one more pass: the moment component is refitted to their weighted draws, with
+        twice the inflation, and their draws are replaced by fresh draws from it. Every weight
+        carries log prior - log q, so the estimator is unbiased for every H whatever the proposal."""
         rng = np.random.default_rng([self.seed, 31])
-        I = np.eye(LATENT)
-        log2pi = LATENT * np.log(2 * np.pi)
-        for _ in range(rounds):
-            _, ll = self.log_marginal(H, net, survey)
-            w = np.exp(ll - ll.max(1, keepdims=True))
-            w = w / w.sum(1, keepdims=True)
-            Z = self._latent()
-            m = np.einsum('nm,nmd->nd', w, Z)
-            dZ = Z - m[:, None, :]
-            C = inflate * np.einsum('nm,nmd,nme->nde', w, dZ, dZ) + ridge * I
-            L = np.linalg.cholesky(C)
-            eps = rng.standard_normal((self.n, self.M, LATENT))
-            prior_draw = rng.random((self.n, self.M)) < defensive
-            Znew = np.where(prior_draw[..., None], eps, m[:, None, :] + np.einsum('nde,nme->nmd', L, eps))
-            logp = -0.5 * (Znew ** 2).sum(-1) - 0.5 * log2pi
-            sol = np.linalg.solve(L[:, None], (Znew - m[:, None, :])[..., None])[..., 0]
-            logg = -0.5 * (sol ** 2).sum(-1) - np.log(np.diagonal(L, axis1=1, axis2=2)).sum(-1)[:, None] - 0.5 * log2pi
-            logq = np.logaddexp(np.log(defensive) + logp, np.log1p(-defensive) + logg)
-            self._set_latent(Znew)
-            self.log_ratio = logp - logq
+        D = LATENT
+        m, P = self.posterior_modes(H, net, survey)
+        C_lap = inflate * np.linalg.inv(P)
+        comps = [(m, np.linalg.cholesky(C_lap))]
+        # pilot: prior and Laplace components only
+        pilot_w = np.array([weights[0], weights[1] + weights[2]])
+        Z, logq = self._mixture_draws(rng, comps, pilot_w / pilot_w.sum(), df)
+        lw = self.log_posterior(Z, H, net, survey) - 0.5 * D * np.log(2 * np.pi) - logq
+        w = np.exp(lw - lw.max(1, keepdims=True))
+        w = w / w.sum(1, keepdims=True)
+        ess = 1.0 / (w ** 2).sum(1)
+        mu = np.einsum('nm,nmd->nd', w, Z)
+        dZ = Z - mu[:, None, :]
+        S = np.einsum('nm,nmd,nme->nde', w, dZ, dZ)
+        lam = (ess / (ess + shrink))[:, None, None]
+        S = lam * inflate * S + (1 - lam) * C_lap
+        S = 0.5 * (S + S.transpose(0, 2, 1)) + 1e-8 * np.eye(D)
+        comps.append((mu, np.linalg.cholesky(S)))
+        Z, logq = self._mixture_draws(rng, comps, np.asarray(weights, float), df)
+        logp = -0.5 * (Z ** 2).sum(-1) - 0.5 * D * np.log(2 * np.pi)
+        # second pass for the countries the mixture still serves poorly
+        lw = self.log_posterior(Z, H, net, survey) - 0.5 * D * np.log(2 * np.pi) - logq
+        w = np.exp(lw - lw.max(1, keepdims=True))
+        w = w / w.sum(1, keepdims=True)
+        ess = 1.0 / (w ** 2).sum(1)
+        low = ess < weak
+        if low.any():
+            mu2 = np.einsum('nm,nmd->nd', w, Z)
+            dZ = Z - mu2[:, None, :]
+            S2 = np.einsum('nm,nmd,nme->nde', w, dZ, dZ)
+            lam = (ess / (ess + shrink))[:, None, None]
+            S2 = lam * 2.0 * inflate * S2 + (1 - lam) * 2.0 * C_lap
+            S2 = 0.5 * (S2 + S2.transpose(0, 2, 1)) + 1e-8 * np.eye(D)
+            comps2 = [comps[0], (mu2, np.linalg.cholesky(S2))]
+            Z2, logq2 = self._mixture_draws(rng, comps2, np.asarray(weights, float), df)
+            Z = np.where(low[:, None, None], Z2, Z)
+            logq = np.where(low[:, None], logq2, logq)
+            logp = -0.5 * (Z ** 2).sum(-1) - 0.5 * D * np.log(2 * np.pi)
+        self.weak_countries_repassed = int(low.sum())
+        self._set_latent(Z)
+        self.log_ratio = logp - logq
         return self
 
-    def fit(self, net=None, survey=None, adapt=True):
+    def _mixture_draws(self, rng, comps, weights, df):
+        """M draws per country from w0 N(0, I) + sum_k w_k t_df(loc_k, L_k L_k'), and log q at them."""
+        from math import lgamma as _lg
+        D = LATENT
+        k = rng.choice(len(weights), size=(self.n, self.M), p=weights)
+        Z = rng.standard_normal((self.n, self.M, D))
+        for j, (loc, L) in enumerate(comps, start=1):
+            eps = rng.standard_normal((self.n, self.M, D))
+            chi = rng.chisquare(df, (self.n, self.M))
+            draw = loc[:, None, :] + np.einsum('nde,nme->nmd', L, eps) * np.sqrt(df / chi)[..., None]
+            Z = np.where((k == j)[..., None], draw, Z)
+        logs = [np.log(weights[0]) - 0.5 * (Z ** 2).sum(-1) - 0.5 * D * np.log(2 * np.pi)]
+        const = _lg((df + D) / 2) - _lg(df / 2) - 0.5 * D * np.log(df * np.pi)
+        for j, (loc, L) in enumerate(comps, start=1):
+            sol = np.linalg.solve(L[:, None], (Z - loc[:, None, :])[..., None])[..., 0]
+            logs.append(np.log(weights[j]) + const - np.log(np.diagonal(L, axis1=1, axis2=2)).sum(-1)[:, None]
+                        - 0.5 * (df + D) * np.log1p((sol ** 2).sum(-1) / df))
+        return Z, np.logaddexp.reduce(np.array(logs), axis=0)
+
+    def fit(self, net=None, survey=None, adapt=True, starts=3, refits=4, settle=0.02):
         """Maximise the estimated marginal likelihood over H = (delta, beta_d, tau_u).
 
         1 coarse grid with prior draws; 2 adapt the proposal at the best point and repeat the grid;
-        3 adapt again and refine with Nelder-Mead on (delta, beta_d, log tau_u), within the bounds
-        of config/assumptions.json switching.bounds. Keeps the best H and its importance
-        log-weights per country; `search` records every evaluation."""
+        3 maximise continuously with Nelder-Mead from the `starts` best points of that grid;
+        4 re-centre the proposal on the current optimum and restart Nelder-Mead from it, until the
+        optimum moves by less than `settle` (in delta, beta_d, log tau_u) or `refits` times. Step 4
+        matters because a country's posterior moves with H: a proposal fitted at a grid point can miss
+        a sharp posterior at the optimum, which biases the estimate there. Restarting also guards
+        against the simplex stalling. The search runs in unbounded coordinates, a scaled logit of
+        (delta, beta_d, log tau_u) within config/assumptions.json switching.bounds, so the bounds
+        hold without clipping (clipping makes the objective flat beyond a bound and can stall the
+        simplex there). Then the Laplace approximation of the hyperparameters' posterior under a
+        flat hyperprior on the box is computed (`laplace`). Keeps the best H, its importance
+        log-weights per country and the evidence; `search` records every evaluation."""
         g = self.prior['grid']
-        bounds = self.prior.get('bounds', {'delta': [-3.0, 5.0], 'beta_d': [-1.0, 4.0], 'tau_u': [0.1, 5.0]})
+        b = self.prior.get('bounds', DEFAULT_BOUNDS)
+        self.lo = np.array([b['delta'][0], b['beta_d'][0], np.log(b['tau_u'][0])])
+        self.hi = np.array([b['delta'][1], b['beta_d'][1], np.log(b['tau_u'][1])])
+        self.evidence = (net, survey)
 
-        def grid():
-            best = (-np.inf, None)
+        def grid(stage):
+            vals = []
             for delta in g['delta']:
                 for beta in g['beta_d']:
                     for tau in g['tau_u']:
                         H = (float(delta), float(beta), float(tau))
                         lm, _ = self.log_marginal(H, net, survey)
-                        self.search.append({'stage': 'grid', 'delta': H[0], 'beta_d': H[1], 'tau_u': H[2],
+                        self.search.append({'stage': stage, 'delta': H[0], 'beta_d': H[1], 'tau_u': H[2],
                                             'log_marginal': lm})
-                        if lm > best[0]:
-                            best = (lm, H)
-            return best[1]
+                        vals.append((lm, H))
+            return sorted(vals, key=lambda t: -t[0])
 
-        H = grid()
+        best = grid('grid')
+        H = best[0][1]
+        self.optimisation = None
         if adapt:
             self.adapt(H, net, survey)
-            H = grid()
-            self.adapt(H, net, survey)
-            lo = np.array([bounds['delta'][0], bounds['beta_d'][0], np.log(bounds['tau_u'][0])])
-            hi = np.array([bounds['delta'][1], bounds['beta_d'][1], np.log(bounds['tau_u'][1])])
+            best = grid('grid, adapted')
 
-            def f(x):
-                x = np.clip(x, lo, hi)
-                Hx = (float(x[0]), float(x[1]), float(np.exp(x[2])))
+            def f(x, stage):
+                Hx = self._from_free(x)
                 lm, _ = self.log_marginal(Hx, net, survey)
-                self.search.append({'stage': 'nelder-mead', 'delta': Hx[0], 'beta_d': Hx[1], 'tau_u': Hx[2],
+                self.search.append({'stage': stage, 'delta': Hx[0], 'beta_d': Hx[1], 'tau_u': Hx[2],
                                     'log_marginal': lm})
                 return -lm
-            x = nelder_mead(f, np.array([H[0], H[1], np.log(H[2])]), np.array([0.5, 0.4, 0.3]))
-            x = np.clip(x, lo, hi)
-            H = (float(x[0]), float(x[1]), float(np.exp(x[2])))
+
+            runs = []
+            for k, (_, H0) in enumerate(best[:starts]):
+                x, fx, ok = nelder_mead(lambda x, k=k: f(x, f'nelder-mead start {k + 1}'), self._to_free(H0),
+                                        np.full(3, 0.6))
+                runs.append((fx, x, ok))
+            fx, x, _ = min(runs, key=lambda t: t[0])
+            tops = sorted(-r[0] for r in runs)[::-1]
+            spread = float(tops[0] - tops[-1])
+            moves = []
+            for k in range(refits):
+                before = self._from_free(x)
+                self.adapt(before, net, survey)
+                x, fx, ok = nelder_mead(lambda x, k=k: f(x, f'nelder-mead refit {k + 1}'), x,
+                                        np.full(3, 0.25 / (k + 1)), max_eval=100)
+                moves.append(float(np.abs(self._theta(self._from_free(x)) - self._theta(before)).max()))
+                if moves[-1] < settle:
+                    break
+            H = self._from_free(x)
+            self.optimisation = dict(starts=len(runs), starts_within_0_1=int(sum(tops[0] - t <= 0.1 for t in tops)),
+                                     best_minus_worst_start=spread, converged=bool(ok),
+                                     largest_move_at_each_refit=moves)
         lm, ll = self.log_marginal(H, net, survey)
         self.H = H
         self.log_marginal_value = lm
         self.logw = ll - ll.max(1, keepdims=True)
         self.grid_table = self.search
+        self.H_cov = self.laplace() if adapt else None
         return self
 
-    def posterior_weights(self):
-        w = np.exp(self.logw)
+    # ---- hyperparameter coordinates and uncertainty -----------------------------------
+    @staticmethod
+    def _theta(H):
+        return np.array([H[0], H[1], np.log(H[2])], float)
+
+    def _to_free(self, H, margin=0.02):
+        u = np.clip((self._theta(H) - self.lo) / (self.hi - self.lo), margin, 1.0 - margin)
+        return np.log(u / (1.0 - u))
+
+    def _from_free(self, x):
+        th = self.lo + (self.hi - self.lo) * expit(np.asarray(x, float))
+        return (float(th[0]), float(th[1]), float(np.exp(th[2])))
+
+    def laplace(self, steps=(0.15, 0.08, 0.10)):
+        """Covariance of the hyperparameters theta = (delta, beta_d, log tau_u) from the curvature of
+        the estimated log marginal likelihood at the optimum. Under a flat hyperprior on the bounds
+        this is the Laplace approximation of their posterior, truncated to the box.
+
+        The curvature is the quadratic term of a least-squares quadratic fitted to the 27 points
+        theta + {-1, 0, 1}^3 x steps, about one standard error out. The estimate carries Monte
+        Carlo error, and a narrow finite-difference stencil turns that error into a noisy
+        curvature (standard errors varying four-fold between replications of the same design);
+        a wider design averages it out. If the fitted curvature is not negative definite, its
+        eigenvalues are floored at the precision of a uniform distribution over the box, a
+        conservative fallback, and `laplace_fallback` is set."""
+        net, survey = self.evidence
+        th = self._theta(self.H)
+        h = np.asarray(steps, float)
+        grid = np.array(np.meshgrid(*[[-1.0, 0.0, 1.0]] * 3, indexing='ij')).reshape(3, -1).T      # [27, 3]
+        X = grid * h
+        y = np.array([self.log_marginal((float(t[0]), float(t[1]), float(np.exp(t[2]))), net, survey)[0]
+                      for t in th + X])
+        iu = np.triu_indices(3)
+        quad = np.stack([X[:, i] * X[:, j] * (0.5 if i == j else 1.0) for i, j in zip(*iu, strict=True)], 1)
+        design = np.column_stack([np.ones(len(X)), X, quad])
+        coef = np.linalg.lstsq(design, y, rcond=None)[0]
+        A = np.zeros((3, 3))
+        for k, (i, j) in enumerate(zip(*iu, strict=True)):
+            A[i, j] = A[j, i] = coef[4 + k]
+        info = -A
+        ev, V = np.linalg.eigh(info)
+        floor = 12.0 / (self.hi - self.lo) ** 2                       # precision of uniform(lo, hi)
+        self.laplace_fallback = bool(np.any(ev <= 0))
+        if self.laplace_fallback:
+            ev = np.maximum(ev, float(floor.min()))
+        return V @ np.diag(1.0 / ev) @ V.T
+
+    @property
+    def H_se(self):
+        """Standard errors of (delta, beta_d, log tau_u) from the Laplace approximation (NaN if none)."""
+        if getattr(self, 'H_cov', None) is None:
+            return (np.nan, np.nan, np.nan)
+        return tuple(float(v) for v in np.sqrt(np.diag(self.H_cov)))
+
+    def draw_hyper(self, rng, tries=100):
+        """One draw of H from the truncated Laplace approximation (the fitted H if there is none)."""
+        if getattr(self, 'H_cov', None) is None:
+            return self.H
+        th, C = self._theta(self.H), np.linalg.cholesky(self.H_cov)
+        for _ in range(tries):
+            x = th + C @ rng.standard_normal(3)
+            if np.all(x >= self.lo) and np.all(x <= self.hi):
+                break
+        else:
+            x = np.clip(x, self.lo, self.hi)
+        return (float(x[0]), float(x[1]), float(np.exp(x[2])))
+
+    def posterior_weights(self, H=None):
+        """Importance weights of the country effects' posterior [n, M] at the fitted H, or at H."""
+        if H is None or tuple(H) == tuple(self.H):
+            w = np.exp(self.logw)
+        else:
+            net, survey = self.evidence
+            ll = self.loglik(H, net, survey) + self.log_ratio
+            w = np.exp(ll - ll.max(1, keepdims=True))
         return w / w.sum(1, keepdims=True)
 
-    def effective_sample_size(self):
-        w = self.posterior_weights()
+    def effective_sample_size(self, H=None):
+        w = self.posterior_weights(H)
         return 1.0 / (w ** 2).sum(1)
 
-    def sample_indices(self, rng, R):
-        """R posterior draws per country [n, R] (indices into the M latent draws)."""
-        w = self.posterior_weights()
+    def sample_indices(self, rng, R, H=None):
+        """R posterior draws per country [n, R] (indices into the M latent draws), at H if given."""
+        w = self.posterior_weights(H)
         c = np.cumsum(w, 1)
         u = rng.random((self.n, R))
         return np.minimum((u[:, :, None] > c[:, None, :]).sum(2), self.M - 1)
@@ -527,15 +748,19 @@ class Ensemble:
 
 def nelder_mead(f, x0, step, max_eval=150, xtol=1e-3, ftol=1e-3):
     """Minimise f from x0 with the Nelder-Mead simplex (reflection 1, expansion 2, contraction 0.5,
-    shrink 0.5). Small and dependency-free; f is the negative estimated log marginal likelihood."""
+    shrink 0.5). Small and dependency-free; f is the negative estimated log marginal likelihood.
+    Returns (x, f(x), converged), converged meaning the simplex met both tolerances before
+    `max_eval` evaluations."""
     n = len(x0)
     pts = [np.asarray(x0, float)] + [np.asarray(x0, float) + step[i] * np.eye(n)[i] for i in range(n)]
     vals = [f(x) for x in pts]
     evals = n + 1
+    converged = False
     while evals < max_eval:
         order = np.argsort(vals)
         pts, vals = [pts[i] for i in order], [vals[i] for i in order]
         if abs(vals[-1] - vals[0]) < ftol and max(np.abs(p - pts[0]).max() for p in pts[1:]) < xtol:
+            converged = True
             break
         c = np.mean(pts[:-1], axis=0)
         xr = c + (c - pts[-1])
@@ -558,7 +783,8 @@ def nelder_mead(f, x0, step, max_eval=150, xtol=1e-3, ftol=1e-3):
                 pts = [pts[0]] + [pts[0] + 0.5 * (p - pts[0]) for p in pts[1:]]
                 vals = [vals[0]] + [f(p) for p in pts[1:]]
                 evals += n
-    return pts[int(np.argmin(vals))]
+    i = int(np.argmin(vals))
+    return pts[i], float(vals[i]), converged
 
 
 def apply_caps(d, v, a, caps):

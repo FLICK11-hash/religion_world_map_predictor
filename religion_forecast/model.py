@@ -13,8 +13,6 @@ Used by run.py project (2020 -> 3030) and run.py backtest (historical decades). 
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -208,7 +206,8 @@ def draw_run(ctx, rng, scenario):
     p['tfr_dev'] = rng.normal(0.0, p['tfr_country_sd'], size=ctx.n)     # country deviation after 2100
     p['switch_strength'] = _u(rng, sw.get('strength_range', {}).get('range', [1.0, 1.0]))
     p['survey_weight'] = _u(rng, sw.get('survey_level_weight', {}).get('range', [0.0, 1.0]))
-    p['margin_rho'] = _u(rng, mg.get('margin_rho', {}).get('range', [1.0, 1.0]))     # drawn last: earlier draws unchanged
+    p['margin_rho'] = _u(rng, mg.get('margin_rho', {}).get('range', [1.0, 1.0]))
+    p['selectivity_cap'] = _u(rng, mg.get('minority_selectivity_cap', {}).get('range', [np.inf, np.inf]))
     return p
 
 
@@ -241,8 +240,9 @@ class Demography:
         # fertility advantage for centuries. With a permanent deviation (the earlier assumption)
         # a 0.1-child difference compounds over 900 years and dominates the 2500-3026 spread.
         lvl = p['tfr_lr'] + p['tfr_dev'] * 2.0 ** (-t / p['tfr_dev_half_life'])
-        tfr = lvl + (b['tfr'] - lvl) * np.exp(-t / p['tfr_hl'])
-        e0 = np.minimum(b['e0'] + p['e0_gain'] * t, p['e0_cap'])
+        tfr = lvl + (b['tfr'] - lvl) * 2.0 ** (-t / p['tfr_hl'])
+        # life expectancy keeps rising towards the cap; a country already above it stays where it is
+        e0 = np.maximum(b['e0'], np.minimum(b['e0'] + p['e0_gain'] * t, p['e0_cap']))
         gain = np.maximum(e0 - b['e0'], 0.0)
         q5 = b['q5'] * np.exp(-0.08 * gain)
         return dict(tfr=np.clip(tfr, 0.8, 6.0), e0=e0, q5=q5, mac=b['mac'], female_share=b['female_share'],
@@ -292,10 +292,13 @@ class Fertility:
         self.w_add = p['w_add']
         self.world = float(ctx.a['fertility']['reference_world_tfr']['value'])
         self.gen = np.array([1.0, p['m_g1'], p['m_g2']])
+        self.t0 = 2020.0                    # the gaps start converging here (a hindcast sets its origin)
 
     def rel(self, year, tfr):
-        t = max(year - 2.5 - 2020.0, 0.0)
-        gap = self.gap0 * np.exp(-t / self.Hf)
+        """Relative fertility [n, K, G] for the step ending in `year`: the gap halves every Hf years
+        from t0, measured at the middle of the step."""
+        t = max(year - 2.5 - self.t0, 0.0)
+        gap = self.gap0 * 2.0 ** (-t / self.Hf)
         rel = 1.0 + gap
         if self.w_add > 0:
             # A gap carried over from a world or regional figure can be read either as the same
@@ -312,7 +315,10 @@ class Fertility:
 class SwitchPlan:
     """Time path of lifetime switching rates for one run, then 5-year matrices."""
 
-    def __init__(self, ctx, p, hier, draw_idx, scenario_cfg, every=2):
+    def __init__(self, ctx, p, hier, draw_idx, scenario_cfg, every=2, H=None, survey_level=None):
+        """hier: a fitted switching.Hierarchy; draw_idx [n]: this run's posterior draw of every
+        country's effects; H: this run's hyperparameters (the fitted ones if None); survey_level:
+        the survey-level shifts that go with H (hier.survey_level if None)."""
         self.ctx, self.p, self.h, self.idx = ctx, p, hier, draw_idx
         s = scenario_cfg['switching']
         self.s = s
@@ -324,7 +330,8 @@ class SwitchPlan:
         sd = s.get('drift_sd_per_century', 0.0) * np.sqrt(5.0 / 100.0)
         self.drift_d = np.cumsum(rng.normal(0, sd, size=(steps, ctx.n)), 0)
         self.drift_a = np.cumsum(rng.normal(0, sd, size=(steps, ctx.n)), 0)
-        self.H = hier.H
+        self.H = hier.H if H is None else tuple(H)
+        self.survey_level = getattr(hier, 'survey_level', None) if survey_level is None else survey_level
         i = np.arange(ctx.n)
         self.xi_u = hier.xi_u[i, draw_idx]
         self.xi_e = hier.xi_e[i, draw_idx]
@@ -339,11 +346,11 @@ class SwitchPlan:
         trend = s.get('trend_logit_per_century', 0.0) * (min(t, trend_end) - 2020.0) / 100.0 if t > 2020 else 0.0
         n = len(z)
         if year > 2100:
-            k = min(int((year - 2100) // 5), len(self.drift_d) - 1)
+            k = min(int((year - 2105) // 5), len(self.drift_d) - 1)      # 2105: the first increment
             dd, da = self.drift_d[k], self.drift_a[k]
         else:
             dd, da = np.zeros(n), np.zeros(n)
-        cal = getattr(h, 'survey_level', None)
+        cal = self.survey_level
         om = float(self.p.get('survey_weight', 0.0)) if cal is not None else 0.0
         sd = om * np.asarray(cal['shift_d']) if cal is not None else 0.0              # [n, K-1]
         sa = om * np.asarray(cal['shift_a']) if cal is not None else 0.0              # [n]
@@ -396,6 +403,8 @@ class MigrationPlan:
         self.omega0 = 1.0 if self.network is None else p['omega']
         self.cap = ctx.a['migration']['cell_cap']['value']
         self.rho = float(p.get('margin_rho', 1.0))
+        self.selectivity_cap = float(p.get('selectivity_cap', np.inf))
+        self.net_gap = []                     # per WPP step: sum |net used - WPP net| / sum |WPP net|
         cap = p.get('corridor_cap', ctx.a['migration'].get('corridor_cap', {}).get('value'))
         self.corridor_cap = None if cap is None else float(cap)
         self.b2100 = None
@@ -406,7 +415,8 @@ class MigrationPlan:
         self.balance = []
         self.selectivity_fixed = None
         if ctx.migrant_religion is not None and 'emigrants' in ctx.migrant_religion:
-            self.selectivity_fixed = MG.selectivity_from_migrant_composition(ctx.s2020, ctx.migrant_religion['emigrants'])
+            self.selectivity_fixed = MG.selectivity_from_migrant_composition(
+                ctx.s2020, ctx.migrant_religion['emigrants'])
 
     def multiplier(self, year):
         return float(np.exp(np.interp(year - 2.5, self.knot_t, self.knot_m)))
@@ -432,6 +442,8 @@ class MigrationPlan:
             F, a_, b_, err = MG.sinkhorn(Km, E_o, I_d, rho=self.rho, rho_col=self.rho)
             F = MG.cap_corridors(F, self.network, self.corridor_cap)
             self.balance.append(info['balance_scale'])
+            net = mult * np.asarray(dem['net5'], float)
+            self.net_gap.append(float(np.abs(F.sum(0) - F.sum(1) - net).sum() / max(np.abs(net).sum(), 1e-300)))
             if year == 2100:
                 self.b2100 = b_ / max(np.mean(b_[b_ > 0]), 1e-300)
                 self.rate2100 = F.sum(1) / np.maximum(pop, 1.0) / mult
@@ -451,7 +463,8 @@ class MigrationPlan:
         F = self.flows(year, dem, P)
         sel = self.ctx.selectivity
         if sel is not None and sel.get('kind') == 'affinity' and self.selectivity_fixed is None:
-            emig, immig, F_used, short = MG.realise_affinity(F, P, sel['lam'], sel['kappa'], self.cap)
+            emig, immig, F_used, short = MG.realise_affinity(F, P, sel['lam'], sel['kappa'], self.cap,
+                                                             sel_cap=self.selectivity_cap)
         else:
             emig, immig, F_used, short = MG.realise(F, P, self.selectivity(E.shares(P)), self.cap)
         self.shortfall += short
@@ -501,7 +514,8 @@ def initial_population(ctx, p, year, shares, age_dist=None):
         g1 = foreign_born_proxy(ctx, year, ctx.a['generations']['foreign_born_proxy_attrition_years']['value'])
         w = ctx.gravity * pop[:, None]                         # gravity-weighted origins
     if ctx.selectivity is not None and ctx.selectivity.get('kind') == 'affinity':
-        mix = MG.corridor_mix(shares, ctx.selectivity['lam'], ctx.selectivity['kappa'])      # [o, d, r]
+        mix = MG.corridor_mix(shares, ctx.selectivity['lam'], ctx.selectivity['kappa'],
+                              cap=p.get('selectivity_cap', ctx.selectivity.get('cap', np.inf)))     # [o, d, r]
         comp = np.einsum('od,odr->dr', w, mix)
     else:
         sel = emigration_selectivity(ctx, shares, p)
@@ -525,9 +539,13 @@ def default_intensity(p):
 
 
 def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=3030, start_shares=None,
-             switching=True, migration=True, fertility_gaps=True, keep_years=None, record=True):
+             switching=True, migration=True, fertility_gaps=True, keep_years=None, record=True, H=None,
+             survey_level=None):
     """Run one parameter set. Returns dict with shares/pop at kept years, components by period,
     global shares at every step, and diagnostics.
+
+    hier, draw_idx, H, survey_level: the switching model and this run's draw from it (see
+    calibration.draw_switching); H and survey_level default to the fitted values.
 
     switching / migration / fertility_gaps turn one mechanism off, for the ablation experiments.
     With fertility_gaps=False every religion in a country has that country's fertility, so births
@@ -540,7 +558,8 @@ def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=303
     if not fertility_gaps:
         fert.gap0 = np.zeros_like(fert.gap0)
         fert.gen = np.ones(E.G)
-    sw = SwitchPlan(ctx, p, hier, draw_idx, scenario_cfg) if (switching and hier is not None) else None
+    sw = (SwitchPlan(ctx, p, hier, draw_idx, scenario_cfg, H=H, survey_level=survey_level)
+          if (switching and hier is not None) else None)
     mig = MigrationPlan(ctx, p, scenario_cfg) if migration else None
     inten = default_intensity(p)
     periods = [pr for pr in PERIODS if pr[0] >= start_year and pr[1] <= end_year] or [(start_year, end_year)]
@@ -594,7 +613,8 @@ def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=303
         s25, s30 = res['shares'].get(3025), res['shares'].get(3030)
         if s25 is not None and s30 is not None:
             res['shares'][3026] = 0.8 * s25 + 0.2 * s30
-            res['pop'][3026] = np.exp(0.8 * np.log(np.maximum(res['pop'][3025], 1)) + 0.2 * np.log(np.maximum(res['pop'][3030], 1)))
+            res['pop'][3026] = np.exp(0.8 * np.log(np.maximum(res['pop'][3025], 1))
+                                      + 0.2 * np.log(np.maximum(res['pop'][3030], 1)))
             res['foreign_born'][3026] = 0.8 * res['foreign_born'][3025] + 0.2 * res['foreign_born'][3030]
             res['second_gen'][3026] = 0.8 * res['second_gen'][3025] + 0.2 * res['second_gen'][3030]
     res['fertility_evidence'] = fert.evidence
@@ -602,22 +622,27 @@ def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=303
     res['mig_out'], res['mig_in'], res['od'] = mig_out, mig_in, od
     res['final_state'] = P
     res['migration_shortfall'] = 0.0 if mig is None else mig.shortfall
+    # how far the realised net migration is from WPP's, 2020-2100 (0 with exact margins)
+    res['migration_net_gap'] = float(np.mean(mig.net_gap)) if mig is not None and mig.net_gap else 0.0
     return res
 
 
 # ------------------------------------------------------------------------------ hindcast
 def hindcast(ctx, p, start_year, start_shares, years=10, hier=None, draw_idx=None, scenario_cfg=None,
-             migration=True, return_state=False, path=None):
-    """Historical run from observed shares at start_year for `years` with WPP estimates.
-    Without `hier` there is no switching. Returns (predicted shares, initial state), plus the final
-    state when return_state is True. With `path` (a set of years), returns instead a dict
-    {year: predicted shares} for those years."""
+             migration=True, return_state=False, path=None, H=None, survey_level=None):
+    """Historical run from observed shares at start_year for `years` with WPP estimates, built as the
+    projection is: the development index follows each period's WPP life expectancy and fertility,
+    and fertility gaps start converging at start_year. Without `hier` there is no switching; H is
+    this run's switching hyperparameters (the fitted ones if None). Returns (predicted shares,
+    initial state), plus the final state when return_state is True. With `path` (a set of years),
+    returns instead a dict {year: predicted shares} for those years."""
     cfg = scenario_cfg or {'switching': {'dev_link_until': 3030}, 'migration': {
         'multiplier_knots': [[1900, 1.0], [3100, 1.0]]}, 'fertility': {}}
     P0 = initial_population(ctx, p, start_year, start_shares)
     P = P0.copy()
     dem = Demography(ctx, p)
     fert = Fertility(ctx, p, cfg)
+    fert.t0 = float(start_year)
     inten = default_intensity(p)
     mig = MigrationPlan(ctx, p, cfg) if migration else None
     if mig is not None and ctx.stock_df is not None:
@@ -625,16 +650,15 @@ def hindcast(ctx, p, start_year, start_shares, years=10, hier=None, draw_idx=Non
         mig.network = S
         mig.mobility = ctx.mobility_from(S, sy)
         mig.omega0 = 1.0 if S is None else p['omega']
-    sw = SwitchPlan(ctx, p, hier, draw_idx, cfg, every=1) if hier is not None else None
+    sw = SwitchPlan(ctx, p, hier, draw_idx, cfg, every=1, H=H, survey_level=survey_level) if hier is not None else None
     out = {}
     for year in range(start_year + 5, start_year + years + 1, 5):
         d = dem.period(year)
         s_, so, sb = E.life_tables(d['e0'], d['q5'])
-        inp = dict(tfr=d['tfr'], shape=E.asfr_shapes(d['mac']), rel=fert.rel(2022.5, d['tfr']),
+        inp = dict(tfr=d['tfr'], shape=E.asfr_shapes(d['mac']), rel=fert.rel(year, d['tfr']),
                    female_share=d['female_share'], s=s_, s_open=so, s_birth=sb, intensity=inten, T=None)
         if sw is not None:
-            z = development(ctx, ctx.wpp_at('e0', start_year), ctx.wpp_at('tfr', start_year))
-            inp['T'] = sw.matrices(year, z, E.shares(P))
+            inp['T'] = sw.matrices(year, development(ctx, d['e0'], d['tfr']), E.shares(P))
         mfn = (lambda Q, y=year, dd=d: mig.realise(y, dd, Q)) if mig is not None else None
         P, _ = E.step(P, inp, migration_fn=mfn, natural_growth=d['natural_growth'])
         if path is not None and year in path:

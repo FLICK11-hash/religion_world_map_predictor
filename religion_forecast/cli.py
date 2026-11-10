@@ -15,6 +15,8 @@ Stages, in pipeline order:
     backtest     forward-chaining history tests, country-level inference, the forecast-error
                  record and its predictive-interval calibration, migration checks
     project      the scenario x Monte Carlo projection
+    recovery     simulation study: does the switching estimator recover known hyperparameters
+                 under the real design, and do its intervals cover them
     experiments  mechanism ablations, global sensitivity, migrant-sorting sensitivity
     checks       integrity checks on the outputs (exit code 0 = all passed)
     figures      maps and charts as SVG (add --png for the matplotlib versions)
@@ -28,7 +30,6 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from religion_forecast import config
 
@@ -43,7 +44,7 @@ def _stage(name: str, argv: list[str]) -> int:
     if name == 'test':
         return _run_tests(argv)
     from importlib import import_module
-    module = {'fetch': 'fetch', 'backtest': 'backtest', 'project': 'projection',
+    module = {'fetch': 'fetch', 'backtest': 'backtest', 'project': 'projection', 'recovery': 'recovery',
               'experiments': 'experiments', 'checks': 'checks', 'report': 'report'}.get(name)
     if module:
         return import_module(f'religion_forecast.{module}').main(argv) or 0
@@ -57,8 +58,8 @@ def _stage(name: str, argv: list[str]) -> int:
     raise SystemExit(f'unknown stage: {name}')
 
 
-STAGES = ['fetch', 'test', 'backtest', 'project', 'experiments', 'checks', 'figures', 'report']
-ALL_STAGES = ['test', 'backtest', 'project', 'experiments', 'checks', 'figures', 'report']
+STAGES = ['fetch', 'test', 'backtest', 'project', 'recovery', 'experiments', 'checks', 'figures', 'report']
+ALL_STAGES = ['test', 'backtest', 'project', 'recovery', 'experiments', 'checks', 'figures', 'report']
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     quick = {'project': ['--quick'], 'experiments': ['--runs', '4', '--sensitivity-runs', '24'],
-             'backtest': ['--error-runs', '8']} if '--quick' in rest else {}
+             'backtest': ['--error-runs', '8'], 'recovery': ['--quick']} if '--quick' in rest else {}
     t0 = time.time()
     for name in ALL_STAGES:
         extra = list(quick.get(name, []))

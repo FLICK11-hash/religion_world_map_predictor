@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import html
 import zipfile
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -63,12 +62,13 @@ def load_shapes():
     with zipfile.ZipFile(zp) as z:
         dbf = H._dbf_frame(z.read('ne_50m_admin_0_countries.dbf'))
         recs = H._shp_records(z.read('ne_50m_admin_0_countries.shp'))
-    strip = lambda s: s.astype(str).str.replace('\x00', '', regex=False).str.strip()
-    clean = lambda s: strip(s).str.upper()
-    iso, adm = clean(dbf['ISO_A3']), clean(dbf['ADM0_A3'])
+    def strip(s):
+        return s.astype(str).str.replace('\x00', '', regex=False).str.strip()
+
+    iso, adm = strip(dbf['ISO_A3']).str.upper(), strip(dbf['ADM0_A3']).str.upper()
     cont = strip(dbf['CONTINENT'])
     ids = iso.where(iso.str.fullmatch('[A-Z]{3}'), adm)
-    names = dict(zip(ids, strip(dbf['NAME'])))
+    names = dict(zip(ids, strip(dbf['NAME']), strict=True))
     paths, centre = {}, {}
     for i, rings in enumerate(recs):
         if cont.iat[i] == 'Antarctica' or not rings:
@@ -98,15 +98,18 @@ def _values_by_map_id(values):
     return s
 
 
+
+def _esc(x):
+    return html.escape(str(x))
+
 def render(spec, shapes, names=None, dots=None):
     vals = _values_by_map_id(spec['values'])
-    esc = lambda x: html.escape(str(x))
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.0f} {HGT + 150:.0f}" role="img" '
            f'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
-           f'<title>{esc(spec["title"])}</title>',
-           f'<rect width="100%" height="100%" fill="white"/>',
-           f'<text x="{W / 2}" y="30" text-anchor="middle" font-size="24" font-weight="700" fill="#111">{esc(spec["title"])}</text>',
-           f'<text x="{W / 2}" y="54" text-anchor="middle" font-size="13" fill="#45545E">{esc(spec["subtitle"])}</text>',
+           f'<title>{_esc(spec["title"])}</title>',
+           '<rect width="100%" height="100%" fill="white"/>',
+           f'<text x="{W / 2}" y="30" text-anchor="middle" font-size="24" font-weight="700" fill="#111">{_esc(spec["title"])}</text>',
+           f'<text x="{W / 2}" y="54" text-anchor="middle" font-size="13" fill="#45545E">{_esc(spec["subtitle"])}</text>',
            f'<g transform="translate(0,70)"><rect width="{W}" height="{HGT}" fill="#F5F8FB"/>']
     kind = spec['kind']
 
@@ -123,15 +126,15 @@ def render(spec, shapes, names=None, dots=None):
     for mid, d in shapes.items():
         fill, tip = fill_for(vals.get(mid, None))
         name = (names or {}).get(mid, mid)
-        out.append(f'<path d="{d}" fill="{fill}" stroke="#F3F4F5" stroke-width="0.4"><title>{esc(name)} ({esc(mid)}): '
-                   f'{esc(tip)}</title></path>')
+        out.append(f'<path d="{d}" fill="{fill}" stroke="#F3F4F5" stroke-width="0.4"><title>{_esc(name)} ({_esc(mid)}): '
+                   f'{_esc(tip)}</title></path>')
     for mid, (cx, cy) in sorted((dots or {}).items()):
         if mid not in vals.index:
             continue
         fill, tip = fill_for(vals.get(mid))
         name = (names or {}).get(mid, mid)
         out.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3.2" fill="{fill}" stroke="#52514e" '
-                   f'stroke-width="0.7"><title>{esc(name)} ({esc(mid)}): {esc(tip)} - too small to draw to '
+                   f'stroke-width="0.7"><title>{_esc(name)} ({_esc(mid)}): {_esc(tip)} - too small to draw to '
                    f'scale, marked as a point</title></circle>')
     out.append('</g>')
     y0 = HGT + 92
@@ -144,7 +147,7 @@ def render(spec, shapes, names=None, dots=None):
             yy = y0 + (i // 5) * 24
             col = spec['colors'].get(c, MISSING)
             out.append(f'<rect x="{x:.0f}" y="{yy - 12}" width="16" height="14" fill="{col}" stroke="#777" stroke-width="0.5"/>')
-            out.append(f'<text x="{x + 24:.0f}" y="{yy}" font-size="14" fill="#222">{esc(MD.label(c))}</text>')
+            out.append(f'<text x="{x + 24:.0f}" y="{yy}" font-size="14" fill="#222">{_esc(MD.label(c))}</text>')
     else:
         x0, bw = W * 0.2, W * 0.6
         stops = ''.join(f'<stop offset="{t:.2f}" stop-color="{colour(spec["cmap"], t)}"/>' for t in np.linspace(0, 1, 21))
@@ -155,8 +158,8 @@ def render(spec, shapes, names=None, dots=None):
             v = lo + t * (hi - lo)
             txt = f'{100 * v:.0f}' if spec.get('percent') else (f'{v:.2f}' if abs(hi - lo) < 5 else f'{v:.0f}')
             out.append(f'<text x="{x0 + t * bw:.0f}" y="{y0 + 20}" text-anchor="middle" font-size="13" fill="#333">{txt}</text>')
-        out.append(f'<text x="{W / 2}" y="{y0 + 40}" text-anchor="middle" font-size="13" fill="#333">{esc(spec.get("colorbar", ""))}</text>')
-    out.append(f'<text x="{W / 2}" y="{HGT + 145}" text-anchor="middle" font-size="12" fill="#58646F">{esc(spec.get("footnote", ""))}</text>')
+        out.append(f'<text x="{W / 2}" y="{y0 + 40}" text-anchor="middle" font-size="13" fill="#333">{_esc(spec.get("colorbar", ""))}</text>')
+    out.append(f'<text x="{W / 2}" y="{HGT + 145}" text-anchor="middle" font-size="12" fill="#58646F">{_esc(spec.get("footnote", ""))}</text>')
     out.append('</svg>')
     return ''.join(out)
 
@@ -176,8 +179,11 @@ def main(argv=None):
         items.append((spec, path.relative_to(OUT).as_posix()))
     charts = CH.build_all(OUT, log=lambda *_: None)
     # <object> (not <img>) keeps the hover titles working inside the gallery page
-    fig = lambda p, t: (f'<figure><object type="image/svg+xml" data="{p}" aria-label="{html.escape(t)}"></object>'
-                        f'<figcaption>{html.escape(t)}</figcaption></figure>')
+
+    def fig(p, t):
+        return (f'<figure><object type="image/svg+xml" data="{p}" aria-label="{html.escape(t)}"></object>'
+                f'<figcaption>{html.escape(t)}</figcaption></figure>')
+
     cards = ''.join(fig(c, c.replace('_', ' ')[:-4].capitalize()) for c in charts)
     cards += ''.join(fig(p, s['title']) for s, p in items if not p.startswith('shares/'))
     shares = ''.join(fig(p, s['title']) for s, p in items if p.startswith('shares/'))

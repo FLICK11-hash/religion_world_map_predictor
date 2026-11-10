@@ -6,9 +6,7 @@ forecast outputs in data/projections/ (simulation means over runs); nothing is r
 """
 from __future__ import annotations
 
-from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from religion_forecast import config
 

@@ -49,7 +49,8 @@ def attach_predictive(stores, error_model, seed, draws=25):
             j = YEARS.index(y)
             rng = np.random.default_rng([seed, 9090])
             samples = st.sh[:R, j].astype(float)
-            d = ER.predictive(samples, y - 2020, error_model, rng, draws, nn=ER.neighbours(samples.mean(0), error_model))
+            d = ER.predictive(samples, y - 2020, error_model, rng, draws,
+                              nn=ER.neighbours(samples.mean(0), error_model))
             pop = np.repeat(st.pop[:R, j], draws, axis=0)
             w = pop / np.maximum(pop.sum(1, keepdims=True), 1e-300)
             world = (d * w[:, :, None]).sum(1)
@@ -235,7 +236,8 @@ def dominant_change(ctx, name, st):
     base = dom[:, 0, :]
     rows = []
     for i, c in enumerate(ctx.ids):
-        row = {'scenario': name, 'country_id': c, 'dominant_2020': CATS[int(np.bincount(base[:, i], minlength=K).argmax())]}
+        row = {'scenario': name, 'country_id': c,
+               'dominant_2020': CATS[int(np.bincount(base[:, i], minlength=K).argmax())]}
         first = None
         for y in TARGET_YEARS[1:]:
             j = YEARS.index(y)
@@ -298,7 +300,8 @@ def switching_check(ctx, hier):
         rows.append({'religion': g, 'model_left_per_100_raised_18_54': model_left,
                      'pew_left_per_100_raised_18_54': float(pew.value.iloc[0]) if len(pew) else np.nan,
                      'model_lifetime_outflow_popweighted': 100 * float((base * out).sum() / max(base.sum(), 1e-300)),
-                     'share_of_lifetime_switching_completed_by_18_54': float((base * frac).sum() / max(base.sum(), 1e-300))})
+                     'share_of_lifetime_switching_completed_by_18_54':
+                         float((base * frac).sum() / max(base.sum(), 1e-300))})
     return pd.DataFrame(rows)
 
 
@@ -312,16 +315,22 @@ def provenance(ctx, hier, wins):
     add('national fertility, mortality, net migration to 2100', 'WPP 2024 medium', 'observed/projected', 'UN WPP 2024')
     for k, v in D.catalogue().items():
         add(f'input {k}', v['detail'], v['status'], 'religion_forecast/datasets.py')
-    add('switching hyperparameters (delta, beta_d, tau_u)', str(hier.H), 'estimated', 'empirical Bayes, religion_forecast.switching')
-    add('switching evidence windows', ', '.join(f"{w['source']} {w['start']}-{w['end']}" for w in wins), 'observed', 'WRP, Pew')
+    se = np.mean([m.H_se for m in getattr(hier, 'members', [hier])], axis=0)
+    add('switching hyperparameters (delta, beta_d, tau_u)',
+        f'{hier.H[0]:.3f} (se {se[0]:.3f}), {hier.H[1]:.3f} (se {se[1]:.3f}), {hier.H[2]:.3f} (se of log {se[2]:.3f})',
+        'estimated', 'empirical Bayes, religion_forecast.switching; drawn per run from the Laplace approximation')
+    add('switching evidence windows', ', '.join(f"{w['source']} {w['start']}-{w['end']}" for w in wins),
+        'observed', 'WRP, Pew')
     if ctx.switch_obs is not None:
         add('survey switching cells', f'{len(ctx.switch_obs)} cells, {ctx.switch_obs.country_id.nunique()} countries',
             'observed', 'inputs/switching_lifetime_observed.csv')
     if ctx.selectivity is not None:
         add('religion of migrants: destination affinity kappa, minority effect lambda',
-            f"kappa={ctx.selectivity.get('kappa', 0):.2f}; lambda={ctx.selectivity['lam']:.2f}",
+            f"kappa={ctx.selectivity.get('kappa', 0):.2f}; lambda={ctx.selectivity['lam']:.2f} "
+            f"(at minority cap {ctx.selectivity.get('cap', float('inf')):g})",
             'estimated', f"grid fit to Pew's published religious composition of migrants (19 targets), rmse "
-                         f"{ctx.selectivity['rmse_pp']:.2f} pp (migrants mirroring origin: {ctx.selectivity['rmse_mirror_pp']:.2f})")
+                         f"{ctx.selectivity['rmse_pp']:.2f} pp (migrants mirroring origin: "
+                         f"{ctx.selectivity['rmse_mirror_pp']:.2f})")
 
     def walk(prefix, obj):
         if isinstance(obj, dict):
@@ -334,7 +343,8 @@ def provenance(ctx, hier, wins):
                     walk(f'{prefix}.{kk}' if prefix else kk, vv)
     walk('', {k: v for k, v in a.items() if k != 'scenarios'})
     for name, cfg in a['scenarios'].items():
-        add(f'scenario {name}', json.dumps({k: cfg[k] for k in ('switching', 'migration', 'fertility')}), 'scenario assumption',
+        add(f'scenario {name}', json.dumps({k: cfg[k] for k in ('switching', 'migration', 'fertility')}),
+            'scenario assumption',
             cfg['label'])
     return pd.DataFrame(rows)
 
@@ -464,7 +474,7 @@ def pew_2015_benchmark(ctx, ct, ref):
     if pew is None:
         return pd.DataFrame()
     r = ct[ct.scenario.eq(ref)]
-    region_of = dict(zip(ctx.ids, ctx.fertility['region_of']))
+    region_of = dict(zip(ctx.ids, ctx.fertility['region_of'], strict=True))
     rows = []
     for level, areas in (('world', ['WORLD']), ('region', sorted(set(region_of.values()) - {'Unknown'}))):
         for area in areas:
@@ -490,7 +500,8 @@ def pew_2015_benchmark(ctx, ct, ref):
                              'this_model_change_pp': 100 * (ours[2050][c] - ours[2020][c]),
                              'pew2015_2020_pp': 100 * pews[2020][c], 'pew2015_2050_pp': 100 * pews[2050][c],
                              'pew2015_change_pp': 100 * (pews[2050][c] - pews[2020][c]),
-                             'change_difference_pp': 100 * ((ours[2050][c] - ours[2020][c]) - (pews[2050][c] - pews[2020][c])),
+                             'change_difference_pp': 100 * ((ours[2050][c] - ours[2020][c])
+                                                            - (pews[2050][c] - pews[2020][c])),
                              'level_difference_2020_pp': 100 * (ours[2020][c] - pews[2020][c])})
     return pd.DataFrame(rows)
 
@@ -546,7 +557,7 @@ def _pew_country_codes(ctx, names):
         known[c] = c
     ne = getattr(ctx, 'country_name', None)
     if ne is not None:
-        for c, nm in zip(ctx.ids, ne):
+        for c, nm in zip(ctx.ids, ne, strict=True):
             known[str(nm).lower()] = c
     out = {}
     lowered = {k.lower(): v for k, v in known.items()}

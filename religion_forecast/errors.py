@@ -19,11 +19,12 @@ measurement. This module measures that error directly and adds it back.
       e = (h / 10)^beta * g(s) * u,      g(s) = (s (1 - s) + eps)^b,
 
   where s is the model's mean forecast share, u is a standardised error, and b and beta are
-  estimated: b from the regression of log|e| on log(s(1 - s) + eps) at ten years (small shares
-  move less), beta from the growth of the mean absolute standardised error with horizon.
+  estimated: b from the regression of log|e| on log(s(1 - s) + eps) at ten years over cells
+  observed above zero (small shares move less), beta from the growth of the mean absolute
+  standardised error with horizon.
 
 3 Draw. A predictive draw takes one Monte Carlo run of the model and adds
-  (h / 10)^beta * g(s) * u, with u resampled from the ten-year record in two stages: one
+  (h / 10)^beta * g(s) * u, with s the mean of the runs and u resampled from the ten-year record in two stages: one
   historical decade is drawn for the whole world, then each country takes the standardised error
   vector (all eight religions together) of one of its k = 15 nearest neighbours in that decade,
   nearest meaning the smallest total-variation distance between the two countries' forecast
@@ -43,12 +44,14 @@ measurement. This module measures that error directly and adds it back.
   post-communist and Chinese religious revival as one source measured it, and it is carried into
   the intervals. The centred version is reported for comparison (`centred=True`).
 
-4 Validate. Leave one origin out: b, beta and the resampling pool are re-estimated without it,
-  and its forecasts are scored for coverage and for the interval score of Gneiting and Raftery
-  (2007), against the parameter-only intervals.
+4 Validate. For each forecast in the record, b, beta and the resampling pool are re-estimated
+  from the entries that share no calendar years with it, and it is scored for coverage and for
+  the interval score of Gneiting and Raftery (2007), against the parameter-only intervals
+  (`validate`). A 'real-time' variant uses only entries that ended by the forecast's origin.
 
-The record's longest horizon is 40 years, so the growth law is an extrapolation beyond 2060, and
-the predictive intervals are reported to 2100 and no further.
+Out-of-sample calibration can be checked to 30 years (no 40-year forecast has a non-overlapping
+entry left); the growth law is an extrapolation beyond that, and the predictive intervals are
+reported to 2100 and no further.
 """
 from __future__ import annotations
 
@@ -81,11 +84,13 @@ def record(ctx, runs=40, seed=None, origins=(1970, 1980, 1990, 2000), last=2010,
     p0 = ES.central_params(ctx)
     wins = ES.no_switching_hindcasts(ctx, p0, ES.windows(ctx, (1950, 1960, 1970, 1980, 1990, 2000)))
     out = []
-    jobs = [('WRP', t0, [h for h in range(10, last - t0 + 1, 10)]) for t0 in origins]
+    jobs = [('WRP', t0, list(range(10, last - t0 + 1, 10))) for t0 in origins]
     if ctx.s2010 is not None:
         jobs.append(('Pew', 2010, [10]))
+    trains = {t0: [w for w in wins if w['source'] == 'WRP' and w['end'] <= t0] for _, t0, _ in jobs}
+    ES.fit_many(ctx, [t if len(t) >= 2 else [] for t in trains.values()], use_survey=False)
     for source, t0, horizons in jobs:
-        train = [w for w in wins if w['source'] == 'WRP' and w['end'] <= t0]
+        train = trains[t0]
         if len(train) < 2 or not horizons:
             continue
         hier = ES.fit_switching(ctx, train, use_survey=False)
@@ -102,8 +107,8 @@ def record(ctx, runs=40, seed=None, origins=(1970, 1980, 1990, 2000), last=2010,
         for r in range(runs):
             rng = np.random.default_rng([seed, 4242, t0, r])
             p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-            idx = hier.sample_indices(rng, 1)[:, 0]
-            path = SM.hindcast(ctx, p, t0, s0, years=max(years) - t0, hier=hier, draw_idx=idx, path=years)
+            sd = ES.draw_switching(ctx, hier, r, rng)
+            path = SM.hindcast(ctx, p, t0, s0, years=max(years) - t0, path=years, **sd.kwargs())
             for y in years:
                 samples[y][r] = path[y]
         for y, obs in targets.items():
@@ -119,25 +124,32 @@ def _scale(s, b):
     return (np.clip(s, 0.0, 1.0) * (1.0 - np.clip(s, 0.0, 1.0)) + EPS) ** b
 
 
-def fit(rec, exclude=None):
-    """Estimate b, beta and the resampling pool from the record, leaving out the entries whose
-    (source, origin) is `exclude`. Returns a dict (the model)."""
-    use = [x for x in rec if (x['source'], x['origin']) != exclude]
+def overlaps(x, y):
+    """True if forecasts x and y share any calendar years: (origin, target] intervals intersect."""
+    return x['origin'] < y['target'] and y['origin'] < x['target']
+
+
+def fit(rec, exclude=None, keep=None):
+    """Estimate b, beta and the resampling pool from the record. `keep(entry)` selects the entries
+    used; `exclude` = (source, origin) drops one origin (older interface). Returns a dict (the
+    model). b is fitted on cells whose observed share is above zero: where a group is recorded at
+    exactly zero the error equals the forecast by construction, which would pull b upwards. The
+    resampling pool keeps every cell, zeros included, because a group recorded at zero next round
+    is an outcome the intervals have to allow for."""
+    use = [x for x in rec if (x['source'], x['origin']) != exclude and (keep is None or keep(x))]
     base = [x for x in use if x['horizon'] == BASE_H]
     if not base:
         raise ValueError('the error record has no ten-year forecasts')
-    # b: log|e| on log(s(1 - s) + eps) over every observed ten-year cell
     xs, ys = [], []
     for x in base:
         m = x['mask']
         centre = x['samples'][:, m].mean(0)
         e = np.abs(x['obs'][m] - centre)
-        keep = e > 1e-7
-        xs.append(np.log(centre * (1 - centre) + EPS)[keep])
-        ys.append(np.log(e[keep]))
+        ok = (x['obs'][m] > 0) & (e > 1e-7)
+        xs.append(np.log(centre * (1 - centre) + EPS)[ok])
+        ys.append(np.log(e[ok]))
     X, Y = np.concatenate(xs), np.concatenate(ys)
-    b = float(np.polyfit(X, Y, 1)[0])
-    b = float(np.clip(b, 0.0, 1.0))
+    b = float(np.clip(np.polyfit(X, Y, 1)[0], 0.0, 1.0))
     # standardised errors and their size by horizon
     size = {}
     for x in use:
@@ -153,8 +165,9 @@ def fit(rec, exclude=None):
         ly = np.log(np.array([mean_abs[h] for h in hs]) / mean_abs[BASE_H])
         wts = np.array([cells[h] for h in hs], float)
         beta = float((wts * lx * ly).sum() / (wts * lx * lx).sum())
+        beta_source = 'estimated'
     else:
-        beta = 0.5                                     # random-walk growth when there is no record
+        beta, beta_source = 0.5, 'no longer horizons in the data used: random-walk growth assumed'
     beta = float(np.clip(beta, 0.0, 1.0))
     # resampling pool: one block per ten-year forecast, each country's standardised error vector,
     # and the pool's mean vector (subtracted when the errors are centred)
@@ -166,9 +179,9 @@ def fit(rec, exclude=None):
         u[m] = (x['obs'][m] - centre[m]) / _scale(centre[m], b)
         blocks.append(dict(label=f"{x['source']} {x['origin']}-{x['target']}", u=u, mask=m.copy(), s=centre.copy()))
     mean_u = np.nanmean(np.concatenate([blk['u'][blk['mask']] for blk in blocks]), axis=0)
-    return dict(b=b, beta=beta, eps=EPS, base_horizon=BASE_H, neighbours=NEIGHBOURS, mean_u=mean_u.tolist(),
-                mean_abs_standardised_error=mean_abs,
-                cells=cells, blocks=blocks, excluded=None if exclude is None else f'{exclude[0]} {exclude[1]}')
+    return dict(b=b, beta=beta, beta_source=beta_source, eps=EPS, base_horizon=BASE_H, neighbours=NEIGHBOURS,
+                mean_u=mean_u.tolist(), mean_abs_standardised_error=mean_abs, cells=cells, blocks=blocks,
+                entries_used=len(use), excluded=None if exclude is None else f'{exclude[0]} {exclude[1]}')
 
 
 def growth(model, h):
@@ -188,22 +201,28 @@ def neighbours(centre, model, k=NEIGHBOURS):
     return out
 
 
-def predictive(samples, horizon, model, rng, draws=10, nn=None, centred=False):
-    """Predictive draws [R * draws, n, K] from model draws `samples` [R, n, K] at `horizon` years.
-    `nn` (from `neighbours`) is computed from the mean of `samples` when not given. centred=True
-    subtracts the pooled mean standardised error (a comparison, not the projection's choice)."""
+def predictive(samples, horizon, model, rng, draws=10, nn=None, centred=False, central=False):
+    """Predictive draws [R * draws, n, K] from model draws `samples` [R, n, K] at `horizon` years:
+    each model draw plus (h / 10)^beta g(s) u, with s the mean of the model draws (as when the
+    errors were measured) and u from the two-stage bootstrap. `nn` (from `neighbours`) is computed
+    from that mean when not given. central=True adds the errors to the mean path only, dropping the
+    model's own spread (a comparison: the recorded errors were measured from the mean, so adding
+    them to every draw counts the record's own parameter spread twice; that spread is 5-10% of the
+    predictive width). centred=True subtracts the pooled mean standardised error (a comparison,
+    not the projection's choice)."""
     R, n, _ = samples.shape
     blocks = model['blocks']
-    nn = neighbours(samples.mean(0), model) if nn is None else nn
-    g = growth(model, horizon)
+    centre = samples.mean(0)
+    nn = neighbours(centre, model) if nn is None else nn
+    scale = growth(model, horizon) * _scale(centre, model['b'])
     shift = np.asarray(model.get('mean_u', np.zeros(K)), float) if centred else np.zeros(K)
     out = np.empty((R * draws, n, K))
     for j in range(R * draws):
         bi = rng.integers(len(blocks))
         cand = nn[bi]
         u = blocks[bi]['u'][cand[np.arange(n), rng.integers(cand.shape[1], size=n)]] - shift
-        s = samples[j // draws]
-        x = np.clip(s + g * _scale(s, model['b']) * u, 0.0, None)
+        s = centre if central else samples[j // draws]
+        x = np.clip(s + scale * u, 0.0, None)
         out[j] = x / np.maximum(x.sum(1, keepdims=True), 1e-300)
     return out
 
@@ -215,21 +234,38 @@ def interval_score(lo, hi, obs, alpha):
     return (hi - lo) + (2.0 / alpha) * np.maximum(lo - obs, 0.0) + (2.0 / alpha) * np.maximum(obs - hi, 0.0)
 
 
+SHARE_CLASSES = ((0.0, 0.01, 'under 1%'), (0.01, 0.05, '1-5%'), (0.05, 0.2, '5-20%'), (0.2, 1.01, '20% or more'))
+
+
 def _score_draws(draws, x, levels=LEVELS):
+    """Coverage and interval score of the central intervals of `draws` for the observed cells of
+    record entry x: over all cells; over cells observed above zero (a group recorded at exactly
+    zero is inside any interval reaching zero, which the clipping at zero makes common, so the
+    all-cells figure flatters small shares); and by the forecast share (known in advance). Also
+    the same for the world shares of the observed countries."""
     m = x['mask']
     obs = x['obs'][m]
     d = draws[:, m]
     w = np.repeat(x['pop'][m][:, None], K, axis=1)
+    centre = d.mean(0)
+    pos = obs > 0
     rows = []
     for lev in levels:
         a = 1.0 - lev
         lo, hi = np.quantile(d, a / 2, axis=0), np.quantile(d, 1 - a / 2, axis=0)
         inside = (obs >= lo) & (obs <= hi)
-        rows.append(dict(nominal=lev, coverage=float(inside.mean()),
-                         coverage_population_weighted=float(np.average(inside, weights=w)),
-                         interval_score_pp=100 * float(interval_score(lo, hi, obs, a).mean()),
-                         median_width_pp=100 * float(np.median(hi - lo))))
-    # the same for world shares (the population-weighted total of the observed countries)
+        isc = interval_score(lo, hi, obs, a)
+        row = dict(nominal=lev, coverage=float(inside.mean()),
+                   coverage_population_weighted=float(np.average(inside, weights=w)),
+                   coverage_observed_above_zero=float(inside[pos].mean()),
+                   interval_score_pp=100 * float(isc.mean()),
+                   interval_score_above_zero_pp=100 * float(isc[pos].mean()),
+                   median_width_pp=100 * float(np.median(hi - lo)), cells=int(inside.size),
+                   cells_observed_zero=int((~pos).sum()))
+        for lo_s, hi_s, name in SHARE_CLASSES:
+            c = (centre >= lo_s) & (centre < hi_s)
+            row[f'coverage_forecast_{name}'] = float(inside[c].mean()) if c.any() else np.nan
+        rows.append(row)
     pw = x['pop'][m] / x['pop'][m].sum()
     wobs = (obs * pw[:, None]).sum(0)
     wd = (d * pw[None, :, None]).sum(1)
@@ -242,33 +278,61 @@ def _score_draws(draws, x, levels=LEVELS):
     return rows, world
 
 
-def validate(rec, seed=None, draws=25, log=print):
-    """Leave-one-origin-out coverage and interval score of the parameter-only intervals, the
-    error-calibrated intervals (as projected) and, for comparison, the same with centred errors,
-    at every horizon the held-out origin has."""
+MAIN_SCHEME = 'non-overlapping'
+SCHEMES = {
+    # the forecast being scored shares no calendar years with any entry the error model is fitted on
+    'non-overlapping': lambda x, y: not overlaps(x, y),
+    # only what was known at the forecast's origin: entries that ended by then
+    'real-time': lambda x, y: y['target'] <= x['origin'],
+    # the earlier, optimistic design: every other origin, including decades inside the scored window
+    'leave-one-origin-out (overlapping)': lambda x, y: y['origin'] != x['origin'] or y['source'] != x['source'],
+}
+
+
+def validate(rec, seed=None, draws=25, log=print, schemes=None):
+    """Out-of-sample coverage and interval score of the predictive intervals.
+
+    For every forecast in the record, the error model is refitted on the entries a scheme allows
+    (SCHEMES) and the forecast is scored. The main scheme is 'non-overlapping': no entry the error
+    model uses shares calendar years with the forecast being scored, so a decade's shock is never
+    in the pool used to score it. A forecast is skipped when no ten-year entry is left (every
+    40-year forecast, and the earliest origins in real time). Under the main scheme four methods
+    are scored: the model's own draws (parameter uncertainty), the error-calibrated intervals as
+    projected, the same with errors added to the central path only, and with centred errors.
+    'real-time' and the older 'leave-one-origin-out (overlapping)' are scored for the projected
+    method only."""
     seed = 2026 if seed is None else seed
+    schemes = schemes or list(SCHEMES)
     rows, world_rows = [], []
-    for source, origin in sorted({(x['source'], x['origin']) for x in rec}):
-        model = fit(rec, exclude=(source, origin))
-        for x in [y for y in rec if (y['source'], y['origin']) == (source, origin)]:
+    for scheme in schemes:
+        allowed = SCHEMES[scheme]
+        for x in rec:
+            if not any(y['horizon'] == BASE_H and allowed(x, y) for y in rec):
+                continue
+            model = fit(rec, keep=lambda y, x=x, allowed=allowed: allowed(x, y))
             nn = neighbours(x['samples'].mean(0), model)
-            variants = (('model draws (parameter uncertainty)', x['samples']),
-                        ('error-calibrated', predictive(x['samples'], x['horizon'], model,
-                                                        np.random.default_rng([seed, origin, x['horizon']]), draws, nn)),
-                        ('error-calibrated, centred',
-                         predictive(x['samples'], x['horizon'], model,
-                                    np.random.default_rng([seed, origin, x['horizon']]), draws, nn, centred=True)))
+
+            def pred(x=x, model=model, nn=nn, **kw):
+                rng = np.random.default_rng([seed, x['origin'], x['horizon']])
+                return predictive(x['samples'], x['horizon'], model, rng, draws, nn, **kw)
+
+            variants = [('error-calibrated', pred())]
+            if scheme == schemes[0]:
+                variants = [('model draws (parameter uncertainty)', x['samples'])] + variants + [
+                    ('error-calibrated, central path', pred(central=True)),
+                    ('error-calibrated, centred', pred(centred=True))]
             for method, d in variants:
                 cells, world = _score_draws(d, x)
-                base = dict(window=f"{source} {origin}-{x['target']}", source=source, origin=origin,
-                            horizon=x['horizon'], method=method, countries=int(x['mask'].sum()),
-                            b=model['b'], beta=model['beta'])
+                base = dict(scheme=scheme, window=f"{x['source']} {x['origin']}-{x['target']}", source=x['source'],
+                            origin=x['origin'], horizon=x['horizon'], method=method, countries=int(x['mask'].sum()),
+                            b=model['b'], beta=model['beta'], beta_source=model['beta_source'],
+                            pool_blocks=len(model['blocks']), entries_used=model['entries_used'])
                 rows += [dict(base, **c) for c in cells]
                 for wr in world:
                     for k, inside in enumerate(wr['inside']):
                         world_rows.append(dict(base, nominal=wr['nominal'], religion=CATS[k], inside=inside,
                                                interval_score_pp=wr['interval_score_pp']))
-        log(f'  validated held-out origin {source} {origin}')
+        log(f'  validated the predictive intervals: {scheme}')
     return pd.DataFrame(rows), pd.DataFrame(world_rows)
 
 

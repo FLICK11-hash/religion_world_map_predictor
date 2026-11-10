@@ -81,7 +81,10 @@ def test_step_accounting_is_exact():
     dP = Q.sum((2, 3)) - P.sum((2, 3))
     assert np.abs(rec.persons.sum(2) - dP).max() <= 1e-9 * P.sum()
     assert np.abs(rec.share.sum(2) - (E.shares(Q) - E.shares(P))).max() < 1e-12
-    w = lambda X: X.sum((0, 2, 3)) / X.sum()
+
+    def w(X):
+        return X.sum((0, 2, 3)) / X.sum()
+
     assert np.abs(rec.world_share.sum(1) - (w(Q) - w(P))).max() < 1e-12
     assert abs(rec.persons[:, :, 4].sum() + rec.persons[:, :, 5].sum()) <= 1e-6 * P.sum()   # migration conserved
     assert (Q >= 0).all() and np.allclose(E.shares(Q).sum(1), 1)
@@ -115,7 +118,8 @@ def test_margins_feasible_when_one_country_dominates():
     assert (E_o + I_d <= E_o.sum() + 1e-6).all()              # nobody needs more arrivals than others send
     pos, neg = np.maximum(net, 0), np.maximum(-net, 0)
     scale = min(pos.sum(), neg.sum()) / max(pos.sum(), neg.sum())
-    want = np.where(net > 0, pos * (scale if pos.sum() > neg.sum() else 1), -neg * (scale if neg.sum() > pos.sum() else 1))
+    want = np.where(net > 0, pos * (scale if pos.sum() > neg.sum() else 1),
+                    -neg * (scale if neg.sum() > pos.sum() else 1))
     assert np.allclose(I_d - E_o, want)                       # net migration is unchanged by the cut
     Kg = MG.gravity_kernel(rng.uniform(100, 15000, (n, n)), np.zeros((n, n)), np.zeros((n, n)))
     F, _, _, err = MG.sinkhorn(MG.mixed_kernel(Kg), E_o, I_d)
@@ -168,25 +172,38 @@ def test_switching_matrices():
 
 
 def test_linear_effect_matches_simulation():
+    """The first-order switching effect used by the likelihood matches two engine steps (age, then
+    switch, twice) for young and old age structures alike. Small rates test the first-order term
+    itself (an exposure one age group too young was 10-20% off here for young populations); at
+    larger rates the second-order terms the likelihood ignores stay small."""
     rng = np.random.default_rng(5)
-    n = 10
+    n = 12
     sh = rng.dirichlet(np.ones(E.K) * .7, size=n)
-    P = rng.uniform(1e3, 1e5, (n, E.K, E.G, E.A)) * sh[:, :, None, None]
-    d, v, a = rng.uniform(0, .1, (n, 7)), rng.uniform(0, .01, (n, 7)), rng.uniform(0, .08, n)
-    Tg = E.generation_matrices(SW.five_year_matrices(SW.lifetime_matrix(d, v, a, sh)), [1, .5, .8])
-    Q, _, _ = E.switch(P, Tg)
-    aged = np.zeros_like(Q)
-    aged[..., 1:] = Q[..., :-1]
-    aged[..., -1] += Q[..., -1]
-    Q, _, _ = E.switch(aged, Tg)
-    exact = E.shares(Q) - E.shares(P)
+    ages = E.pyramid_for_median(np.linspace(16, 45, n))                    # Niger-like to Japan-like
+    P = rng.uniform(1e3, 1e5, (n, E.K, E.G, 1)) * sh[:, :, None, None] * ages[:, None, None, :]
+    d0, v0, a0 = rng.uniform(0, .1, (n, 7)), rng.uniform(0, .01, (n, 7)), rng.uniform(0, .08, n)
+
+    def age(X):                                    # survival 1, so only the switching effect is left
+        Y = np.zeros_like(X)
+        Y[..., 1:] = X[..., :-1]
+        Y[..., -1] += X[..., -1]
+        return Y
+
     Bd, Bv, Ba = SW.effect_basis(SW.exposure(P, [1, .5, .8], 2), E.shares(P))
-    lin = np.einsum('nj,njk->nk', d, Bd) + np.einsum('nj,njk->nk', v, Bv) + a[:, None] * Ba
-    assert np.abs(exact - lin).max() < 5e-4
+    for f, tol in ((0.1, 0.03), (1.0, 0.07)):
+        d, v, a = f * d0, f * v0, f * a0
+        Tg = E.generation_matrices(SW.five_year_matrices(SW.lifetime_matrix(d, v, a, sh)), [1, .5, .8])
+        Q, _, _ = E.switch(age(P), Tg)
+        Q, _, _ = E.switch(age(Q), Tg)
+        exact = E.shares(Q) - E.shares(age(age(P)))
+        lin = np.einsum('nj,njk->nk', d, Bd) + np.einsum('nj,njk->nk', v, Bv) + a[:, None] * Ba
+        ratio = np.abs(lin).sum(1) / np.abs(exact).sum(1)
+        assert np.abs(exact - lin).max() < 5e-4 and np.all(np.abs(ratio - 1) < tol), (f, ratio)
 
 
 def test_hierarchy_recovers_truth():
-    prior = dict(mu_d={c: .08 for c in E.CATS if c != 'Unaffiliated'}, mu_v={c: .01 for c in E.CATS if c != 'Unaffiliated'},
+    prior = dict(mu_d={c: .08 for c in E.CATS if c != 'Unaffiliated'},
+                 mu_v={c: .01 for c in E.CATS if c != 'Unaffiliated'},
                  mu_a=.12, beta_a=-.3, tau_e=.4, tau_a=.6, tau_v=.5,
                  grid=dict(delta=[-0.5, 0.5], beta_d=[0.0, 1.2], tau_u=[0.8]))
     rng = np.random.default_rng(6)
@@ -226,7 +243,7 @@ def test_shift_share_parts_sum_to_the_total():
     rng = np.random.default_rng(11)
     n = 25
     rows = []
-    for year, scale in ((2020, 1.0), (2100, 1.0)):
+    for year in (2020, 2100):
         sh = rng.dirichlet(np.ones(E.K), size=n)
         pop = rng.lognormal(15, 1.0, n)
         for i in range(n):
@@ -281,6 +298,14 @@ def test_integration_reproducible_and_exact():
     rec = a['components'][(2020, 2050)]
     assert np.abs(rec.share.sum(2) - (a['shares'][2050] - a['shares'][2020])).max() < 1e-10
     assert abs(rec.persons[:, :, 4].sum() + rec.persons[:, :, 5].sum()) < 1e-6 * a['pop'][2020].sum()
+    # the same runs in one process and in two worker processes give identical results
+    from religion_forecast import projection as FC
+    specs = [dict(scenario='rising_migration', r=r, options=dict(end_year=2030, keep_years=[2020, 2030]))
+             for r in range(2)]
+    ens = SW.Ensemble([hier])
+    serial = [res['shares'][2030] for _, _, res, _ in FC.simulate_runs(ctx, ens, specs, seed=7, workers=1)]
+    parallel = [res['shares'][2030] for _, _, res, _ in FC.simulate_runs(ctx, ens, specs, seed=7, workers=2)]
+    assert all(np.array_equal(x, y) for x, y in zip(serial, parallel, strict=True)), 'workers must not matter'
 
 
 def test_life_table_open_group_is_stationary():
@@ -316,7 +341,8 @@ def _survey_row(cells, n, alpha):
 def test_survey_row_is_one_multinomial():
     """One reported cell is a binomial; a row reporting stay + unaffiliated + one conversion cell
     is a single multinomial with the unreported conversions pooled, not three binomials."""
-    prior = dict(mu_d={c: .1 for c in E.CATS if c != 'Unaffiliated'}, mu_v={c: .02 for c in E.CATS if c != 'Unaffiliated'},
+    prior = dict(mu_d={c: .1 for c in E.CATS if c != 'Unaffiliated'},
+                 mu_v={c: .02 for c in E.CATS if c != 'Unaffiliated'},
                  mu_a=.12, beta_a=0.0, tau_e=.4, tau_a=.6, tau_v=.5, grid=dict(delta=[0.0], beta_d=[0.0], tau_u=[1.0]))
     h = SW.Hierarchy(1, prior, M=5, seed=1)
     H = (0.0, 0.0, 1.0)
@@ -334,14 +360,19 @@ def test_survey_row_is_one_multinomial():
     # little once n is well above alpha
     big = h.loglik(H, survey=_survey_row([(0, E.U, 0.2, 0.0)], 100, 1e9))[0]
     assert np.allclose(big - big.mean(), one - one.mean(), atol=1e-4)
-    curv = lambda n: np.ptp(h.loglik(H, survey=_survey_row([(0, E.U, 0.2, 0.0)], n, 50.0))[0])
+
+    def curv(n):
+        return np.ptp(h.loglik(H, survey=_survey_row([(0, E.U, 0.2, 0.0)], n, 50.0))[0])
+
     assert curv(5000) < 1.2 * curv(500)
 
 
 def test_nelder_mead_finds_a_quadratic_minimum():
-    f = lambda x: (x[0] - 1.3) ** 2 + 3 * (x[1] + 0.4) ** 2 + 0.5 * (x[2] - 2.0) ** 2
-    x = SW.nelder_mead(f, np.zeros(3), np.array([0.5, 0.5, 0.5]), max_eval=400, xtol=1e-6, ftol=1e-10)
-    assert np.allclose(x, [1.3, -0.4, 2.0], atol=1e-3)
+    def f(x):
+        return (x[0] - 1.3) ** 2 + 3 * (x[1] + 0.4) ** 2 + 0.5 * (x[2] - 2.0) ** 2
+
+    x, fx, ok = SW.nelder_mead(f, np.zeros(3), np.array([0.5, 0.5, 0.5]), max_eval=400, xtol=1e-6, ftol=1e-10)
+    assert ok and np.allclose(x, [1.3, -0.4, 2.0], atol=1e-3) and fx < 1e-6
 
 
 def test_error_model_recovers_scale_and_calibrates():
@@ -377,7 +408,10 @@ def test_corridor_cap_keeps_emigrants_and_limits_shares():
     G = MG.cap_corridors(F, S, cap=2.0)
     assert (G >= 0).all() and np.allclose(G.sum(1), F.sum(1), rtol=1e-6)        # every origin keeps its emigrants
     share = S / S.sum(0, keepdims=True)
-    excess = lambda X: np.maximum(X / X.sum(0, keepdims=True) - 2.0 * np.maximum(share, 0.01), 0.0).sum()
+
+    def excess(X):
+        return np.maximum(X / X.sum(0, keepdims=True) - 2.0 * np.maximum(share, 0.01), 0.0).sum()
+
     assert excess(G) < 0.5 * excess(F)                                          # concentration beyond the cap falls
 
 
@@ -400,6 +434,152 @@ def test_inference_detects_a_planted_improvement():
     t = inf[inf.model.eq('trend')].iloc[0]
     assert t.ci95_low_pp < 0 < t.ci95_high_pp
 
+
+
+# --------------------------------------------------------------- tests added in the 2026-11 revision
+def _toy_prior():
+    return dict(mu_d={c: .08 for c in E.CATS if c != 'Unaffiliated'},
+                mu_v={c: .01 for c in E.CATS if c != 'Unaffiliated'}, mu_a=.12, beta_a=-.3, tau_e=.4, tau_a=.6,
+                tau_v=.5, grid=dict(delta=[-0.5, 0.5], beta_d=[0.0, 1.2], tau_u=[0.8, 1.6]),
+                bounds=dict(delta=[-1.5, 1.5], beta_d=[-0.5, 2.4], tau_u=[0.4, 2.0]))
+
+
+def _toy_survey(rng, n, rows=2, size=400.0):
+    """Survey rows for the first `rows` countries: raised Christian, stay / unaffiliated cells."""
+    cells = []
+    for c in range(rows):
+        d = rng.uniform(0.1, 0.5)
+        cells.append((c, c, 0, 0, 1 - d - 0.01, 0.0))
+        cells.append((c, c, 0, E.U, d, 0.0))
+    return dict(group=np.array([g for g, *_ in cells]), raised=np.array([r for _, _, r, *_ in cells]),
+                current=np.array([s_ for *_, s_, _, _ in cells]), p=np.array([q for *_, q, _ in cells]),
+                dest_frac=np.zeros(len(cells)), group_country=np.arange(rows), group_n=np.full(rows, size),
+                group_z=np.zeros(rows), alpha=100.0)
+
+
+def test_laplace_importance_sampling_is_accurate_and_stable():
+    """The adapted estimator of each country's log marginal likelihood agrees with a brute-force
+    estimate from 200,000 prior draws, has a high effective sample size even for a sharp survey
+    posterior, and barely depends on the seed."""
+    rng = np.random.default_rng(21)
+    n = 3
+    survey = _toy_survey(rng, n, rows=2, size=500.0)
+    H = (0.2, 0.5, 1.0)
+    brute = SW.Hierarchy(n, _toy_prior(), M=200_000, seed=5)
+    ll = brute.loglik(H, survey=survey)
+    ref = ll.max(1) + np.log(np.exp(ll - ll.max(1, keepdims=True)).mean(1))
+    est = []
+    for seed in (1, 2, 3):
+        h = SW.Hierarchy(n, _toy_prior(), M=512, seed=seed).adapt(H, survey=survey)
+        lw = h.loglik(H, survey=survey) + h.log_ratio
+        est.append(lw.max(1) + np.log(np.exp(lw - lw.max(1, keepdims=True)).mean(1)))
+        w = np.exp(lw - lw.max(1, keepdims=True))
+        w /= w.sum(1, keepdims=True)
+        assert (1.0 / (w ** 2).sum(1)).min() > 100
+    est = np.array(est)
+    # the reference has Monte Carlo error of its own (a few hundredths here)
+    assert np.abs(est - ref).max() < 0.15 and est.std(0).max() < 0.08, (est, ref)
+
+
+def test_fit_reaches_its_own_optimum_and_draws_hyperparameters():
+    """The fitted H is at least as good as every grid point under the final draws, every start of
+    the search agrees, and run draws of H stay inside the bounds and follow the Laplace covariance."""
+    prior = _toy_prior()
+    rng = np.random.default_rng(6)
+    n, D, truth = 80, 4, (0.5, 1.2, 0.8)
+    gen = SW.Hierarchy(n, prior, M=1, seed=1)
+    net = dict(z=rng.normal(0, 1, (n, D)), Bd=np.zeros((n, D, 7, E.K)), Bv=np.zeros((n, D, 7, E.K)),
+               Ba=np.zeros((n, D, E.K)), y=np.zeros((n, D, E.K)), mask=np.ones((n, D), bool),
+               weight=np.ones((n, D)), scale=np.full(E.K, 0.004))
+    sh = rng.dirichlet(np.ones(E.K), size=n)
+    for t in range(D):
+        P = rng.uniform(1e4, 1e5, (n, E.K, E.G, E.A)) * sh[:, :, None, None]
+        Bd, Bv, Ba = SW.effect_basis(SW.exposure(P), sh)
+        net['Bd'][:, t], net['Bv'][:, t], net['Ba'][:, t] = Bd, Bv, Ba
+        d, v, a = gen.rates(net['z'][:, t], truth)
+        net['y'][:, t] = (np.einsum('nj,njk->nk', d[:, 0], Bd) + np.einsum('nj,njk->nk', v[:, 0], Bv)
+                          + a[:, 0, None] * Ba + rng.normal(0, .004, (n, E.K)))
+    h = SW.Hierarchy(n, prior, M=128, seed=2).fit(net=net)
+    best = h.log_marginal(h.H, net)[0]
+    for delta in prior['grid']['delta']:
+        for beta in prior['grid']['beta_d']:
+            for tau in prior['grid']['tau_u']:
+                assert h.log_marginal((delta, beta, tau), net)[0] <= best + 1e-6
+    assert h.optimisation['starts_within_0_1'] == h.optimisation['starts']
+    assert h.H_cov is not None and np.all(np.isfinite(h.H_se))
+    draws = np.array([h._theta(h.draw_hyper(np.random.default_rng(k))) for k in range(400)])
+    assert np.all(draws >= h.lo - 1e-12) and np.all(draws <= h.hi + 1e-12)
+    assert np.allclose(draws.std(0), np.sqrt(np.diag(h.H_cov)), rtol=0.2)
+    # posterior weights at another H are recomputed from the stored evidence
+    w2 = h.posterior_weights(tuple(np.array(h.H) + [0.1, 0.0, 0.0]))
+    assert np.allclose(w2.sum(1), 1.0) and not np.allclose(w2, h.posterior_weights())
+
+
+def test_minority_selectivity_is_bounded_and_normalised():
+    sh = np.array([[0.97, 0.01, 0.005, 0.005, 0.0, 0.0, 0.0, 0.01],
+                   [0.5, 0.3, 0.1, 0.05, 0.02, 0.01, 0.01, 0.01]])
+    for cap in (3.0, 4.5, np.inf):
+        sel = MG.minority_selectivity(sh, 0.6, cap)
+        s = np.maximum(sh, 1e-4)
+        assert np.allclose((sel * s).sum(1) / s.sum(1), 1.0, atol=1e-3)          # population mean 1
+        assert sel.max() <= cap + 1e-9
+        order = np.argsort(sh[1])
+        assert np.all(np.diff(sel[1][order]) <= 1e-12)                          # smaller groups leave more
+    assert MG.minority_selectivity(sh, 0.6).max() > 10                           # unbounded: the old failure
+
+
+def test_soft_margins_keep_the_volume_of_migration():
+    rng = np.random.default_rng(31)
+    n = 25
+    Km = rng.gamma(1.0, 1.0, (n, n))
+    np.fill_diagonal(Km, 0.0)
+    Km /= Km.sum()
+    row, col = rng.gamma(2.0, 1e5, n), rng.gamma(2.0, 1e5, n)
+    col *= row.sum() / col.sum()
+    for rho in (1.0, 0.75, 0.5):
+        F, *_ = MG.sinkhorn(Km, row, col, rho=rho, rho_col=rho)
+        assert np.isclose(F.sum(), row.sum(), rtol=1e-9), rho
+
+
+def test_half_lives_halve_and_life_expectancy_never_falls():
+    from religion_forecast import model as SM
+
+    class Ctx:
+        n = 2
+        fertility = dict(world=np.full(E.K, 1.2), region={}, region_of=np.array(['x', 'x']),
+                         country=np.full((2, E.K), np.nan))
+        a = {'fertility': {'reference_world_tfr': {'value': 2.3}}}
+    p = dict(phi=1.0, phi_region=1.0, eps=np.zeros((2, E.K)), eps_obs=np.zeros((2, E.K)), Hf=40.0, w_add=0.0,
+             m_g1=1.0, m_g2=1.0)
+    f = SM.Fertility(Ctx(), p, {'fertility': {}})
+    g0 = f.rel(2022.5, np.full(2, 2.0))[0, 0, 0] - 1.0
+    g40 = f.rel(2062.5, np.full(2, 2.0))[0, 0, 0] - 1.0
+    assert np.isclose(g0, 0.2) and np.isclose(g40, 0.1)
+    dem = SM.Demography.__new__(SM.Demography)
+    dem.ctx, dem.last = None, 2100
+    dem.base2100 = dict(tfr=np.array([1.5, 4.0]), e0=np.array([94.0, 70.0]), q5=np.array([0.003, 0.05]),
+                        mac=np.array([31.0, 28.0]), female_share=np.array([0.5, 0.5]))
+    dem.p = dict(tfr_lr=1.8, tfr_dev=np.zeros(2), tfr_dev_half_life=100.0, tfr_hl=50.0, e0_gain=0.1, e0_cap=91.0)
+    e = np.array([dem.period(y)['e0'] for y in range(2105, 2301, 5)])
+    assert np.all(e[:, 0] >= 94.0) and np.all(np.diff(e, axis=0) >= -1e-12)
+    t = 2155 - 2.5 - 2100.0
+    tfr = dem.period(2155)['tfr'][1]
+    assert np.isclose(tfr, 1.8 + (4.0 - 1.8) * 2.0 ** (-t / 50.0))
+
+
+def test_validation_never_scores_against_its_own_decade():
+    from religion_forecast import errors as ER
+    rec = [dict(source='WRP', origin=o, horizon=h, target=o + h) for o, hs in
+           ((1970, (10, 20, 30, 40)), (1980, (10, 20, 30)), (1990, (10, 20)), (2000, (10,))) for h in hs]
+    rule = ER.SCHEMES['non-overlapping']
+    for x in rec:
+        for y in rec:
+            if rule(x, y):
+                assert y['target'] <= x['origin'] or y['origin'] >= x['target']
+    x = next(r for r in rec if (r['origin'], r['target']) == (1970, 1990))
+    kept = {(y['origin'], y['target']) for y in rec if rule(x, y)}
+    assert (1980, 1990) not in kept and (1990, 2000) in kept
+    assert not any(rule(next(r for r in rec if r['horizon'] == 40), y) and y['horizon'] == 10 for y in rec)
 
 if __name__ == '__main__':
     tests = [v for k, v in sorted(globals().items()) if k.startswith('test_') and callable(v)]

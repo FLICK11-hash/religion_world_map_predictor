@@ -20,17 +20,15 @@ Every downloaded file's SHA-256 is written to data/raw/extra/manifest.json.
 from __future__ import annotations
 
 import argparse
-import gzip
 import hashlib
 import io
 import json
 import shutil
 import subprocess
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from religion_forecast import config
 
@@ -53,7 +51,8 @@ OFFICIAL = {
                     file='pew2015_religious_composition_2010_2050.xlsx', note='comparison only'),
 }
 MIRRORS = {
-    'ims2024': ('https://github.com/tigi/2026-migrant-stock', ['undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx']),
+    'ims2024': ('https://github.com/tigi/2026-migrant-stock',
+                ['undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx']),
     'wpp_age5': ('https://github.com/open-numbers/ddf--unpop--wpp_population', ['population_age5']),
     'unhcr': ('https://github.com/rfordatascience/tidytuesday', ['data/2023/2023-08-22']),
     'pew2015': ('https://github.com/datasets/world-religion-projections', ['rounded_population.csv']),
@@ -77,7 +76,7 @@ def wpp_locations():
     """M49 LocID -> ISO3 from the WPP indicators file already in data/raw."""
     w = pd.read_csv(config.RAW / 'WPP2024_Demographic_Indicators_Medium.csv.gz',
                     usecols=['LocID', 'ISO3_code'], low_memory=False).dropna().drop_duplicates('LocID')
-    return dict(zip(w.LocID.astype(int), w.ISO3_code))
+    return dict(zip(w.LocID.astype(int), w.ISO3_code, strict=True))
 
 
 # ----------------------------------------------------------------------------- download
@@ -99,7 +98,8 @@ def clone_sparse(repo, paths, where):
     where.mkdir(parents=True, exist_ok=True)
     target = where / repo.rstrip('/').split('/')[-1]
     if not target.exists():
-        subprocess.run(['git', 'clone', '--depth', '1', '--filter=blob:none', '--sparse', repo, str(target)], check=True)
+        subprocess.run(['git', 'clone', '--depth', '1', '--filter=blob:none', '--sparse', repo, str(target)],
+                       check=True)
     subprocess.run(['git', '-C', str(target), 'sparse-checkout', 'set', '--no-cone', *paths], check=True)
     return target
 
@@ -121,7 +121,8 @@ def condense_wpp_open_numbers(folder, dst):
     """open-numbers ddf--unpop--wpp_population population_age5 (M49 codes, thousands) -> condensed table."""
     loc = wpp_locations()
     rows = []
-    for f in sorted(Path(folder).glob('ddf--datapoints--population--by--country_area--time--age_group_5year-*--sex.csv')):
+    pattern = 'ddf--datapoints--population--by--country_area--time--age_group_5year-*--sex.csv'
+    for f in sorted(Path(folder).glob(pattern)):
         d = pd.read_csv(f)
         d = d[d.time % 5 == 0]
         d['ISO3_code'] = d.country_area.map(loc)
@@ -154,10 +155,10 @@ def unhcr_from_api_zip(src, dst):
     lines = raw.splitlines()
     start = next(i for i, l in enumerate(lines) if l.lower().startswith('year'))
     d = pd.read_csv(io.StringIO('\n'.join(lines[start:])), na_values=['-'])
-    num = lambda c: pd.to_numeric(d[c], errors='coerce')
     out = pd.DataFrame({'year': d['Year'], 'origin_iso3': d['Country of origin (ISO)'],
                         'asylum_iso3': d['Country of asylum (ISO)'],
-                        'refugees': num("Refugees under UNHCR's mandate"), 'asylum_seekers': num('Asylum-seekers')})
+                        'refugees': pd.to_numeric(d["Refugees under UNHCR's mandate"], errors='coerce'),
+                        'asylum_seekers': pd.to_numeric(d['Asylum-seekers'], errors='coerce')})
     out.to_csv(dst, index=False, lineterminator='\n')
     return len(out)
 
@@ -166,7 +167,10 @@ def unhcr_from_api_zip(src, dst):
 def from_folder(mirror_root, manifest):
     """Convert already-cloned mirrors found anywhere under mirror_root."""
     root = Path(mirror_root)
-    found = lambda pattern: sorted(root.rglob(pattern))
+
+    def found(pattern):
+        return sorted(root.rglob(pattern))
+
     ims = found('undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx')
     if ims:
         shutil.copy2(ims[0], RAW7 / ims[0].name)
@@ -206,7 +210,7 @@ def main(argv=None):
                         print(f'downloading {key} ...')
                         download(spec['url'], dest)
                     manifest[spec['file']] = dict(source=spec['url'], sha256=sha256(dest),
-                                                  downloaded_utc=datetime.now(timezone.utc).isoformat())
+                                                  downloaded_utc=datetime.now(UTC).isoformat())
                 except Exception as exc:                     # network, 404, proxy
                     print(f'  {key}: official download failed ({exc}); will try the GitHub mirror')
                     failed.append(key)

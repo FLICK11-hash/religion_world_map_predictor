@@ -111,7 +111,7 @@ class Panel:
                     f'y2="{self.y + self.h:.1f}" stroke="{DIVIDER}" stroke-width="1"/>')
 
     def line(self, xs, ys, colour, width=2.0, opacity=1.0, dash=None):
-        pts = ' '.join(f'{a:.1f},{b:.1f}' for a, b in zip(self.px(xs), self.py(ys)))
+        pts = ' '.join(f'{a:.1f},{b:.1f}' for a, b in zip(self.px(xs), self.py(ys), strict=True))
         d = f' stroke-dasharray="{dash}"' if dash else ''
         self.cv.add(f'<polyline points="{pts}" fill="none" stroke="{colour}" stroke-width="{width}" '
                     f'stroke-linejoin="round" stroke-linecap="round" opacity="{opacity}"{d}/>')
@@ -119,7 +119,7 @@ class Panel:
     def band(self, xs, lo, hi, colour, opacity=0.16):
         xa, = (np.asarray(xs, float),)
         pts = ' '.join(f'{a:.1f},{b:.1f}' for a, b in
-                       zip(np.r_[self.px(xa), self.px(xa[::-1])], np.r_[self.py(hi), self.py(lo)[::-1]]))
+                       zip(np.r_[self.px(xa), self.px(xa[::-1])], np.r_[self.py(hi), self.py(lo)[::-1]], strict=True))
         self.cv.add(f'<polygon points="{pts}" fill="{colour}" fill-opacity="{opacity}"/>')
 
     def dot(self, x, y, colour, r=4.5, tip=None):
@@ -170,11 +170,11 @@ def fig_world_projection(F, out):
     cal_file = config.VALIDATION / 'predictive_calibration.csv'
     cover = ''
     if cal_file.exists():
-        c = pd.read_csv(cal_file)
-        c = c[c.method.eq('error-calibrated') & c.nominal.eq(0.9)].groupby('horizon').coverage.mean()
+        c = _main_scheme(pd.read_csv(cal_file))
+        c = c[c.method.eq('error-calibrated') & c.nominal.eq(0.9)].groupby('horizon').coverage_observed_above_zero.mean()
         if len(c):
-            cover = (f'which covered {100 * c.min():.0f}-{100 * c.max():.0f}% of held-out observations at nominal 90% '
-                     f'(horizons {c.index.min()}-{c.index.max()} years, leave one origin out).')
+            cover = (f'which covered {100 * c.min():.0f}-{100 * c.max():.0f}% of held-out observed shares at nominal 90% '
+                     f'(horizons {c.index.min()}-{c.index.max()} years, no calendar overlap with the error model).')
     cv = Canvas(1380, 800, 'World religious composition, 2020-2100',
                 f'Share of world population. Reference scenario ({ref}): mean of {runs} runs, the 5-95% spread of the '
                 f'runs, and the 90% predictive interval. Grey line: the range of all {nsc} scenario means.',
@@ -232,8 +232,11 @@ def fig_world_composition(F, out):
                 'Beyond 2100 the lines show what the stated assumptions imply, not forecasts; the run spread is parameter '
                 'uncertainty only and there are no predictive intervals.')
     cv.legend(30, 92, [('Reference mean', ACCENT), ('5-95% of runs', '#9dc0ee'), ('Range across scenarios', '#cfcec9')])
-    xpos = lambda yr: np.where(np.asarray(yr, float) <= 2100, 0.4 * (np.asarray(yr, float) - 2020) / 80.0,
-                               0.4 + 0.6 * (np.asarray(yr, float) - 2100) / 930.0)
+
+    def xpos(yr):                     # 2020-2100 on the first 40% of the axis, 2100-3030 on the rest
+        yr = np.asarray(yr, float)
+        return np.where(yr <= 2100, 0.4 * (yr - 2020) / 80.0, 0.4 + 0.6 * (yr - 2100) / 930.0)
+
     pw, ph, gx, gy, top = 312.0, 296.0, 30, 34, 136
     for k, g in enumerate(CATS):
         col, row = k % 4, k // 4
@@ -274,8 +277,10 @@ def fig_validation(V, out):
     if not f.exists():
         return None
     inf = pd.read_csv(f)
-    order = ['trend', 'demography', 'demography_migration', 'switching_0.5', 'switching_1', 'switching_selected']
-    label = {'trend': 'Trend: last decade repeated', 'demography': 'Births and deaths',
+    order = ['trend', 'trend_residual', 'demography', 'demography_migration', 'switching_0.5', 'switching_1',
+             'switching_selected']
+    label = {'trend': "Trend: last decade's change repeated",
+             'trend_residual': "Demography + last decade's unexplained change", 'demography': 'Births and deaths',
              'demography_migration': '+ migration', 'switching_0.5': '+ switching, half strength',
              'switching_1': '+ switching, full strength (as projected)',
              'switching_selected': '+ switching, strength chosen on earlier decades'}
@@ -314,21 +319,29 @@ def fig_validation(V, out):
     return cv.save(out / 'validation_skill.svg')
 
 
+def _main_scheme(cal):
+    """The rows of the main validation design (errors.MAIN_SCHEME), or all rows for older files."""
+    from religion_forecast.errors import MAIN_SCHEME
+    return cal[cal.scheme.eq(MAIN_SCHEME)] if 'scheme' in cal else cal
+
+
 def fig_interval_calibration(V, out):
     """Do the intervals contain the truth as often as they claim? Parameter-only against
-    error-calibrated, held out by origin, with the growth of error with horizon."""
+    error-calibrated, out of sample, with the growth of error with horizon."""
     f = V / 'predictive_calibration.csv'
     if not f.exists():
         return None
-    cal = pd.read_csv(f)
+    cal = _main_scheme(pd.read_csv(f))
+    cov = 'coverage_observed_above_zero' if 'coverage_observed_above_zero' in cal else 'coverage'
+    isc = 'interval_score_above_zero_pp' if 'interval_score_above_zero_pp' in cal else 'interval_score_pp'
     meta = json.loads((V / 'forecast_error_model.json').read_text()) if (V / 'forecast_error_model.json').exists() else {}
     cv = Canvas(1380, 600, 'Are the forecast intervals honest?',
                 'Left: share of held-out observations inside the interval against its nominal level. Middle: interval '
                 'score (lower is better). Right: how forecast error grows with horizon.',
-                'Leave one origin out: the error model is re-estimated without the origin it is tested on; observations are '
-                'country x religion shares of the World Religion Project, 1980-2010. Left: vertical strokes span the\n'
-                'horizons (10-40 years). Parameter-only intervals are the spread of the model\'s Monte Carlo runs. Source: '
-                'data/validation/predictive_calibration.csv, forecast_error_model.json')
+                'Out of sample: for each forecast the error model is re-estimated from history entries that share no years with '
+                'it; observations are country x religion shares of the World Religion Project above zero, 1980-2010.\n'
+                'Left: vertical strokes span the horizons. Parameter-only intervals are the spread of the model\'s Monte Carlo '
+                'runs. Source: data/validation/predictive_calibration.csv, forecast_error_model.json')
     methods = [('model draws (parameter uncertainty)', BAD, 'Parameter uncertainty only'),
                ('error-calibrated', ACCENT, 'Error-calibrated (this paper)')]
     cv.legend(30, 96, [(lab, c) for _, c, lab in methods])
@@ -341,9 +354,9 @@ def fig_interval_calibration(V, out):
     cv.text(float(p.px(0.56)), float(p.py(0.66)), 'nominal', size=11, fill=INK3)
     for m, colour, lab in methods:
         g = cal[cal.method.eq(m)]
-        mean = g.groupby('nominal').coverage.mean()
-        lo, hi = g.groupby(['nominal', 'horizon']).coverage.mean().groupby('nominal').agg(['min', 'max']).T.to_numpy()
-        for x, a, b in zip(mean.index, lo, hi):
+        mean = g.groupby('nominal')[cov].mean()
+        lo, hi = g.groupby(['nominal', 'horizon'])[cov].mean().groupby('nominal').agg(['min', 'max']).T.to_numpy()
+        for x, a, b in zip(mean.index, lo, hi, strict=True):
             p.cv.add(f'<line x1="{float(p.px(x)):.1f}" y1="{float(p.py(a)):.1f}" x2="{float(p.px(x)):.1f}" '
                      f'y2="{float(p.py(b)):.1f}" stroke="{colour}" stroke-width="3" opacity="0.35"/>')
         p.line(mean.index.to_numpy(), mean.to_numpy(), colour, width=2)
@@ -353,7 +366,7 @@ def fig_interval_calibration(V, out):
             below = m.startswith('model')
             cv.text(float(p.px(x)) + (7 if below else -8), float(p.py(v)) + (14 if below else -9), f'{v:.0%}',
                     size=10.5, fill=INK2, anchor='start' if below else 'end')
-    sc = cal[cal.nominal.eq(0.9)].groupby(['method', 'horizon']).interval_score_pp.mean().unstack('method')
+    sc = cal[cal.nominal.eq(0.9)].groupby(['method', 'horizon'])[isc].mean().unstack('method')
     hi = float(sc.max().max()) * 1.15
     p2 = Panel(cv, 540, 170, 330, 320, (5, 45), (0, hi), title='Interval score, 90% intervals',
                ylab='percentage points (lower is better)')

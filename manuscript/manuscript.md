@@ -101,8 +101,9 @@ mortality; the open age group follows
 age schedule matching WPP's mean age at childbearing, and `k_c` normalises so that the country
 total reproduces WPP's TFR exactly. The relative fertility `rel` comes from the most local
 published figure available; regional and world ratios are damped, because a ratio measured across
-countries mostly reflects where each group lives rather than within-country differences. Children
-take the mother's religion. Mortality does not differ by religion.
+countries mostly reflects where each group lives rather than within-country differences. Gaps
+converge towards zero with a half-life of 30-80 years. Children take the mother's religion.
+Mortality does not differ by religion.
 
 **Religious switching** is parameterised by three lifetime probabilities per country:
 disaffiliation `d_r` (raised in *r*, now unaffiliated), conversion `v_r` (raised in *r*, now another
@@ -113,10 +114,14 @@ is never treated as an annual rate.
 
 **Migration** is a gross origin-destination flow matrix per step whose net per country equals
 WPP's projected net migration to 2100, fitted by Sinkhorn scaling with soft margins to a kernel
-that mixes the observed migrant network with a gravity term. Who moves is drawn from each origin's
-cells in proportion to an age schedule, a generation propensity and a corridor-specific religious
-mix calibrated to Pew's published composition of migrants. The same persons leave and arrive, so
-migration conserves every religion's world total exactly.
+that mixes the observed migrant network with a gravity term; the softness of the margins moves
+flows between corridors but leaves the world volume of migration unchanged. Who moves is drawn from
+each origin's cells in proportion to an age schedule, a generation propensity and a
+corridor-specific religious mix calibrated to Pew's published composition of migrants: migrants
+favour destinations where their religion is common, and minorities emigrate more, with a
+religion's propensity per person bounded at three to six times its origin's average (unbounded,
+the effect drains small minorities in high-emigration countries within decades). The same persons
+leave and arrive, so migration conserves every religion's world total exactly.
 
 ### 3.2 Estimation of switching
 
@@ -135,7 +140,8 @@ leaves a residual in every country's shares. Its link to the rates is the first-
 switching, given each religion's population exposed at switching ages, and its likelihood is
 Student-t with four degrees of freedom, robust to breaks between data rounds. Because the hindcast
 contains births, deaths, ageing and migration, only the part they leave unexplained is attributed
-to switching.
+to switching. The exposure follows the engine's order of operations (people age, then switch), so a
+cohort aged *a* at the start of a decade meets the switching rates of ages *a*+1 and *a*+2.
 
 *Surveys.* Each survey row, the adults of one country raised in one religion in one survey, is one
 Dirichlet-multinomial observation of the cells it reports, at the probabilities the model gives
@@ -145,24 +151,44 @@ them, plus a complement cell for what it does not report. A reported conversion 
 allowing for design effects and for the model's simplifications; α = 30 and 100 have equal marginal
 likelihood and 300 lower.
 
-*Integration and maximisation.* The country integrals are estimated by importance sampling with a
-per-country defensive mixture proposal (25% prior, 75% a Gaussian fitted to that country's weighted
-draws; Hesterberg 1995 [verify]), adapted twice, with weights carrying the ratio of prior to
-proposal density so that the estimator is unbiased for every `H`. Since the latent effects are
-standard normal whatever `H` is, one set of draws serves every `H`, and the estimated likelihood is
-smooth in it; it is maximised by Nelder-Mead on `(δ, β_d, log τ_u)` inside the prior box
-`δ ∈ [−1.5, 1.5]`, `β_d ∈ [−0.5, 2.4]`, `τ_u ∈ [0.4, 2.0]`. Three replicate fits with independent draws
-are used across Monte Carlo runs, so the remaining Monte Carlo error of the fit is propagated rather
-than fixed at one value. Pew's 2025 global figure for adults aged 18-54 defines a second, "survey"
-level of switching through a logit shift per religion, and each run draws a weight between the
-fitted level and the survey level.
+*Integration.* The country integrals are estimated by importance sampling with 512 draws per
+country from a three-component defensive mixture (Hesterberg 1995 [verify]): the prior (20%); a
+multivariate t centred on the country's posterior mode with the inverse curvature there as scale,
+that is, Laplace importance sampling (40%); and a t matched to the importance-weighted moments of
+a pilot sample, shrunk towards the Laplace scale when the pilot's effective sample is small (40%),
+which covers curved posteriors. Weights carry the ratio of prior to proposal density, so the
+estimator is unbiased for every `H`. Because the effects are standard normal whatever `H` is, one
+set of draws serves every `H` and the estimated likelihood is smooth in it. The proposal matters:
+ten survey rows locate the United States' effects to within about ±0.02, where prior draws, or a
+Gaussian fitted to degenerate weights, leave an effective sample of one or two.
+
+*Maximisation.* The estimated log marginal likelihood is maximised by Nelder-Mead from the three
+best points of a coarse grid, in unbounded coordinates (a scaled logit of `(δ, β_d, log τ_u)` on
+the prior box `δ ∈ [−1.5, 1.5]`, `β_d ∈ [−0.5, 2.4]`, `τ_u ∈ [0.4, 2.0]`, on which the hyperprior is
+flat). The proposal is then re-centred on the optimum and the search restarted, until the optimum
+moves by less than 0.02, because each country's posterior moves with `H`.
+
+*Hyperparameter uncertainty.* The curvature of the estimated log marginal likelihood at its
+maximum, taken from a least-squares quadratic fitted to 27 points about one standard error away
+(which averages out the Monte Carlo noise a narrow finite-difference stencil would amplify), gives
+a Laplace approximation to the posterior of `H`, truncated to the box. Each Monte
+Carlo run draws its own `H` from it and then each country's effects from their posterior at that
+`H`, so the projection does not condition on the point estimate (Kass and Steffey 1989 [verify]).
+Three replicate fits with independent draws are used across runs, run *r* using replicate *r* mod 3,
+so the remaining Monte Carlo error of the fit is carried too. A parametric simulation study under
+the real design (evidence simulated from the fitted `H` for the same countries, decades and survey
+rows, then refitted) checks the estimator's bias and the coverage of its intervals (section 5.2).
+
+Pew's 2025 global figure for adults aged 18-54 defines a second, "survey" level of switching
+through a logit shift per religion, recalibrated at each run's `H`, and each run draws a weight
+between the fitted level and the survey level.
 
 ### 3.3 Uncertainty
 
 Three sources are kept apart. Parameter uncertainty is the spread of 40 Monte Carlo runs per
-scenario, each drawing every uncertain parameter (23 of them, ranges in
-`config/assumptions.json`), one posterior draw of every country's switching rates and one of three
-replicate fits. Scenario uncertainty is the range across eight scenarios that vary switching,
+scenario, each drawing every uncertain parameter (ranges in `config/assumptions.json`), the
+switching hyperparameters from their Laplace approximation, one posterior draw of every country's
+switching rates and one of three replicate fits. Scenario uncertainty is the range across eight scenarios that vary switching,
 migration and fertility assumptions. Forecast error, the error the model has made historically, is
 added by the error model of section 4.3 to give predictive intervals to 2100.
 
@@ -175,10 +201,11 @@ workbook is available) is forecast from its first year, with switching fitted on
 end by then. National demography inside each window is WPP 2024's estimate, so every model is
 scored conditional on national fertility, mortality and net migration. The score is the
 total-variation distance between forecast and observed shares, `½ Σ_k |ŝ_k − s_k|`, weighted by
-population over countries. Models: persistence (shares unchanged); a naive trend (the model's
-last-decade residual repeated); births and deaths only; plus migration; plus switching at strength
-0, 0.5 and 1 (1 being the projection's setting); and plus switching at the strength that scored
-best on earlier decades.
+population over countries. Models: persistence (shares unchanged); a naive trend (the previous
+decade's observed change repeated); a hybrid (births, deaths and migration plus the previous
+decade's unexplained change); births and deaths only; plus migration; plus switching at strength
+0.5 and 1 (1 being the projection's setting); and plus switching at the strength that scored best
+on earlier decades.
 
 ### 4.2 Inference
 
@@ -193,12 +220,15 @@ test is reported alongside as the conservative bound.
 
 From each origin 1970, 1980, 1990 and 2000 the model is run forward 40 times with everything fitted
 as it would have been at the origin, and scored at every later decade to 2010, giving forecasts at
-horizons of 10 to 40 years. With *s* the mean forecast share, the error is modelled as
+horizons of 10 to 40 years. The history runs have the projection's structure: development and the
+convergence of fertility gaps evolve from the origin exactly as they do from 2020. With *s* the mean
+forecast share, the error is modelled as
 
 `e = (h/10)^β · (s(1 − s) + 10⁻⁴)^b · u`,
 
-with `b` estimated from the relation between |e| and s(1 − s) at ten years and `β` from the growth
-of the mean absolute standardised error with horizon. Predictive draws add
+with `b` estimated from the relation between |e| and s(1 − s) at ten years, over shares observed
+above zero (a group recorded at exactly zero has an error equal to its forecast by construction),
+and `β` from the growth of the mean absolute standardised error with horizon. Predictive draws add
 `(h/10)^β (s(1−s)+10⁻⁴)^b u` to each Monte Carlo run. The standardised error `u` is resampled in two
 stages: one historical decade for the whole world, which keeps the common shock of that decade and
 so the cross-country correlation that matters for world totals; then, for each country, the whole
@@ -208,9 +238,16 @@ distance between forecast compositions (a k-nearest-neighbour bootstrap; Lall an
 a majority. Each draw is one error path, the same `u` at every horizon. Errors are used as recorded. In
 1970-2010 the unaffiliated share was consistently observed below the forecast, mostly in post-
 communist and East Asian countries, and that direction is carried into the intervals; centring the
-errors was tested and calibrates slightly worse, and is reported as a sensitivity. The intervals
-are validated by leaving one origin out, re-estimating `b`, `β` and the resampling pool without
-it, and scoring coverage and the interval score of Gneiting and Raftery (2007) on its forecasts.
+errors was tested and calibrates slightly worse, and is reported as a sensitivity.
+
+The intervals are validated out of sample in calendar time: for each forecast in the record, `b`,
+`β` and the resampling pool are re-estimated from the entries that share no calendar years with it,
+and the forecast is scored for coverage and for the interval score of Gneiting and Raftery (2007).
+A 1970→1990 forecast is therefore never scored with the 1980-1990 error in the pool. A stricter
+real-time variant uses only entries that had ended by the forecast's origin. Coverage is reported
+over shares observed above zero, because a group recorded at exactly zero is inside any interval
+that reaches zero, which the clipping of shares at zero makes common. With four decades, no
+40-year forecast has a non-overlapping entry, so calibration can be checked to 30 years.
 
 ## 5. Results
 

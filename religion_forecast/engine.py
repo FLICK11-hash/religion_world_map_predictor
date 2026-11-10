@@ -86,7 +86,10 @@ def life_table(e0, q5=None):
         return _LT_CACHE[key]
     py = _survival_fine(*_hazard_params(e0, q5)) * 0.25
     L = np.array([py[(_FINE >= 5 * i) & (_FINE < 5 * i + 5)].sum() for i in range(A - 1)])
-    T = lambda x: py[_FINE >= x].sum()
+
+    def T(x):                            # person-years lived above age x
+        return py[_FINE >= x].sum()
+
     s = np.empty(A - 1)
     s[:-1] = L[1:] / np.maximum(L[:-1], 1e-300)
     # 75-79 -> 80-84. (An earlier version used T80/T75 here, which is the ratio for the combined
@@ -221,8 +224,13 @@ def asfr_shapes(mac):
 
 # ---------------------------------------------------------------------------- sub-steps
 def shares(P):
+    """Religious composition of each country [n, K] from persons P [n, K, G, A]."""
     t = P.sum((2, 3))
     return t / np.maximum(t.sum(1, keepdims=True), 1e-300)
+
+
+def _world_shares(P):
+    return P.sum((0, 2, 3)) / max(P.sum(), 1e-300)
 
 
 def survive(P, s, s_open):
@@ -302,16 +310,15 @@ def step(P, inp, emig=None, immig=None, migration_fn=None, natural_growth=None):
     n = P.shape[0]
     rec = StepRecord(n)
     s0 = shares(P)
-    world = lambda X: X.sum((0, 2, 3)) / max(X.sum(), 1e-300)
-    w0 = world(P)
+    w0 = _world_shares(P)
 
     aged, deaths = survive(P, inp['s'], inp['s_open'])
-    s1, w1 = shares(aged), world(aged)
+    s1, w1 = shares(aged), _world_shares(aged)
     newborn, born, infant_deaths, group_tfr = births(P, aged, inp['tfr'], inp['shape'], inp['rel'],
                                                      inp['female_share'], inp['s_birth'])
     Q = aged.copy()
     Q[..., 0] += newborn
-    s2, w2 = shares(Q), world(Q)
+    s2, w2 = shares(Q), _world_shares(Q)
     rec.persons[:, :, 0] = born.sum(2)
     rec.persons[:, :, 1] = -(deaths.sum(2) + infant_deaths.sum(2))
     rec.group_tfr = group_tfr
@@ -324,14 +331,14 @@ def step(P, inp, emig=None, immig=None, migration_fn=None, natural_growth=None):
         Q = Q * scale[:, None, None, None]
         rec.persons[:, :, 6] = Q.sum((2, 3)) - before
         rec.rescale = scale
-    s2c, w2c = shares(Q), world(Q)
+    s2c, w2c = shares(Q), _world_shares(Q)
 
     if inp.get('T') is not None:
         Tg = inp.get('Tg')
         Q, s_in, s_out = switch(Q, Tg if Tg is not None else generation_matrices(inp['T'], inp['intensity']))
         rec.persons[:, :, 2] = s_in
         rec.persons[:, :, 3] = -s_out
-    s3, w3 = shares(Q), world(Q)
+    s3, w3 = shares(Q), _world_shares(Q)
 
     if migration_fn is not None:
         emig, immig = migration_fn(Q)
@@ -339,11 +346,11 @@ def step(P, inp, emig=None, immig=None, migration_fn=None, natural_growth=None):
         Q = Q - emig
         Q = np.maximum(Q, 0.0)
         rec.persons[:, :, 4] = -emig.sum((2, 3))
-    s4, w4 = shares(Q), world(Q)
+    s4, w4 = shares(Q), _world_shares(Q)
     if immig is not None:
         Q[:, :, 1, :] += immig
         rec.persons[:, :, 5] = immig.sum(2)
-    s5, w5 = shares(Q), world(Q)
+    s5, w5 = shares(Q), _world_shares(Q)
 
     for j, (a, b) in enumerate([(s0, s1), (s1, s2), (s2c, s3), (s3, s4), (s4, s5), (s2, s2c)]):
         rec.share[:, :, j] = b - a

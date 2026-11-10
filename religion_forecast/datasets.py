@@ -21,7 +21,6 @@ Nothing here invents data: a missing optional file means the model uses its labe
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -29,6 +28,10 @@ import pandas as pd
 from religion_forecast import engine as E
 from religion_forecast import sources as H
 from religion_forecast import config
+
+
+def _num(s):
+    return pd.to_numeric(s, errors='coerce')
 
 RAW = config.RAW
 PROCESSED = config.PROCESSED
@@ -56,14 +59,13 @@ def wpp_table():
     p = RAW / 'WPP2024_Demographic_Indicators_Medium.csv.gz'
     w = pd.read_csv(p, low_memory=False)
     w = w[w.ISO3_code.notna() & w.Variant.astype(str).str.lower().eq('medium')]
-    num = lambda s: pd.to_numeric(s, errors='coerce')
     out = pd.DataFrame({
-        'country_id': w.ISO3_code.astype(str), 'locid': num(w.LocID).astype('Int64'),
-        'name': w.Location.astype(str), 'year': num(w.Time).astype(int),
-        'tfr': num(w.TFR), 'e0': num(w.LEx), 'q5': num(w.Q5) / 1000.0, 'mac': num(w.MAC),
-        'median_age': num(w.MedianAgePop), 'pop': num(w.TPopulation1July) * 1000.0,
-        'female_share': num(w.TPopulationFemale1July) / num(w.TPopulation1July),
-        'net_migrations': num(w.NetMigrations) * 1000.0, 'cbr': num(w.CBR), 'cdr': num(w.CDR)})
+        'country_id': w.ISO3_code.astype(str), 'locid': _num(w.LocID).astype('Int64'),
+        'name': w.Location.astype(str), 'year': _num(w.Time).astype(int),
+        'tfr': _num(w.TFR), 'e0': _num(w.LEx), 'q5': _num(w.Q5) / 1000.0, 'mac': _num(w.MAC),
+        'median_age': _num(w.MedianAgePop), 'pop': _num(w.TPopulation1July) * 1000.0,
+        'female_share': _num(w.TPopulationFemale1July) / _num(w.TPopulation1July),
+        'net_migrations': _num(w.NetMigrations) * 1000.0, 'cbr': _num(w.CBR), 'cdr': _num(w.CDR)})
     out = out[out.year <= 2100].reset_index(drop=True)
     _note('wpp_indicators', 'used', f'{out.country_id.nunique()} countries, {out.year.min()}-{out.year.max()}')
     return out
@@ -71,7 +73,7 @@ def wpp_table():
 
 def m49_to_iso3(wpp):
     x = wpp.dropna(subset=['locid']).drop_duplicates('country_id')
-    return dict(zip(x.locid.astype(int), x.country_id))
+    return dict(zip(x.locid.astype(int), x.country_id, strict=True))
 
 
 def wpp_age_cube(ids):
@@ -113,7 +115,8 @@ def start_state():
         df = df[df.country_id.notna()]
         s20 = df[df.year.eq(2020)].drop_duplicates('country_id')
         s10 = df[df.year.eq(2010)].drop_duplicates('country_id')
-        _note('start_state', 'used', f'Pew 2010/2020 via scripts/prepare_pew_panel.py ({len(s20)} countries in 2020, {len(s10)} in 2010)')
+        _note('start_state', 'used', f'Pew 2010/2020 via scripts/prepare_pew_panel.py ({len(s20)} countries in 2020, '
+                                     f'{len(s10)} in 2010)')
         fm = s20.set_index('country_id')['folk_split_method'] if 'folk_split_method' in s20 else None
         return dict(s2020=s20[['country_id'] + SHARE_COLS].reset_index(drop=True),
                     s2010=s10[['country_id'] + SHARE_COLS].reset_index(drop=True),
@@ -171,7 +174,8 @@ def ims_bilateral(wpp):
         return _IMS_MEMO['df'].copy()
     if cache.exists() and cache.stat().st_mtime >= xl[-1].stat().st_mtime:
         df = pd.read_csv(cache)
-        note = f'{xl[-1].name}: {len(df)} country pairs x years, years {sorted(df.year.unique().astype(int))} (cached parse)'
+        note = (f'{xl[-1].name}: {len(df)} country pairs x years, years {sorted(df.year.unique().astype(int))} '
+                '(cached parse)')
         _IMS_MEMO.update(key=key, df=df, note=note)
         _note('bilateral_stock', 'used', note)
         return df.copy()
@@ -327,7 +331,7 @@ _CONTINENT_REGION = {'Europe': 'Europe', 'Africa': 'Sub-Saharan Africa', 'Asia':
 def pew_regions(ids, continents):
     """Pew region name for each country [n], from its ISO3 code and Natural Earth continent."""
     out = []
-    for c, cont in zip(ids, continents):
+    for c, cont in zip(ids, continents, strict=True):
         if c in MENA:
             out.append('Middle East-North Africa')
         elif c in NORTH_AMERICA:
@@ -413,7 +417,8 @@ def pew_2015_projection():
                            np.where(out.level.eq('world'), 'WORLD', out.Region))
     out = out.rename(columns={'Year': 'year'})[['year', 'level', 'area', 'religion', 'people']]
     out['people'] = pd.to_numeric(out.people, errors='coerce')
-    _note('pew_2015_projection', 'used', f'{out.year.nunique()} years, {out[out.level.eq("country")].area.nunique()} countries')
+    countries = out[out.level.eq('country')].area.nunique()
+    _note('pew_2015_projection', 'used', f'{out.year.nunique()} years, {countries} countries')
     return out.dropna(subset=['people'])
 
 
@@ -426,7 +431,10 @@ def unhcr_population(ids):
         return None
     df = pd.read_csv(p, comment='#', low_memory=False)
     low = {c.lower().strip(): c for c in df.columns}
-    pick = lambda *keys: next((low[k] for k in low if all(x in k for x in keys)), None)
+
+    def pick(*keys):
+        return next((low[k] for k in low if all(x in k for x in keys)), None)
+
     yc, oc, ac = pick('year'), pick('origin', 'iso'), pick('asylum', 'iso')
     rc = pick('refugees')
     if None in (yc, oc, ac, rc):
