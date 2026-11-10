@@ -4,12 +4,15 @@
     python scripts/verify_data.py
 
 For every input listed in config/data_manifest.json, reports whether the file is present and
-whether its SHA-256 matches the bytes the committed results were produced from. A mismatch is
+whether its SHA-256 matches the bytes the committed results were produced from. Text files whose
+bytes differ are compared again by content (gzip decompressed, Windows line endings normalised):
+the same data written on another platform reports "same content" rather than a mismatch. A mismatch is
 not necessarily an error -- WPP and WRP are revised over time -- but it does mean results
 produced from your files are not the committed results, and should not be reported as such.
 
 Exit status: 0 if every required file is present and matches, 1 otherwise.
 """
+import gzip
 import hashlib
 import json
 import sys
@@ -25,6 +28,17 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def content_sha256(path: Path) -> str | None:
+    """SHA-256 of a text file's content, independent of gzip headers and line endings."""
+    if path.suffix == ".gz":
+        data = gzip.open(path).read()
+    elif path.suffix == ".csv":
+        data = path.read_bytes()
+    else:
+        return None
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def locate(rel: str) -> Path | None:
@@ -44,6 +58,9 @@ def check(entries, label) -> tuple[int, int]:
             status = "MISSING"
         elif sha256(found) == item["sha256"]:
             status, ok = "ok", ok + 1
+        elif item.get("content_sha256") and content_sha256(found) == item["content_sha256"]:
+            status, ok = "ok", ok + 1
+            item["path"] += "  (same content, different bytes)"
         else:
             status = "DIFFERS"
         if status != "ok":

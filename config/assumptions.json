@@ -1,5 +1,5 @@
 {
-  "read_me": "Every number the Step 7 model uses that is not read from a data file. status: observed = taken from a cited dataset; estimated = fitted by Step 7 from data (the value here is only a prior or search range); assumption = researcher choice with the stated reasoning; unverified = a published figure that could not be re-checked in the build environment (verify before citing).",
+  "read_me": "Every number the model uses that is not read from a data file. status: observed = taken from a cited dataset; estimated = fitted by the model from data (the value here is only a prior or search range); assumption = researcher choice with the stated reasoning; unverified = a published figure that could not be re-checked in the build environment (verify before citing).",
   "random_seed": 2026,
   "runs_per_scenario": 40,
   "fertility": {
@@ -76,7 +76,7 @@
   "age_structure": {
     "pew_global_median_age_2010": {
       "status": "unverified",
-      "source": "Pew (2015) median age by religion, 2010; copied from step5d_assumptions.json (entered from memory).",
+      "source": "Pew (2015) median age by religion, 2010; entered from memory in an earlier version of the project and not yet checked against the report; verify before citing.",
       "world": 28,
       "by_group": {
         "Christianity": 30,
@@ -128,33 +128,26 @@
     "tau_v": 0.7,
     "grid": {
       "delta": [
-        -1.5,
         -1.0,
-        -0.5,
         0.0,
-        0.5,
         1.0,
-        1.5
+        2.0,
+        3.0
       ],
       "beta_d": [
-        -0.5,
         0.0,
-        0.4,
         0.8,
-        1.2,
         1.6,
-        2.0,
         2.4
       ],
       "tau_u": [
-        0.4,
-        0.8,
-        1.2,
-        1.6,
-        2.0
+        0.5,
+        1.0,
+        2.0,
+        3.0
       ]
     },
-    "latent_draws": 256,
+    "latent_draws": 512,
     "generation_intensity": {
       "status": "assumption informed by published retention",
       "first": [
@@ -165,7 +158,7 @@
         0.4,
         0.8
       ],
-      "note": "Switching of foreign-born and second-generation residents relative to natives of the same religion. Published: second-generation Christian-origin immigrants in 33 European countries disaffiliate at 17.75% (first generation 14.27%; Molteni and van Tubergen 2022), against roughly 35-45% among native-born Christians in Western Europe (Pew 2018, 2025). France (Ined): second-generation Muslims keep their religion at 91%. See step7_inputs/second_generation_published.csv."
+      "note": "Switching of foreign-born and second-generation residents relative to natives of the same religion. Published: second-generation Christian-origin immigrants in 33 European countries disaffiliate at 17.75% (first generation 14.27%; Molteni and van Tubergen 2022), against roughly 35-45% among native-born Christians in Western Europe (Pew 2018, 2025). France (Ined): second-generation Muslims keep their religion at 91%. See inputs/second_generation_published.csv."
     },
     "net_evidence_weight": {
       "status": "assumption",
@@ -178,7 +171,7 @@
         1.0,
         1.0
       ],
-      "note": "Multiplier on all switching rates. Kept at 1; the evidence about the LEVEL of switching enters through survey_level_weight. History tests of strength 0, 0.5 and 1 are in data/validation_step7/."
+      "note": "Multiplier on all switching rates. Kept at 1; the evidence about the LEVEL of switching enters through survey_level_weight. History tests of strength 0, 0.5 and 1 are in data/validation/."
     },
     "survey_level_weight": {
       "status": "evidence mixture (both ends are estimated)",
@@ -201,6 +194,31 @@
         "Unaffiliated": 0.45
       },
       "note": "No country is given more lifetime outflow than the highest observed in surveys: raised Christian 49% left (South Korea, Pew 2025), raised Buddhist 61% (South Korea), raised Muslim about 25%, raised Hindu about 20%, raised Jewish about 24% (US RLS); raised unaffiliated who join a religion 45% (US 2014 RLS). Folk/Other: assumption."
+    },
+    "grid_note": "Coarse starting grid for the empirical Bayes fit. The fit adapts its importance-sampling proposal at the best grid point, repeats the grid, adapts again and refines continuously with Nelder-Mead within `bounds` (religion_forecast.switching.Hierarchy.fit).",
+    "bounds": {
+      "delta": [
+        -3.0,
+        5.0
+      ],
+      "beta_d": [
+        -1.0,
+        4.0
+      ],
+      "tau_u": [
+        0.1,
+        5.0
+      ]
+    },
+    "replicate_fits": {
+      "status": "estimation setting",
+      "value": 3,
+      "note": "Independent replicate fits of the empirical Bayes switching model (different latent draws). Monte Carlo run r uses replicate r mod 3, so the Monte Carlo error of the fitted hyperparameters is carried into the projection; their spread is reported in projection_report.json."
+    },
+    "survey_overdispersion_alpha": {
+      "status": "assumption",
+      "value": 100.0,
+      "note": "Concentration of the Dirichlet-multinomial likelihood of the survey switching rows. A row carries the information of at most about alpha respondents, which allows for survey design effects and for the model's simplifications (one conversion effect per country, converts placed by local prevalence). alpha = 30 and 100 fit the evidence equally well and 300 worse (marginal likelihood); infinity would be the multinomial."
     }
   },
   "development_index": {
@@ -235,7 +253,7 @@
         0.0,
         0.0004
       ],
-      "note": "Two-way circulation beyond WPP net migration, fraction of population per year, scaled by each country's mobility. step7_validate.py (foreign_born_check) starts from the UN 1990 foreign-born stocks and simulates 1990-2020: the UN 2020 world total (252 million in the modelled countries) is matched at about 0.0001, the population-weighted country error is lowest at 0.0002 and the country-mean error at 0.0003; above 0.0004 every error grows (0.0011, the old central value, gives 407 million; these figures are with exact margins, margin_rho = 1, and change little at 0.75). Gross flow estimates (Abel & Cohen, about 0.0016 per year) are higher because many movers return: the model counts a returning emigrant as foreign-born in their own country, so it needs the lower, stock-consistent rate. Gross churn is therefore understated; foreign-born stocks are not."
+      "note": "Two-way circulation beyond WPP net migration, fraction of population per year, scaled by each country's mobility. religion_forecast/backtest.py (foreign_born_check) starts from the UN 1990 foreign-born stocks and simulates 1990-2020: the UN 2020 world total (252 million in the modelled countries) is matched at about 0.0001, the population-weighted country error is lowest at 0.0002 and the country-mean error at 0.0003; above 0.0004 every error grows (0.0011, the old central value, gives 407 million; these figures are with exact margins, margin_rho = 1, and change little at 0.75). Gross flow estimates (Abel & Cohen, about 0.0016 per year) are higher because many movers return: the model counts a returning emigrant as foreign-born in their own country, so it needs the lower, stock-consistent rate. Gross churn is therefore understated; foreign-born stocks are not."
     },
     "margin_rho": {
       "status": "estimated centre (history), assumed range",
@@ -243,7 +261,7 @@
         0.5,
         1.0
       ],
-      "note": "How strictly the flow solver enforces WPP's net migration against the observed migrant network: flows F = a K b with a = (E / K b)^rho and b = (I / K' a)^rho. rho = 1 enforces both WPP margins exactly; WPP's projected margins are partly inconsistent with the network (for example Pakistan keeps emigrating about 0.5-1 million a year while Gulf net immigration falls to almost zero after 2030), which then forces emigrants into whichever countries have positive net immigration (Pakistan would supply 46% of UK immigrants in 2020-2050 against 8% of its 2020 foreign-born). Lower rho lets both margins give way. The 1990-2020 corridor test in step7_validate.py (migration_corridor_check.csv) fits destinations' origin mixes best near 0.75; the range spans that uncertainty."
+      "note": "How strictly the flow solver enforces WPP's net migration against the observed migrant network: flows F = a K b with a = (E / K b)^rho and b = (I / K' a)^rho. rho = 1 enforces both WPP margins exactly; WPP's projected margins are partly inconsistent with the network (for example Pakistan keeps emigrating about 0.5-1 million a year while Gulf net immigration falls to almost zero after 2030), which then forces emigrants into whichever countries have positive net immigration (Pakistan would supply 46% of UK immigrants in 2020-2050 against 8% of its 2020 foreign-born). Lower rho lets both margins give way. The 1990-2020 corridor test in religion_forecast/backtest.py (migration_corridor_check.csv) fits destinations' origin mixes best near 0.75; the range spans that uncertainty."
     },
     "omega_gravity_weight": {
       "status": "assumption",
@@ -270,7 +288,7 @@
         0.0,
         0.15
       ],
-      "note": "When UN bilateral stocks and step7_inputs/migrant_religion_published.csv are present, step7_estimate.calibrate_selectivity estimates the minority effect and religion propensities instead (reported in the forecast report)."
+      "note": "When UN bilateral stocks and inputs/migrant_religion_published.csv are present, religion_forecast.calibration.calibrate_affinity estimates the minority effect and religion propensities instead (reported in the forecast report)."
     },
     "post2100_congestion_theta": {
       "status": "assumption",
@@ -279,7 +297,12 @@
         1.5
       ]
     },
-    "note": "To 2100 the WPP medium net migration fixes each country's net; scenarios multiply both net and circulation."
+    "note": "To 2100 the WPP medium net migration fixes each country's net; scenarios multiply both net and circulation.",
+    "corridor_cap": {
+      "status": "tested and not adopted",
+      "value": null,
+      "note": "Optional limit on an origin's share of a destination's arrivals, as a multiple of its share of that destination's migrant stock (religion_forecast.migration.cap_corridors). The 1990-2020 corridor test (data/validation/migration_corridor_check.csv) fits worse with any cap from 1.5 to 4 at every margin softness, and observed arrivals were more concentrated by origin than the uncapped model simulates, so no cap is applied. Large projected corridors such as Pakistan to the United Kingdom therefore come from WPP's projected national margins and are reported as such."
+    }
   },
   "long_run_demography": {
     "status": "assumption (after 2100 there are no UN projections)",
@@ -316,10 +339,6 @@
       ],
       "note": "Country deviations from the long-run level halve over this many years. Earlier versions made them permanent, which over 900 years compounded a 0.1-child difference into the dominant source of spread at 2500-3026 (the 5-95% band for Islam at 3026 was 22 points with a permanent deviation against 5-6 points with any half-life in this range). No country is assumed to hold a fertility advantage for centuries."
     }
-  },
-  "residual": {
-    "status": "estimated weight (chosen by forward-chaining validation in step7_validate.py); 0 unless it improves out-of-sample error",
-    "default_weight": 0.0
   },
   "scenarios": {
     "stabilising": {

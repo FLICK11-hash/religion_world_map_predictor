@@ -1,27 +1,30 @@
-"""Step 7 forecast: religious composition of every country, 2020-3030, under eight scenarios.
+"""Projection: religious composition of every country, 2020-3030, under eight scenarios.
 
-Run (from this folder, Windows PowerShell):
-    .\\.venv\\Scripts\\python.exe run.py fetch         # optional data (once)
-    .\\.venv\\Scripts\\python.exe run.py backtest           # history tests (writes data/validation)
-    .\\.venv\\Scripts\\python.exe run.py project           # this script (runs from config/assumptions.json)
-    .\\.venv\\Scripts\\python.exe run.py checks
-    .\\.venv\\Scripts\\python.exe run.py figures --png
-Options: --runs N (per scenario), --scenarios a,b, --seed S, --quick (8 runs, for a fast check).
-Writes data/projections/ (git-ignored). Earlier steps' outputs are not touched.
+    python run.py project                  40 runs per scenario (config/assumptions.json)
+    python run.py project --runs 12        fewer runs
+    python run.py project --scenarios stabilising,high_retention
+    python run.py project --quick          8 runs, to check the plumbing, not for results
 
-What is fitted before the runs
-  religion of migrants    minority effect and destination affinity calibrated to Pew's published
-                          religious composition of migrants (needs UN bilateral stocks; otherwise
-                          migrants mirror their origin)
-  switching               empirical Bayes on (a) what demographic hindcasts of WRP 1950-2010 and, when
-                          available, Pew 2010-2020 leave unexplained and (b) verified survey cells in
-                          inputs/switching_lifetime_observed.csv
-Each run draws every uncertain parameter (ranges in config/assumptions.json), one posterior switching
-draw per country, and the switching strength. Run r uses the same draws in every scenario (common
-random numbers), so differences between scenarios come from the scenario assumptions alone.
-Within-scenario spread = model and parameter uncertainty; differences between scenarios = scenario
-uncertainty. Both are reported separately.
-Years after 2100 rest on stated long-run assumptions; 2500 and 3026 are speculative scenarios.
+Writes data/projections/ (git-ignored).
+
+Fitted once, before the runs
+  religion of migrants   minority effect and destination affinity calibrated to Pew's published
+                         religious composition of migrants (needs UN bilateral stocks)
+  switching              empirical Bayes on (a) what demographic hindcasts of World Religion Project
+                         decades 1950-2010 (and Pew 2010-2020 when available) leave unexplained and
+                         (b) the verified survey rows in inputs/switching_lifetime_observed.csv
+  forecast errors        the error model fitted by run.py backtest (religion_forecast.errors);
+                         built here if the backtest has not been run
+
+Each run draws every uncertain parameter (ranges in config/assumptions.json), one posterior
+switching draw per country, and the weight given to the survey level of switching. Run r uses the
+same draws in every scenario (common random numbers), so differences between scenarios come from
+the scenario assumptions alone. Three kinds of uncertainty are reported separately:
+  q05/q95    the spread of the runs: parameter uncertainty inside one scenario
+  pi05/pi95  predictive quantiles to 2100: the runs plus the forecast errors of the past
+  scenarios  the spread of scenario means: assumption uncertainty
+Years after 2100 rest on stated long-run assumptions and are exploratory, with no predictive
+intervals; 2500 and 3026 show what those assumptions imply, not what will happen.
 """
 from __future__ import annotations
 
@@ -34,13 +37,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from religion_forecast import calibration as ES
+from religion_forecast import config
 from religion_forecast import datasets as D
 from religion_forecast import engine as E
-from religion_forecast import calibration as ES
+from religion_forecast import errors as ER
 from religion_forecast import model as SM
 from religion_forecast import switching as SW
 from religion_forecast import tables as T
-from religion_forecast import config
 
 OUT = config.PROJECTIONS
 CATS, K = E.CATS, E.K
@@ -50,14 +54,40 @@ STEPS = list(range(2020, 3031, 5))
 PERIOD_LABEL = {pr: f'{pr[0]}-{pr[1]}' for pr in SM.PERIODS}
 
 
-def prepare(ctx):
-    """Calibrations shared by every run."""
+def prepare(ctx, log=print):
+    """Calibrations shared by every run: the religion of migrants, and the switching fit as an
+    ensemble of replicate fits (switching.Ensemble). The fit is cached in data/projections so that
+    run.py experiments reuses exactly the fit the projection used."""
+    import hashlib
+    import pickle
     ctx.selectivity = ES.calibrate_affinity(ctx)
     p0 = ES.central_params(ctx)
     wins = ES.no_switching_hindcasts(ctx, p0, ES.windows(ctx))
-    hier = ES.fit_switching(ctx, wins, use_survey=True)
-    hier.survey_level = ES.calibrate_survey_level(ctx, hier)
-    return hier, wins
+    sw = ctx.a['switching']
+    replicates = int(sw.get('replicate_fits', {}).get('value', 3))
+    key = hashlib.sha256(json.dumps([sw, ctx.start_source, ctx.ids, replicates], sort_keys=True, default=str)
+                         .encode()).hexdigest()[:16]
+    cache = OUT / 'switching_fit.pkl'
+    if cache.exists():
+        try:
+            saved = pickle.loads(cache.read_bytes())
+            if saved.get('key') == key:
+                log(f'Switching fit: reusing {cache.relative_to(config.PROJECT)}')
+                return saved['ensemble'], wins
+        except Exception:                                    # a stale or unreadable cache is refitted
+            pass
+    members = []
+    for i in range(replicates):
+        t0 = time.time()
+        h = ES.fit_switching(ctx, wins, use_survey=True, seed=7 + i)
+        h.survey_level = ES.calibrate_survey_level(ctx, h)
+        members.append(h)
+        log(f'  switching fit {i + 1}/{replicates}: delta={h.H[0]:.3f}, beta_d={h.H[1]:.3f}, tau_u={h.H[2]:.3f} '
+            f'({time.time() - t0:.0f}s)')
+    ens = SW.Ensemble(members)
+    OUT.mkdir(parents=True, exist_ok=True)
+    cache.write_bytes(pickle.dumps({'key': key, 'ensemble': ens}))
+    return ens, wins
 
 
 class Store:
@@ -121,8 +151,9 @@ def run_scenarios(ctx, hier, scenarios, runs, seed, log=print):
         for r in range(runs):
             rng = np.random.default_rng([seed, r])          # same draws in every scenario (common random numbers)
             p = SM.draw_run(ctx, rng, name)
-            idx = hier.sample_indices(rng, 1)[:, 0]
-            res = SM.simulate(ctx, p, cfg, hier, idx)
+            h = hier.member(r)
+            idx = h.sample_indices(rng, 1)[:, 0]
+            res = SM.simulate(ctx, p, cfg, h, idx)
             st.add(r, res, p)
         log(f'  {name}: {runs} runs in {time.time() - t0:.0f}s')
         stores[name] = st
@@ -142,17 +173,21 @@ def main(argv=None):
     runs = 8 if args.quick else (args.runs or a['runs_per_scenario'])
     seed = a['random_seed'] if args.seed is None else args.seed
     scenarios = list(a['scenarios']) if args.scenarios == 'all' else args.scenarios.split(',')
-    print(f'Step 7 forecast: {ctx.n} countries, start state {ctx.start_source}')
+    print(f'Projection: {ctx.n} countries, start state {ctx.start_source}')
     print('Inputs:', json.dumps({k: v['status'] for k, v in D.catalogue().items()}))
     hier, wins = prepare(ctx)
-    print(f'Switching fit: delta={hier.H[0]}, beta_d={hier.H[1]}, tau_u={hier.H[2]}; evidence windows {len(wins)}; '
-          f"survey cells {0 if ctx.switch_obs is None else len(ctx.switch_obs)}")
+    sd = hier.H_spread()
+    print(f'Switching fit ({len(hier.members)} replicates): delta={hier.H[0]:.3f} (sd {sd[0]:.3f}), '
+          f'beta_d={hier.H[1]:.3f} (sd {sd[1]:.3f}), tau_u={hier.H[2]:.3f} (sd {sd[2]:.3f}); evidence windows '
+          f"{len(wins)}; survey cells {0 if ctx.switch_obs is None else len(ctx.switch_obs)}")
     if ctx.selectivity is not None:
         print(f"Religion of migrants: affinity kappa={ctx.selectivity.get('kappa', 0):.2f}, minority lambda="
               f"{ctx.selectivity['lam']:.2f}, rmse {ctx.selectivity['rmse_pp']:.2f} pp "
               f"(migrants mirror origin: {ctx.selectivity['rmse_mirror_pp']:.2f} pp)")
     print(f'Running {len(scenarios)} scenarios x {runs} runs (seed {seed}) ...')
     stores = run_scenarios(ctx, hier, scenarios, runs, seed)
+    error_model = ER.load_or_build(ctx)
+    T.attach_predictive(stores, error_model, seed)
     OUT.mkdir(parents=True, exist_ok=True)
     ref = a['reference_scenario'] if a['reference_scenario'] in stores else scenarios[0]
     ct = pd.concat([T.country_table(ctx, s, st) for s, st in stores.items()], ignore_index=True)
@@ -172,7 +207,7 @@ def main(argv=None):
     dc.to_csv(OUT / 'dominant_change.csv', index=False)
     us = T.uncertainty_split(wt)
     us.to_csv(OUT / 'uncertainty_model_vs_scenario.csv', index=False)
-    sc = hier.survey_level['table'] if hier.survey_level is not None else T.switching_check(ctx, hier)
+    sc = hier.survey_level['table'] if hier.survey_level is not None else T.switching_check(ctx, hier.members[0])
     sc.to_csv(OUT / 'switching_check_vs_pew.csv', index=False)
     ES.switching_table(ctx, hier).to_csv(OUT / 'switching_rates_2020.csv', index=False)
     prov = T.provenance(ctx, hier, wins)
@@ -198,7 +233,14 @@ def main(argv=None):
                countries=ctx.n, dropped_countries=ctx.dropped, start_state=ctx.start_source, inputs=D.catalogue(),
                runs_per_scenario=runs, seed=seed, scenarios={s: a['scenarios'][s]['label'] for s in scenarios},
                reference_scenario=ref,
+               forecast_error_model=dict(b=error_model['b'], beta=error_model['beta'],
+                                         blocks=[blk['label'] for blk in error_model['blocks']],
+                                         note='predictive intervals (pi*) to 2100 add resampled past forecast errors '
+                                              'to every run; see religion_forecast/errors.py'),
                switching_fit=dict(delta=hier.H[0], beta_d=hier.H[1], tau_u=hier.H[2],
+                                  replicates=[dict(delta=m.H[0], beta_d=m.H[1], tau_u=m.H[2],
+                                                   log_marginal=m.log_marginal_value) for m in hier.members],
+                                  replicate_sd=dict(zip(('delta', 'beta_d', 'tau_u'), hier.H_spread())),
                                   net_noise_scale_pp=None if hier.net_scale is None else [round(100 * float(x), 3) for x in hier.net_scale],
                                   median_posterior_ess=float(np.median(hier.effective_sample_size())),
                                   latent_draws=hier.M),
@@ -212,8 +254,8 @@ def main(argv=None):
                    residuals_pp=ctx.selectivity['residuals']),
                diagnostics=dict(mean_abs_log_rescale_to_2100=float(diag.rescale_mean_abs_log.mean()),
                                 migration_shortfall_persons_mean=float(diag.migration_shortfall_persons.mean())),
-               cautions=['Shares after 2100 rest on stated long-run assumptions; 2500 and 3026 are speculative scenarios.',
-                         'Within-scenario bands are parameter and model uncertainty under that scenario, not calibrated probabilities.',
+               cautions=['Shares after 2100 rest on stated long-run assumptions; 2500 and 3026 are exploratory scenarios without predictive intervals.',
+                         'q05/q95 are parameter uncertainty only; use pi05/pi95 (to 2100) for predictive intervals.',
                          'The Folk/Traditional vs Other split of Pew data is a WRP-based proxy; WRP and Pew classify China differently.',
                          'Fertility gaps come from published world, regional or country figures (fertility_evidence.csv); the world and regional tiers are damped because a ratio measured across countries is not a within-country ratio.',
                          'The religion of migrants comes from a two-parameter model (minority effect, destination affinity) calibrated to '
@@ -222,6 +264,10 @@ def main(argv=None):
     print('\nWorld shares (reference scenario: %s), %%:' % ref)
     piv = wt[wt.scenario.eq(ref) & wt.year.isin(TARGET_YEARS)].pivot(index='year', columns='religion', values='mean') * 100
     print(piv[CATS].round(1).to_string())
+    show = wt[wt.scenario.eq(ref) & wt.year.isin([2050, 2100])].copy()
+    show[['mean', 'pi05', 'pi95']] *= 100
+    print('\nPredictive 90% intervals of world shares (%):')
+    print(show.pivot(index='religion', columns='year', values=['mean', 'pi05', 'pi95']).round(1).to_string())
     print('\nModel vs scenario uncertainty (world shares, pp):')
     print(us[us.religion.isin(['Christianity', 'Islam', 'Unaffiliated', 'Hinduism'])].round(2).to_string(index=False))
     ss = T.shift_share(ct, ref)

@@ -1,57 +1,83 @@
-"""Step 7 validation: forward-chaining history tests of every mechanism against persistence.
+"""History tests: how well the model forecasts decades it was not fitted to.
 
-Run:  .\\.venv\\Scripts\\python.exe run.py backtest
+    python run.py backtest            everything below (about ten minutes)
+    python run.py backtest --quick    point forecasts and inference only
+
 Writes data/validation/ (git-ignored) and prints a summary.
 
-Windows are 10-year periods with observed religious shares at both ends: WRP 1950-1960 ... 2000-2010
-(WRP categories) and, when data/processed/pew_harmonized.csv exists, Pew 2010-2020. A window is
-predicted only with what was known before it: switching rates and the residual learner are fitted on
-windows that END no later than the test window STARTS, and their weights (switching strength,
-residual weight) are chosen on earlier test windows only. WPP demography for the window itself is
-used (retrospective: WPP 2024 estimates, not the projections available at the time).
+Point forecasts. Windows are ten-year periods with observed shares at both ends: World Religion
+Project 1970-1980 ... 2000-2010 and, when data/processed/pew_harmonized.csv exists, Pew 2010-2020.
+A window is forecast only with what was known before it: switching is estimated on windows that
+END no later than the test window STARTS, and the switching strength of `switching_selected` is
+chosen on earlier test windows only. National demography inside the window is WPP 2024's estimate
+(retrospective, not the projection available at the time), so every model is scored conditional
+on national fertility, mortality and net migration.
 
-Models
-  persistence              shares unchanged
-  demography               births, deaths, ageing (religion-specific fertility, generations), no migration
-  demography_migration     + conserving origin-destination migration
-  + switching              + hierarchical switching (posterior mean), strength chosen out of sample
-  + switching + residual   + ridge residual learner, weight chosen out of sample
-  + momentum               demography_migration + last window's residual carried forward (as in 5E)
-Scores: population-weighted total-variation error (pp), country-mean TV, MAE, dominant-religion
-accuracy, and detection of dominant-religion changes.
+    persistence             shares unchanged
+    trend                   the model's last-decade residual repeated: a naive trend baseline
+    demography              births, deaths, ageing (group fertility, generations), no migration
+    demography_migration    + origin-destination migration
+    switching_<s>           + switching, posterior mean rates times strength s = 0, 0.5, 1
+    switching_selected      + switching at the strength that scored best on earlier windows
 
-Migration volumes (foreign_born_check): starting from the UN 1990 foreign-born stocks, simulate
-1990-2020 with WPP demography and the migration model (no switching) at the low, middle and high end
-of the circulation range, and compare each country's 2020 foreign-born share with the UN 2020 stocks.
-Baseline: the 1990 foreign-born share unchanged. Writes migration_foreign_born_check.csv.
-Interval calibration (interval_calibration): the full Monte Carlo on each history window, measuring
-what fraction of observed shares fall inside the model's 50/80/90% predictive intervals.
-Corridors (corridor_check): the same 1990-2020 run at several margin softness values (margin_rho);
-simulated flows into each of the 25 largest destinations are compared with the growth of the UN
-bilateral stocks 1990-2020 (origin mix: correlation and total-variation distance). Writes
-migration_corridor_check.csv. Run only the two migration checks with --foreign-born-only.
+Scores per window: population-weighted and unweighted total-variation (TV) error, mean absolute
+error, accuracy of the largest religion and detection of changes in it.
+
+Inference. A window-level comparison has as many observations as windows (four or five), so no
+test on it can reach conventional significance. `inference` compares each model with persistence
+country by country: the population-weighted mean difference in TV error over every country-window,
+with a 95% interval from a bootstrap that resamples countries (all of a country's windows together).
+Countries within a decade share common shocks, which this interval does not capture, so the exact
+window-level sign-flip test is reported beside it as the conservative bound.
+
+Forecast errors (religion_forecast.errors). Monte Carlo forecasts from every origin, scored at
+horizons of 10 to 40 years; the fitted error model used for the projection's predictive intervals;
+and leave-one-origin-out coverage and interval scores of those intervals.
+
+Migration. foreign_born_check simulates 1990-2020 from the UN 1990 foreign-born stocks and compares
+each country's 2020 foreign-born share with the UN 2020 stocks. corridor_check compares simulated
+1990-2020 inflows into the 25 largest destinations with the growth of UN bilateral stocks.
 """
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from religion_forecast import engine as E
 from religion_forecast import calibration as ES
-from religion_forecast import model as SM
-from religion_forecast import residual as RL
 from religion_forecast import config
+from religion_forecast import engine as E
+from religion_forecast import errors as ER
+from religion_forecast import model as SM
 
 OUT = config.VALIDATION
 CATS, K = E.CATS, E.K
 STRENGTHS = [0.0, 0.5, 1.0]
-RESID_WEIGHTS = [0.0, 0.25, 0.5, 1.0]
-RESID_ALPHAS = [1.0, 10.0, 100.0]
+MODELS = ['persistence', 'trend', 'demography', 'demography_migration', 'switching_0', 'switching_0.5',
+          'switching_1', 'switching_selected']
+LABELS = {'persistence': 'Persistence (no change)', 'trend': 'Trend (last decade repeated)',
+          'demography': 'Births and deaths', 'demography_migration': '+ migration',
+          'switching_0': '+ switching, strength 0', 'switching_0.5': '+ switching, strength 0.5',
+          'switching_1': '+ switching, strength 1 (as projected)',
+          'switching_selected': '+ switching, strength chosen on earlier decades'}
+
+
+def to_simplex(x):
+    """Clip at zero and renormalise each row to sum to one."""
+    s = np.clip(x, 0.0, None)
+    return s / np.maximum(s.sum(1, keepdims=True), 1e-300)
+
+
+def tv_by_country(pred, obs, mask):
+    """Total-variation distance per country [n] (NaN where not scored)."""
+    m = mask & np.isfinite(obs).all(1)
+    out = np.full(len(mask), np.nan)
+    out[m] = 0.5 * np.abs(pred[m] - obs[m]).sum(1)
+    return out
 
 
 def score(pred, obs, s0, mask, pop):
@@ -75,118 +101,133 @@ def make_context(bilateral=True, age_data=True, selectivity=True):
     return ctx
 
 
-def ablations(include_pew=True):
-    """Does each added dataset improve the history tests? Demography and demography+migration
-    errors for data variants (switching is not involved, so no refitting is needed)."""
-    variants = [('WPP indicators only (as Step 5D/5E)', dict(bilateral=False, age_data=False, selectivity=False)),
-                ('+ WPP age structure by sex', dict(bilateral=False, age_data=True, selectivity=False)),
-                ('+ UN bilateral migrant stocks', dict(bilateral=True, age_data=True, selectivity=False)),
-                ('+ religion of migrants calibrated to Pew', dict(bilateral=True, age_data=True, selectivity=True))]
-    rows = []
-    for label, opt in variants:
-        ctx = make_context(**opt)
-        p = ES.central_params(ctx)
-        for mig in (False, True):
-            wins = ES.no_switching_hindcasts(ctx, p, ES.windows(ctx, (1970, 1980, 1990, 2000), include_pew), migration=mig)
-            for w in wins:
-                pop = ctx.wpp_at('pop', w['start'])
-                sc = score(w['pred'], w['s1'], w['s0'], w['mask'], pop)
-                ps = score(w['s0'], w['s1'], w['s0'], w['mask'], pop)
-                rows.append({'data_variant': label, 'model': 'demography_migration' if mig else 'demography',
-                             'window': f"{w['source']} {w['start']}-{w['end']}", 'source': w['source'], 'start': w['start'],
-                             'popw_tv_pp': sc['popw_tv_pp'], 'persistence_popw_tv_pp': ps['popw_tv_pp'],
-                             'mean_tv_pp': sc['mean_tv_pp']})
-    return pd.DataFrame(rows)
-
-
-def run(include_pew=True, quick=False, ctx=None):
+# ------------------------------------------------------------------------- point forecasts
+def run(include_pew=True, ctx=None):
+    """Point forecasts of every test window. Returns (ctx, by-window scores, per-country errors,
+    switching fits by fold, out-of-sample choices, summary of strength choices)."""
     ctx = ctx or make_context()
     p = ES.central_params(ctx)
     starts = (1950, 1960, 1970, 1980, 1990, 2000)
     wins = ES.no_switching_hindcasts(ctx, p, ES.windows(ctx, starts, include_pew), migration=True)
     wins_nomig = ES.no_switching_hindcasts(ctx, p, ES.windows(ctx, starts, include_pew), migration=False)
     tests = [w for w in wins if w['start'] >= 1970]
-    rows, fits, sel_rows = [], [], []
-    prev_resid = {}
-    hist = {'switch': [], 'resid': [], 'start': []}   # per earlier test window: error by option
-    for wi, w in enumerate(wins):
-        if wi > 0:
-            prev_resid[w['start']] = wins[wi - 1]['resid'] if wins[wi - 1]['end'] <= w['start'] else None
+    rows, per_country, fits, sel_rows, hist = [], [], [], [], []
     for w in tests:
         t = w['start']
+        label = f"{w['source']} {t}-{w['end']}"
         pop = ctx.wpp_at('pop', t)
-        train = [x for x in wins if x['end'] <= t]
+        train = [x for x in wins if x['source'] == 'WRP' and x['end'] <= t]
         hier = ES.fit_switching(ctx, train, use_survey=False) if len(train) >= 2 else None
-        fits.append({'test_window': f"{w['source']} {t}-{w['end']}", 'train_windows': len(train),
+        fits.append({'test_window': label, 'train_windows': len(train),
                      'delta': None if hier is None else hier.H[0], 'beta_d': None if hier is None else hier.H[1],
                      'tau_u': None if hier is None else hier.H[2]})
         nm = next(x for x in wins_nomig if x['start'] == t and x['source'] == w['source'])
         base = w['pred']
         eff = ES.expected_switch_effect(hier, w) if hier is not None else np.zeros_like(base)
-        preds = {'persistence': w['s0'], 'demography': nm['pred'], 'demography_migration': base}
-        # switching strength: chosen on earlier test windows (1.0 before any history exists)
-        opt_s = {s: RL.apply(base, s * eff) for s in STRENGTHS}
-        if hist['switch']:
-            tot = {s: np.mean([h[s] for h in hist['switch']]) for s in STRENGTHS}
-            s_star = min(STRENGTHS, key=lambda s: tot[s])
-        else:
-            s_star = 1.0
+        previous = next((x for x in wins if x['source'] == 'WRP' and x['end'] == t), None) if w['source'] == 'WRP' \
+            else next((x for x in wins if x['source'] == 'WRP' and x['end'] == 2010), None)
+        preds = {'persistence': w['s0'], 'demography': nm['pred'], 'demography_migration': base,
+                 'trend': base if previous is None else to_simplex(base + previous['resid'])}
+        opt = {s: to_simplex(base + s * eff) for s in STRENGTHS}
         for s in STRENGTHS:
-            preds[f'switching_strength_{s:g}'] = opt_s[s]
-        preds['demography_migration_switching'] = opt_s[s_star]
-        # residual learner trained on earlier windows' residuals after switching (same strength)
-        best_r = {}
-        Xtr, Ytr = [], []
-        for x in train:
-            hx = hier
-            ex = ES.expected_switch_effect(hx, x) if hx is not None else 0.0
-            after = RL.apply(x['pred'], s_star * ex)
-            m = x['mask']
-            Xtr.append(RL.features(ctx, x, prev_resid.get(x['start']))[m])
-            Ytr.append((np.nan_to_num(x['s1']) - after)[m])
-        Xte = RL.features(ctx, w, prev_resid.get(t))
-        resid_opts = {}
-        if Xtr and sum(len(a) for a in Xtr) > 30:
-            X, Y = np.vstack(Xtr), np.vstack(Ytr)
-            for al in RESID_ALPHAS:
-                model = RL.Ridge(al).fit(X, Y)
-                d = model.predict(Xte)
-                for lw in RESID_WEIGHTS:
-                    resid_opts[(al, lw)] = RL.apply(opt_s[s_star], lw * d)
-        else:
-            resid_opts[(10.0, 0.0)] = opt_s[s_star]
-        if hist['resid']:
-            keys = set.intersection(*[set(h) for h in hist['resid']]) & set(resid_opts)
-            r_star = min(keys, key=lambda k: np.mean([h[k] for h in hist['resid']])) if keys else (10.0, 0.0)
-        else:
-            r_star = (10.0, 0.0)
-        preds['demography_migration_switching_residual'] = resid_opts.get(r_star, opt_s[s_star])
-        last = prev_resid.get(t)
-        preds['demography_migration_momentum'] = RL.apply(base, 0.0 if last is None else last) if last is not None else base
-        for name, pr in preds.items():
-            rows.append({'window': f"{w['source']} {t}-{w['end']}", 'source': w['source'], 'start': t, 'model': name,
+            preds[f'switching_{s:g}'] = opt[s]
+        s_star = min(STRENGTHS, key=lambda s: np.mean([h[s] for h in hist])) if hist else 1.0
+        preds['switching_selected'] = opt[s_star]
+        for name in MODELS:
+            pr = preds[name]
+            rows.append({'window': label, 'source': w['source'], 'start': t, 'model': name,
                          **score(pr, w['s1'], w['s0'], w['mask'], pop)})
-        sel_rows.append({'window': f"{w['source']} {t}-{w['end']}", 'switch_strength_used': s_star,
-                         'residual_alpha_used': r_star[0], 'residual_weight_used': r_star[1]})
-        hist['switch'].append({s: score(opt_s[s], w['s1'], w['s0'], w['mask'], pop)['popw_tv_pp'] for s in STRENGTHS})
-        hist['start'].append(t)
-        hist['resid'].append({k: score(v, w['s1'], w['s0'], w['mask'], pop)['popw_tv_pp'] for k, v in resid_opts.items()})
+            tv = tv_by_country(pr, w['s1'], w['mask'])
+            for i in np.flatnonzero(np.isfinite(tv)):
+                per_country.append({'window': label, 'source': w['source'], 'country_id': ctx.ids[i],
+                                    'population': float(pop[i]), 'model': name, 'tv': float(tv[i])})
+        sel_rows.append({'window': label, 'switch_strength_used': s_star})
+        hist.append({s: score(opt[s], w['s1'], w['s0'], w['mask'], pop)['popw_tv_pp'] for s in STRENGTHS})
     by = pd.DataFrame(rows)
-    # best option on all test windows, and on the windows whose switching fit had 4+ decades of training
-    sw_tot = {s: np.mean([h[s] for h in hist['switch']]) for s in STRENGTHS}
-    recent = [h for h, t0 in zip(hist['switch'], hist['start']) if t0 >= 1990]
-    sw_rec = {s: np.mean([h[s] for h in recent]) for s in STRENGTHS} if recent else {}
-    keys = set.intersection(*[set(h) for h in hist['resid']])
-    rs_tot = {k: np.mean([h[k] for h in hist['resid']]) for k in keys}
-    choice = {'switching_strength_best_all_windows': min(STRENGTHS, key=lambda s: sw_tot[s]),
-              'switching_strength_scores_popw_tv_pp': {str(k): v for k, v in sw_tot.items()},
-              'switching_strength_best_1990_2010': min(sw_rec, key=lambda s: sw_rec[s]) if sw_rec else None,
-              'switching_strength_scores_1990_2010_popw_tv_pp': {str(k): v for k, v in sw_rec.items()},
-              'residual': dict(zip(('alpha', 'weight'), min(rs_tot, key=lambda k: rs_tot[k]))),
-              'residual_scores_popw_tv_pp': {f'alpha={k[0]:g},weight={k[1]:g}': v for k, v in rs_tot.items()}}
-    return ctx, by, pd.DataFrame(fits), pd.DataFrame(sel_rows), choice
+    choice = {'switching_strength_scores_popw_tv_pp': {str(s): float(np.mean([h[s] for h in hist])) for s in STRENGTHS}}
+    return ctx, by, pd.DataFrame(per_country), pd.DataFrame(fits), pd.DataFrame(sel_rows), choice
 
 
+def summarize(by):
+    out = []
+    scopes = [('WRP 1970-2010', by.source.eq('WRP')), ('WRP 1990-2010', by.source.eq('WRP') & by.start.ge(1990)),
+              ('Pew 2010-2020', by.source.eq('Pew')), ('all windows', by.source.isin(['WRP', 'Pew']))]
+    for scope, filt in scopes:
+        sub = by[filt]
+        if sub.empty or (scope == 'all windows' and sub.source.nunique() < 2):
+            continue
+        g = sub.groupby('model').agg(windows=('window', 'nunique'), popw_tv_pp=('popw_tv_pp', 'mean'),
+                                     mean_tv_pp=('mean_tv_pp', 'mean'), mae_pp=('mae_pp', 'mean'),
+                                     dominant_accuracy=('dominant_accuracy', 'mean'),
+                                     changed_true=('changed_true', 'sum'), changed_hit=('changed_hit', 'sum'),
+                                     false_alarm=('false_alarm', 'sum')).reset_index()
+        pers = float(g.loc[g.model.eq('persistence'), 'popw_tv_pp'].iloc[0])
+        g['change_vs_persistence_pp'] = g.popw_tv_pp - pers
+        g['change_vs_persistence_percent'] = 100 * g.change_vs_persistence_pp / pers
+        g.insert(0, 'scope', scope)
+        g['model'] = pd.Categorical(g.model, MODELS, ordered=True)
+        out.append(g.sort_values('model'))
+    return pd.concat(out, ignore_index=True)
+
+
+# ------------------------------------------------------------------------------- inference
+def sign_flip_p(diffs):
+    """Exact two-sided p-value of the paired sign-flip (randomisation) test that the mean
+    difference is zero. With n differences the smallest attainable value is 2 / 2^n."""
+    d = np.asarray(diffs, float)
+    obs = abs(d.mean())
+    flips = np.array(list(itertools.product((1.0, -1.0), repeat=len(d))))
+    return float((np.abs((flips * d).mean(1)) >= obs - 1e-12).mean())
+
+
+def inference(per_country, reference='persistence', B=4000, seed=2026):
+    """Each model against `reference`, country by country, in percentage points of TV error.
+
+    mean_difference_pp   population-weighted mean of (model - reference) over all country-windows
+    ci95_low/high        percentile interval from B bootstrap resamples of countries
+    p_bootstrap          two-sided bootstrap p-value: 2 x the share of resamples on the far side of 0
+    unweighted_*         the same with every country weighted equally
+    share_better         fraction of country-windows where the model's error is lower
+    windows, p_window    number of windows and the exact window-level sign-flip p-value"""
+    rows = []
+    rng = np.random.default_rng(seed)
+    pc = per_country.copy()
+    pc['scope'] = np.where(pc.source.eq('Pew'), 'Pew 2010-2020', 'WRP 1970-2010')
+    scopes = [('WRP 1970-2010', pc[pc.scope.eq('WRP 1970-2010')])]
+    if pc.source.eq('Pew').any():
+        scopes += [('Pew 2010-2020', pc[pc.source.eq('Pew')]), ('all windows', pc)]
+    for scope, sub in scopes:
+        ref = sub[sub.model.eq(reference)].set_index(['window', 'country_id'])
+        countries = sorted(sub.country_id.unique())
+        cidx = {c: i for i, c in enumerate(countries)}
+        draws = rng.integers(len(countries), size=(B, len(countries)))
+        for name in [m for m in MODELS if m != reference]:
+            cur = sub[sub.model.eq(name)].set_index(['window', 'country_id'])
+            j = cur.join(ref[['tv']], rsuffix='_ref', how='inner').reset_index()
+            d = 100 * (j.tv - j.tv_ref).to_numpy()
+            w = j.population.to_numpy()
+            ci = j.country_id.map(cidx).to_numpy()
+            S, W = np.bincount(ci, w * d, len(countries)), np.bincount(ci, w, len(countries))
+            Su, Nu = np.bincount(ci, d, len(countries)), np.bincount(ci, None, len(countries))
+            boot = S[draws].sum(1) / W[draws].sum(1)
+            boot_u = Su[draws].sum(1) / Nu[draws].sum(1)
+            per_window = j.groupby('window').apply(lambda g: np.average(100 * (g.tv - g.tv_ref), weights=g.population),
+                                                   include_groups=False)
+            mean = float(S.sum() / W.sum())
+            rows.append(dict(scope=scope, model=name, reference=reference, country_windows=len(d),
+                             countries=int((Nu > 0).sum()), mean_difference_pp=mean,
+                             ci95_low_pp=float(np.quantile(boot, 0.025)), ci95_high_pp=float(np.quantile(boot, 0.975)),
+                             p_bootstrap=float(min(1.0, 2 * min((boot <= 0).mean(), (boot >= 0).mean()))),
+                             unweighted_mean_difference_pp=float(Su.sum() / Nu.sum()),
+                             unweighted_ci95_low_pp=float(np.quantile(boot_u, 0.025)),
+                             unweighted_ci95_high_pp=float(np.quantile(boot_u, 0.975)),
+                             share_better=float((d < -1e-9).mean()), windows=int(len(per_window)),
+                             windows_better=int((per_window < 0).sum()),
+                             p_window=sign_flip_p(per_window.to_numpy()) if len(per_window) > 1 else np.nan))
+    return pd.DataFrame(rows)
+
+
+# ----------------------------------------------------------------------------- migration
 def foreign_born_check(ctx, start=1990, end=2020):
     """Simulated vs UN foreign-born share of each country in `end`, from the UN stocks of `start`."""
     from religion_forecast import datasets as D
@@ -221,72 +262,9 @@ def foreign_born_check(ctx, start=1990, end=2020):
     return pd.DataFrame(rows), pd.DataFrame(per_country)
 
 
-def interval_calibration(ctx, runs=40, seed=None, starts=(1980, 1990, 2000), levels=(0.5, 0.8, 0.9)):
-    """Are the model's predictive intervals the right width?
-
-    Point errors say whether the centre of a forecast is right; they say nothing about whether the
-    stated uncertainty is honest. For each history window this draws `runs` full parameter sets,
-    runs the 10-year hindcast with each, and asks what fraction of the observed country x religion
-    shares fell inside the model's central 50%, 80% and 90% intervals. A well-calibrated model
-    covers about the nominal fraction.
-
-    The intervals here are PARAMETER uncertainty only: the model does not claim to know how much
-    the WRP measurements themselves move between rounds. `coverage_with_measurement_error` widens
-    each interval by the per-religion residual scale the switching fit estimates for that noise,
-    which is the comparison that shows whether the shortfall is the model being overconfident or
-    the data being noisy.
-
-    Switching is fitted on windows that END no later than the test window STARTS, as elsewhere.
-    """
-    seed = ctx.a['random_seed'] if seed is None else seed
-    wins = ES.no_switching_hindcasts(ctx, ES.central_params(ctx), ES.windows(ctx, (1950, 1960, 1970, 1980, 1990, 2000)))
-    rows, per_window = [], []
-    for w in [x for x in wins if x['start'] in starts]:
-        train = [x for x in wins if x['end'] <= w['start']]
-        if len(train) < 2:
-            continue
-        hier = ES.fit_switching(ctx, train, use_survey=False)
-        noise = np.zeros(K) if hier.net_scale is None else np.asarray(hier.net_scale, float)
-        preds = np.empty((runs, ctx.n, K))
-        for r in range(runs):
-            rng = np.random.default_rng([seed, 777, w['start'], r])
-            p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-            idx = hier.sample_indices(rng, 1)[:, 0]
-            preds[r] = SM.hindcast(ctx, p, w['start'], w['s0'], years=w['end'] - w['start'],
-                                   hier=hier, draw_idx=idx)[0]
-        m = w['mask'] & np.isfinite(w['s1']).all(1)
-        obs = w['s1'][m]
-        pr = preds[:, m, :]
-        pop = ctx.wpp_at('pop', w['start'])[m]
-        weights = np.repeat(pop[:, None], K, axis=1)
-        for lev in levels:
-            lo, hi = np.quantile(pr, (1 - lev) / 2, axis=0), np.quantile(pr, 1 - (1 - lev) / 2, axis=0)
-            inside = (obs >= lo) & (obs <= hi)
-            wide = (obs >= lo - noise[None, :]) & (obs <= hi + noise[None, :])
-            rows.append(dict(window=f"{w['source']} {w['start']}-{w['end']}", nominal=lev, cells=int(inside.size),
-                             coverage=float(inside.mean()),
-                             coverage_population_weighted=float(np.average(inside, weights=weights)),
-                             coverage_with_measurement_error=float(wide.mean()),
-                             mean_interval_width_pp=100 * float((hi - lo).mean()),
-                             median_interval_width_pp=100 * float(np.median(hi - lo))))
-        centre = preds.mean(0)
-        # How wide would the intervals have to be? Compare the model's own half-width with the
-        # absolute error actually made, per religion.
-        err = np.abs(pr.mean(0) - obs)
-        half = 0.5 * (np.quantile(pr, 0.95, axis=0) - np.quantile(pr, 0.05, axis=0))
-        for k, c in enumerate(CATS):
-            per_window.append(dict(window=f"{w['source']} {w['start']}-{w['end']}", religion=c, runs=runs,
-                                   train_windows=len(train), cells=int(len(obs)),
-                                   abs_error_median_pp=100 * float(np.median(err[:, k])),
-                                   abs_error_q90_pp=100 * float(np.quantile(err[:, k], 0.9)),
-                                   model_half_width_q90_pp=100 * float(np.quantile(half[:, k], 0.9)),
-                                   widening_needed=float(np.quantile(err[:, k], 0.9) /
-                                                         max(np.quantile(half[:, k], 0.9), 1e-9))))
-    return pd.DataFrame(rows), pd.DataFrame(per_window)
-
-
-def corridor_check(ctx, rhos=(1.0, 0.75, 0.5), start=1990, end=2020, top=25):
-    """Simulated 1990-2020 corridor flows vs positive growth of UN bilateral stocks, by margin softness."""
+def corridor_check(ctx, rhos=(1.0, 0.75, 0.5), start=1990, end=2020, top=25, corridor_caps=(None,)):
+    """Simulated 1990-2020 corridor flows vs positive growth of UN bilateral stocks, by margin
+    softness and (optionally) corridor cap."""
     from religion_forecast import datasets as D
     if ctx.stock_df is None:
         return None
@@ -301,131 +279,130 @@ def corridor_check(ctx, rhos=(1.0, 0.75, 0.5), start=1990, end=2020, top=25):
     rows = []
     orig = SM.MigrationPlan.realise
     for rho in rhos:
-        acc = []
+        for cap in corridor_caps:
+            acc = []
 
-        def realise(self, year, dem, P, _acc=acc):
-            out = orig(self, year, dem, P)
-            _acc.append(self.last_F)
-            return out
-        SM.MigrationPlan.realise = realise
-        try:
-            SM.hindcast(ctx, dict(p, margin_rho=rho), start, ctx.s2020, years=end - start)
-        finally:
-            SM.MigrationPlan.realise = orig
-        F = np.sum(acc, axis=0)
-        mix = lambda M, d: M[:, d] / max(M[:, d].sum(), 1e-300)
-        rows.append(dict(margin_rho=rho,
-                         destination_origin_mix_corr=float(np.mean([np.corrcoef(mix(F, d), mix(dS, d))[0, 1] for d in dests])),
-                         destination_origin_mix_tv=float(np.mean([0.5 * np.abs(mix(F, d) - mix(dS, d)).sum() for d in dests])),
-                         simulated_moves_millions=float(F.sum() / 1e6), stock_growth_millions=float(dS.sum() / 1e6)))
+            def realise(self, year, dem, P, _acc=acc):
+                out = orig(self, year, dem, P)
+                _acc.append(self.last_F)
+                return out
+            SM.MigrationPlan.realise = realise
+            try:
+                SM.hindcast(ctx, dict(p, margin_rho=rho, corridor_cap=cap), start, ctx.s2020, years=end - start)
+            finally:
+                SM.MigrationPlan.realise = orig
+            F = np.sum(acc, axis=0)
+            mix = lambda M, d: M[:, d] / max(M[:, d].sum(), 1e-300)
+            top_share = lambda M, d: float(mix(M, d).max())
+            rows.append(dict(margin_rho=rho, corridor_cap='none' if cap is None else cap,
+                             destination_origin_mix_corr=float(np.mean([np.corrcoef(mix(F, d), mix(dS, d))[0, 1] for d in dests])),
+                             destination_origin_mix_tv=float(np.mean([0.5 * np.abs(mix(F, d) - mix(dS, d)).sum() for d in dests])),
+                             largest_origin_share_simulated=float(np.mean([top_share(F, d) for d in dests])),
+                             largest_origin_share_observed=float(np.mean([top_share(dS, d) for d in dests])),
+                             simulated_moves_millions=float(F.sum() / 1e6), stock_growth_millions=float(dS.sum() / 1e6)))
     return pd.DataFrame(rows)
 
 
-def summarize(by):
-    out = []
-    for scope, filt in (('test windows 1990-2010 (WRP)', by.source.eq('WRP') & by.start.ge(1990)),
-                        ('all WRP windows 1970-2010', by.source.eq('WRP')),
-                        ('Pew 2010-2020', by.source.eq('Pew'))):
-        sub = by[filt]
-        if sub.empty:
-            continue
-        g = sub.groupby('model').agg(windows=('window', 'nunique'), popw_tv_pp=('popw_tv_pp', 'mean'),
-                                     mean_tv_pp=('mean_tv_pp', 'mean'), mae_pp=('mae_pp', 'mean'),
-                                     dominant_accuracy=('dominant_accuracy', 'mean'),
-                                     changed_true=('changed_true', 'sum'), changed_hit=('changed_hit', 'sum'),
-                                     false_alarm=('false_alarm', 'sum')).reset_index()
-        pers = float(g.loc[g.model.eq('persistence'), 'popw_tv_pp'].iloc[0])
-        g['beats_persistence'] = g.popw_tv_pp < pers - 1e-9
-        g['change_vs_persistence_pp'] = g.popw_tv_pp - pers
-        g.insert(0, 'scope', scope)
-        out.append(g)
-    return pd.concat(out, ignore_index=True)
+# ------------------------------------------------------------------------------ data ablations
+def ablations(include_pew=True):
+    """Does each added dataset improve the history tests? Demography and demography + migration
+    errors for data variants (switching is not involved, so nothing is refitted)."""
+    variants = [('WPP indicators only', dict(bilateral=False, age_data=False, selectivity=False)),
+                ('+ WPP age structure by sex', dict(bilateral=False, age_data=True, selectivity=False)),
+                ('+ UN bilateral migrant stocks', dict(bilateral=True, age_data=True, selectivity=False)),
+                ('+ religion of migrants calibrated to Pew', dict(bilateral=True, age_data=True, selectivity=True))]
+    rows = []
+    for label, opt in variants:
+        ctx = make_context(**opt)
+        p = ES.central_params(ctx)
+        for mig in (False, True):
+            wins = ES.no_switching_hindcasts(ctx, p, ES.windows(ctx, (1970, 1980, 1990, 2000), include_pew), migration=mig)
+            for w in wins:
+                pop = ctx.wpp_at('pop', w['start'])
+                sc = score(w['pred'], w['s1'], w['s0'], w['mask'], pop)
+                ps = score(w['s0'], w['s1'], w['s0'], w['mask'], pop)
+                rows.append({'data_variant': label, 'model': 'demography_migration' if mig else 'demography',
+                             'window': f"{w['source']} {w['start']}-{w['end']}", 'source': w['source'], 'start': w['start'],
+                             'popw_tv_pp': sc['popw_tv_pp'], 'persistence_popw_tv_pp': ps['popw_tv_pp'],
+                             'mean_tv_pp': sc['mean_tv_pp']})
+    return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------------------------- main
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--no-pew', action='store_true', help='skip the Pew 2010-2020 window even if available')
-    ap.add_argument('--skip-ablations', action='store_true', help='skip the data-ablation table')
-    ap.add_argument('--foreign-born-only', action='store_true', help='run only the migration-volume check')
-    ap.add_argument('--quick', action='store_true', help='skip the data ablations and the interval calibration')
-    ap.add_argument('--calibration-runs', type=int, default=40, help='Monte Carlo runs per window for the interval calibration')
+    ap.add_argument('--quick', action='store_true', help='point forecasts and inference only')
+    ap.add_argument('--error-runs', type=int, default=40, help='Monte Carlo runs per origin for the forecast-error record')
     args = ap.parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
-    fb = foreign_born_check(make_context())
-    if fb is not None:
-        fb[0].to_csv(OUT / 'migration_foreign_born_check.csv', index=False)
-        fb[1].to_csv(OUT / 'migration_foreign_born_by_country.csv', index=False)
-        print('Foreign-born share 2020, simulated from UN 1990 stocks vs UN 2020 (pp):')
-        print(fb[0].round(3).to_string(index=False))
-    if not (args.foreign_born_only or args.quick):
-        cal, cw = interval_calibration(make_context(), runs=args.calibration_runs)
-        if len(cal):
-            cal.to_csv(OUT / 'interval_calibration.csv', index=False)
-            cw.to_csv(OUT / 'interval_calibration_windows.csv', index=False)
-            print('\nPredictive interval calibration (share of observed country x religion shares inside):')
-            print(cal.round(3).to_string(index=False))
-            print('\nOut-of-sample error at a 10-year horizon against the width the model claims:')
-            g = cw.groupby('religion').agg(abs_error_median_pp=('abs_error_median_pp', 'mean'),
-                                           abs_error_q90_pp=('abs_error_q90_pp', 'mean'),
-                                           model_half_width_q90_pp=('model_half_width_q90_pp', 'mean'),
-                                           widening_needed=('widening_needed', 'mean')).reset_index()
-            print(g.round(3).to_string(index=False))
-    cc = corridor_check(make_context())
-    if cc is not None:
-        cc.to_csv(OUT / 'migration_corridor_check.csv', index=False)
-        print('Corridors 1990-2020: simulated inflows vs growth of UN bilateral stocks (25 largest destinations):')
-        print(cc.round(3).to_string(index=False))
-    if args.foreign_born_only:
-        return
-    if not (args.skip_ablations or args.quick):
+    pd.set_option('display.width', 220)
+    ctx, by, per_country, fits, sel, choice = run(include_pew=not args.no_pew)
+    summ = summarize(by)
+    inf = inference(per_country)
+    by.to_csv(OUT / 'validation_by_window.csv', index=False)
+    per_country.to_csv(OUT / 'validation_by_country.csv', index=False)
+    summ.to_csv(OUT / 'validation_summary.csv', index=False)
+    inf.to_csv(OUT / 'inference.csv', index=False)
+    fits.to_csv(OUT / 'switching_fit_by_fold.csv', index=False)
+    sel.to_csv(OUT / 'out_of_sample_choices.csv', index=False)
+    print(summ[['scope', 'model', 'windows', 'popw_tv_pp', 'change_vs_persistence_pp', 'change_vs_persistence_percent',
+                'dominant_accuracy']].round(3).to_string(index=False))
+    print('\nEach model against persistence, country by country (TV error, pp; negative = better):')
+    print(inf[['scope', 'model', 'mean_difference_pp', 'ci95_low_pp', 'ci95_high_pp', 'p_bootstrap', 'share_better',
+               'windows_better', 'windows', 'p_window']].round(3).to_string(index=False))
+    calib = None
+    if not args.quick:
+        print('\nForecast-error record (Monte Carlo forecasts from every origin):')
+        rec = ER.record(ctx, runs=args.error_runs)
+        model = ER.fit(rec)
+        ER.save(model)
+        ER.record_table(rec).assign(country_id=lambda d: d.country_index.map(dict(enumerate(ctx.ids)))) \
+            .drop(columns='country_index').to_csv(OUT / 'forecast_error_record.csv', index=False)
+        calib, calib_world = ER.validate(rec)
+        calib.to_csv(OUT / 'predictive_calibration.csv', index=False)
+        calib_world.to_csv(OUT / 'predictive_calibration_world.csv', index=False)
+        print(f"Error model: b = {model['b']:.3f} (scale (s(1-s))^b), beta = {model['beta']:.3f} "
+              f"(error grows as (h/10)^beta); mean |standardised error| by horizon "
+              f"{ {int(k): round(v, 3) for k, v in model['mean_abs_standardised_error'].items()} }")
+        g = calib.groupby(['method', 'horizon', 'nominal'])[['coverage', 'interval_score_pp']].mean().unstack('nominal')
+        print('Leave-one-origin-out coverage and interval score:')
+        print(g.round(3).to_string())
+        fb = foreign_born_check(make_context())
+        if fb is not None:
+            fb[0].to_csv(OUT / 'migration_foreign_born_check.csv', index=False)
+            fb[1].to_csv(OUT / 'migration_foreign_born_by_country.csv', index=False)
+            print('\nForeign-born share 2020, simulated from UN 1990 stocks vs UN 2020 (pp):')
+            print(fb[0].round(3).to_string(index=False))
+        cc = corridor_check(make_context(), corridor_caps=(None, 3.0, 2.0))
+        if cc is not None:
+            cc.to_csv(OUT / 'migration_corridor_check.csv', index=False)
+            print('\nCorridors 1990-2020, simulated inflows vs growth of UN bilateral stocks (25 largest destinations):')
+            print(cc.round(3).to_string(index=False))
         ab = ablations(include_pew=not args.no_pew)
         ab.to_csv(OUT / 'data_ablations_by_window.csv', index=False)
-        abs_ = (ab.assign(scope=np.where(ab.source.eq('Pew'), 'Pew 2010-2020',
-                                         np.where(ab.start.ge(1990), 'WRP 1990-2010', 'WRP 1970-1990')))
+        abs_ = (ab.assign(scope=np.where(ab.source.eq('Pew'), 'Pew 2010-2020', 'WRP 1970-2010'))
                 .groupby(['scope', 'data_variant', 'model'], sort=False)
                 .agg(popw_tv_pp=('popw_tv_pp', 'mean'), persistence=('persistence_popw_tv_pp', 'mean')).reset_index())
         abs_['change_vs_persistence_pp'] = abs_.popw_tv_pp - abs_.persistence
         abs_.to_csv(OUT / 'data_ablations_summary.csv', index=False)
-        print('Data ablations (population-weighted TV error, pp):')
-        print(abs_.round(3).to_string(index=False))
-    ctx, by, fits, sel, choice = run(include_pew=not args.no_pew)
-    summ = summarize(by)
-    by.to_csv(OUT / 'validation_by_window.csv', index=False)
-    summ.to_csv(OUT / 'validation_summary.csv', index=False)
-    fits.to_csv(OUT / 'switching_fit_by_fold.csv', index=False)
-    sel.to_csv(OUT / 'out_of_sample_choices.csv', index=False)
     from religion_forecast import datasets as D
     rep = dict(timestamp_utc=datetime.now(timezone.utc).isoformat(), start_state=ctx.start_source,
-               inputs=D.catalogue(), history_test_choices=choice,
-               used_by_forecast=dict(
-                   switching_strength=('fixed at 1 (config/assumptions.json, switching.strength_range), not taken from '
-                                       'the history tests. Over all four windows no switching scores best, because the '
-                                       'two earliest folds were fitted on only two or three noisy WRP decades (see '
-                                       'switching_fit_by_fold.csv); on 1990-2010, where the fit had four or five decades, '
-                                       'full strength scores best; and surveys observe switching directly. The level of '
-                                       'switching is uncertain and enters each run through survey_level_weight.'),
-                   residual_weight=ctx.a['residual']['default_weight'],
-                   residual_note='The forecast runs without the residual learner. If history_test_choices.residual.weight '
-                                 'is above 0 (for example with the Pew 2010-2020 window), that is reported, not applied.'),
+               inputs=D.catalogue(), switching_strength_choice=choice,
+               projection_uses=dict(
+                   switching_strength='1, with the level of switching varied through survey_level_weight; see '
+                                      'docs/METHODS.md. The strength chosen on earlier windows is reported in '
+                                      'out_of_sample_choices.csv, and the projection setting is scored as switching_1.'),
                emigration_selectivity=None if ctx.selectivity is None else {
                    'model': ctx.selectivity.get('kind', 'propensity'), 'kappa': ctx.selectivity.get('kappa'),
                    'lambda': ctx.selectivity['lam'], 'rmse_pp': ctx.selectivity['rmse_pp'],
                    'rmse_if_migrants_mirror_origin_pp': ctx.selectivity['rmse_mirror_pp']},
-               notes=['history_test_choices are the options with the lowest mean population-weighted error over the '
-                      'test windows; the per-window choices in out_of_sample_choices.csv use earlier windows only.',
-                      'WPP 2024 estimates are used for each historical window (retrospective, not real-time).',
-                      'WRP and Pew classify some populations differently (notably folk religion vs unaffiliated in '
-                      'China); windows never mix sources.'])
+               forecast_error_model=None if calib is None else {k: v for k, v in json.loads(
+                   (OUT / 'forecast_error_model.json').read_text()).items() if k not in ('blocks',)},
+               notes=['WPP 2024 estimates are used inside each historical window (retrospective, not real-time).',
+                      'The World Religion Project and Pew classify some populations differently (notably folk '
+                      'religion and the unaffiliated in China); windows never mix sources.'])
     (OUT / 'validation_report.json').write_text(json.dumps(rep, indent=2, default=float), encoding='utf8')
-    pd.set_option('display.width', 200)
-    cols = ['scope', 'model', 'windows', 'popw_tv_pp', 'mean_tv_pp', 'dominant_accuracy', 'changed_true',
-            'changed_hit', 'false_alarm', 'change_vs_persistence_pp']
-    print(summ[cols].round(3).to_string(index=False))
-    print('\nSwitching fit by fold:\n' + fits.to_string(index=False))
-    print('\nOut-of-sample choices per window:\n' + sel.to_string(index=False))
-    print('\nBest options in the history tests:', json.dumps(choice, indent=1, default=float))
-    print('Used by the forecast: switching strength 1 (assumption; see validation_report.json), residual weight',
-          ctx.a['residual']['default_weight'])
     print(f'\nWrote {OUT}')
 
 

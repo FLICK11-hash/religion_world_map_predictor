@@ -1,4 +1,4 @@
-"""Step 7 international migration: gross origin-destination flows that conserve persons exactly.
+"""International migration: gross origin-destination flows that conserve persons exactly.
 
 Convention: F[o, d] = persons moving from origin o to destination d during one 5-year step.
 
@@ -140,6 +140,36 @@ def sinkhorn(Km, row, col, iters=500, tol=1e-10, rho=1.0, rho_col=1.0):
     errs = [np.abs(F.sum(1) - row0).max() / max(row0.max(), 1.0)] if rho == 1.0 else []
     errs += [np.abs(F.sum(0) - col0).max() / max(col0.max(), 1.0)] if rho_col == 1.0 else []
     return F, a * scale, b, float(max(errs, default=0.0))
+
+
+def cap_corridors(F, network, cap, floor=0.01, iters=25):
+    """Limit each origin's share of a destination's arrivals to `cap` times its share of that
+    destination's migrant stock (at least `floor`), keeping every origin's emigrants.
+
+    A doubly constrained fit can push an origin's emigrants into whichever destinations still have
+    room when its usual destinations stop taking migrants (WPP 2024 keeps South Asian emigration
+    high while Gulf net immigration falls to almost zero after 2030). The cap stops one origin from
+    becoming a far larger part of a destination's arrivals than it is of its migrants. Flow cut from
+    a capped corridor goes to the origin's uncapped corridors in proportion to their size; an origin
+    with no uncapped corridor left sends fewer, which realise() reports as a shortfall."""
+    if cap is None or network is None:
+        return F
+    S = np.asarray(network, float).copy()
+    np.fill_diagonal(S, 0.0)
+    share = S / np.maximum(S.sum(0, keepdims=True), 1e-300)
+    allowed = float(cap) * np.maximum(share, floor)
+    F = np.asarray(F, float).copy()
+    E_o = F.sum(1)
+    for _ in range(iters):
+        limit = allowed * F.sum(0, keepdims=True)
+        over = F > limit * (1 + 1e-9)
+        if not over.any():
+            break
+        F = np.minimum(F, limit)
+        free = np.where(F < limit * (1 - 1e-9), F, 0.0)
+        deficit = E_o - F.sum(1)
+        F = F + free * _div(deficit, free.sum(1))[:, None]
+    return F
 
 
 def origin_constrained(Km, E_o, attraction):

@@ -34,7 +34,8 @@ EXPERIMENTS = DATA / 'experiments'
 FIGURES = PROJECT / 'outputs' / 'figures'
 FIGURES_PNG = PROJECT / 'outputs' / 'figures_png'
 RESULTS = PROJECT / 'results'
-LEGACY_RESULTS = PROJECT / 'results_step5'
+# Start state used when the Pew workbook has not been prepared (data/processed/pew_harmonized.csv).
+FALLBACK_START_STATE = INPUTS / 'pew2020_start_state.csv'
 
 # Optional downloads (fetch.py). `data/raw/step7` is where earlier versions put them; it is still
 # read so that an existing download does not have to be repeated.

@@ -80,8 +80,9 @@ def ablation(ctx, hier, runs, seed, log=print):
         for r in range(runs):
             rng = np.random.default_rng([seed, r])
             p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-            idx = hier.sample_indices(rng, 1)[:, 0]
-            res = SM.simulate(ctx, p, cfg, hier, idx, **off)
+            h = hier.member(r)
+            idx = h.sample_indices(rng, 1)[:, 0]
+            res = SM.simulate(ctx, p, cfg, h, idx, **off)
             rows += _summary(ctx, res, dom0, variant=name, run=r)
         log(f'  ablation {name}: {runs} runs ({time.time() - t0:.0f}s)')
     return pd.DataFrame(rows)
@@ -160,8 +161,9 @@ def sensitivity_runs(ctx, hier, runs, seed, log=print):
     for r in range(runs):
         rng = np.random.default_rng([seed, 10_000 + r])          # a design separate from the projection runs
         p = SM.draw_run(ctx, rng, ctx.a['reference_scenario'])
-        idx = hier.sample_indices(rng, 1)[:, 0]
-        res = SM.simulate(ctx, p, cfg, hier, idx)
+        h = hier.member(r)
+        idx = h.sample_indices(rng, 1)[:, 0]
+        res = SM.simulate(ctx, p, cfg, h, idx)
         scalars = {k: float(v) for k, v in p.items() if np.ndim(v) == 0 and k != 'scenario'}
         for row in _summary(ctx, res, dom0, run=r):
             rows.append({**scalars, **row})
@@ -192,8 +194,9 @@ def migrant_sorting(ctx, hier, runs, seed, log=print):
                     ctx.selectivity = dict(calibrated, **override)
                     rng = np.random.default_rng([seed, r])
                     p = SM.draw_run(ctx, rng, name)
-                    idx = hier.sample_indices(rng, 1)[:, 0]
-                    res = SM.simulate(ctx, p, cfg, hier, idx)
+                    h = hier.member(r)
+                    idx = h.sample_indices(rng, 1)[:, 0]
+                    res = SM.simulate(ctx, p, cfg, h, idx)
                     rows += _summary(ctx, res, dom0, scenario=name, variant=vname, run=r,
                                      kappa=ctx.selectivity['kappa'], lam=ctx.selectivity['lam'])
             log(f'  sorting {name}: {runs} runs x {len(SORTING_VARIANTS)} variants ({time.time() - t0:.0f}s)')

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Single entry point for the religious-composition projection.
 
-    python run.py all                 the whole pipeline (about an hour)
-    python run.py all --quick         the same, with fewer Monte Carlo runs (about ten minutes)
+    python run.py all                 the whole pipeline (about an hour), then results/ is rewritten
+    python run.py all --quick         fewer Monte Carlo runs (about fifteen minutes); results/ is
+                                      left alone, so committed results are never replaced by a check
     python run.py <stage> [options]   one stage; `python run.py <stage> --help` for its options
 
 After `pip install -e .` the same commands are available as `religion-forecast <stage>`.
@@ -11,12 +12,13 @@ Stages, in pipeline order:
     fetch        download the optional datasets into data/raw/extra (once; needs internet)
                  the three core inputs come from scripts/prepare_raw_data.py
     test         unit and integration tests
-    backtest     forward-chaining history tests, interval calibration, migration checks
+    backtest     forward-chaining history tests, country-level inference, the forecast-error
+                 record and its predictive-interval calibration, migration checks
     project      the scenario x Monte Carlo projection
     experiments  mechanism ablations, global sensitivity, migrant-sorting sensitivity
     checks       integrity checks on the outputs (exit code 0 = all passed)
     figures      maps and charts as SVG (add --png for the matplotlib versions)
-    report       the comparison report, and results/ for committing
+    report       the comparison report (outputs/), and results/ with --export
 
 Before any of this the three core inputs must be in data/raw (see README.md):
 WRP_national.csv, WPP2024_Demographic_Indicators_Medium.csv.gz, ne_50m_admin_0_countries.zip.
@@ -80,11 +82,11 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     quick = {'project': ['--quick'], 'experiments': ['--runs', '4', '--sensitivity-runs', '24'],
-             'backtest': ['--quick']} if '--quick' in rest else {}
+             'backtest': ['--error-runs', '8']} if '--quick' in rest else {}
     t0 = time.time()
     for name in ALL_STAGES:
         extra = list(quick.get(name, []))
-        if name == 'report':
+        if name == 'report' and '--quick' not in rest:
             extra.append('--export')
         if name == 'figures' and '--png' in rest:
             extra.append('--png')
@@ -93,8 +95,9 @@ def main(argv: list[str] | None = None) -> int:
         if code:
             print(f'{name} failed with exit code {code}', file=sys.stderr)
             return code
-    print(f'\nPipeline finished in {(time.time() - t0) / 60:.0f} min. '
-          f'Report: outputs/comparison_report.md; committed copies: results/')
+    where = 'outputs/comparison_report.md (results/ unchanged: quick runs are not exported)' if '--quick' in rest \
+        else 'outputs/comparison_report.md; committed copies: results/'
+    print(f'\nPipeline finished in {(time.time() - t0) / 60:.0f} min. Report: {where}')
     return 0
 
 

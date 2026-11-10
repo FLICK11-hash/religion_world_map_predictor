@@ -36,17 +36,6 @@ def md(df, floatfmt=2):
     return '\n'.join([head, sep] + body)
 
 
-def step5d_world():
-    for p in (config.DATA / 'forecasts_step5d' / 'global_share_uncertainty.csv',
-              config.LEGACY_RESULTS / 'global_share_uncertainty.csv'):
-        if p.exists():
-            d = pd.read_csv(p)
-            if 'scenario' in d:
-                d = d[d.scenario.eq('demography_only')]
-            return d, p.relative_to(config.PROJECT)
-    return None, None
-
-
 EXPORT = config.RESULTS
 SMALL = ['global_share_by_scenario.csv', 'components_world_period.csv', 'dominant_change.csv',
          'uncertainty_model_vs_scenario.csv', 'switching_check_vs_pew.csv', 'switching_rates_2020.csv',
@@ -114,9 +103,10 @@ def export_results():
     try:
         stamp['git_commit'] = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=config.PROJECT,
                                              capture_output=True, text=True, timeout=20).stdout.strip()
-        dirty = subprocess.run(['git', 'status', '--porcelain'], cwd=config.PROJECT,
+        # results/ is what this export rewrites, so its own changes do not count against the code
+        dirty = subprocess.run(['git', 'status', '--porcelain', '--', '.', ':(exclude)results'], cwd=config.PROJECT,
                                capture_output=True, text=True, timeout=20).stdout.strip()
-        stamp['working_tree'] = 'clean' if not dirty else f'{len(dirty.splitlines())} uncommitted changes'
+        stamp['working_tree'] = 'clean' if not dirty else f'{len(dirty.splitlines())} uncommitted changes outside results/'
     except Exception as exc:
         stamp['git_commit'] = f'unavailable ({exc})'
     try:
@@ -298,22 +288,6 @@ def main(argv=None):
                                                       runs='size').reset_index()
             L.append('\nRising minus low migration, paired by run (positive = more migration, more diverse countries):\n')
             L.append(md(g, 3))
-    d5, src = step5d_world()
-    if d5 is not None and (F / 'global_share_uncertainty.csv').exists():
-        s7 = pd.read_csv(F / 'global_share_uncertainty.csv')
-        rows = []
-        for y in (2050, 2100):
-            for c in CATS:
-                a = d5[(d5.year == y) & (d5.religion == c)]['mean']
-                b = s7[(s7.year == y) & (s7.religion == c)]['mean']
-                if len(a) and len(b):
-                    rows.append({'year': y, 'religion': c, 'earlier_model_demography_only': 100 * float(a.iloc[0]),
-                                 'this_model': 100 * float(b.iloc[0]),
-                                 'difference_pp': 100 * float(b.iloc[0] - a.iloc[0])})
-        L.append(f'\n## 9. Against the earlier cohort model (Step 5D `demography_only`, from `{src}`)\n')
-        L.append('The earlier model had no religious switching, so the gap between the two is almost entirely '
-                 'what switching adds.\n')
-        L.append(md(pd.DataFrame(rows), 2))
     if (F / 'world_share_shift_share.csv').exists():
         ss = pd.read_csv(F / 'world_share_shift_share.csv')
         y = 2100 if 2100 in set(ss.year) else int(ss.year.max())

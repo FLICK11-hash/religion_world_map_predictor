@@ -1,4 +1,4 @@
-"""Step 7 model assembly: data + one run's parameters -> engine inputs for every 5-year step.
+"""Model assembly: data + one run's parameters -> engine inputs for every 5-year step.
 
 Used by run.py project (2020 -> 3030) and run.py backtest (historical decades). The pieces:
   Context        aligned country list, WPP paths, geography, bilateral stocks, start shares
@@ -32,8 +32,8 @@ G2_AGE = np.array([0.12, 0.12, 0.12, 0.12, 0.11, 0.10, 0.09, 0.07, 0.05, 0.04, 0
                    0.0, 0.0, 0.0, 0.0])
 G2_AGE = G2_AGE / G2_AGE.sum()
 PERIODS = [(2020, 2050), (2050, 2100), (2100, 2200), (2200, 2500), (2500, 3030)]
-KEEP_YEARS = [2020, 2025, 2030, 2040, 2050, 2060, 2075, 2100, 2125, 2150, 2200, 2300, 2400, 2500,
-              2600, 2750, 2900, 3000, 3025, 3030]
+# Every step to 2100 (the horizon of the predictive intervals), then a thinner grid of the long run.
+KEEP_YEARS = list(range(2020, 2101, 5)) + [2125, 2150, 2200, 2300, 2400, 2500, 2600, 2750, 2900, 3000, 3025, 3030]
 
 
 def load_assumptions():
@@ -396,6 +396,8 @@ class MigrationPlan:
         self.omega0 = 1.0 if self.network is None else p['omega']
         self.cap = ctx.a['migration']['cell_cap']['value']
         self.rho = float(p.get('margin_rho', 1.0))
+        cap = p.get('corridor_cap', ctx.a['migration'].get('corridor_cap', {}).get('value'))
+        self.corridor_cap = None if cap is None else float(cap)
         self.b2100 = None
         self.rate2100 = None
         self.pop2100 = None
@@ -428,6 +430,7 @@ class MigrationPlan:
         if dem['wpp']:
             E_o, I_d, info = MG.margins_from_net(mult * dem['net5'], pop * self.mobility, mult * self.p['turnover'])
             F, a_, b_, err = MG.sinkhorn(Km, E_o, I_d, rho=self.rho, rho_col=self.rho)
+            F = MG.cap_corridors(F, self.network, self.corridor_cap)
             self.balance.append(info['balance_scale'])
             if year == 2100:
                 self.b2100 = b_ / max(np.mean(b_[b_ > 0]), 1e-300)
@@ -442,7 +445,7 @@ class MigrationPlan:
         att = MG.congestion_attraction(self.b2100, pop, self.pop2100, self.p['theta'])
         if self.pressure:
             att = att * np.clip(old_age_dependency(P) / np.maximum(self.dep2100, 1e-6), 0.25, 4.0)
-        return MG.origin_constrained(Km, E_o, att)
+        return MG.cap_corridors(MG.origin_constrained(Km, E_o, att), self.network, self.corridor_cap)
 
     def realise(self, year, dem, P):
         F = self.flows(year, dem, P)
@@ -509,9 +512,9 @@ def initial_population(ctx, p, year, shares, age_dist=None):
         im = ctx.migrant_religion['immigrants']
         comp = np.where(np.isfinite(im).all(1, keepdims=True), im, comp)
     comp = comp / np.maximum(comp.sum(1, keepdims=True), 1e-300)
-    s, _, _ = E.life_tables(np.full(1, 74.0))
+    s, s_open, _ = E.life_tables(np.full(1, 74.0))
     flow_age = MG.AGE_PROPENSITY / MG.AGE_PROPENSITY.sum()
-    g1_age = E.stock_age_profile(flow_age, s[0])
+    g1_age = E.stock_age_profile(flow_age, s[0], float(s_open[0]))
     return E.initial_state(pop, shares, age_dist, tilt, g1, comp, g1_age,
                            np.full(ctx.n, p['g2_ratio']), G2_AGE)
 
@@ -522,7 +525,7 @@ def default_intensity(p):
 
 
 def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=3030, start_shares=None,
-             switching=True, migration=True, fertility_gaps=True, keep_years=None, record=True, residual=None):
+             switching=True, migration=True, fertility_gaps=True, keep_years=None, record=True):
     """Run one parameter set. Returns dict with shares/pop at kept years, components by period,
     global shares at every step, and diagnostics.
 
@@ -573,8 +576,7 @@ def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=303
             if year in (2025, 2050, 2100, 2200, 2500, 3030) and hasattr(sw, 'last_rates'):
                 res['lifetime_rates'][year] = tuple(x.copy() for x in sw.last_rates)
         mfn = (lambda Q, y=year, dd=d: mig.realise(y, dd, Q)) if mig is not None else None
-        rho = residual(year, P) if residual is not None else None
-        P, rec = E.step(P, inp, migration_fn=mfn, rho=rho, natural_growth=d['natural_growth'])
+        P, rec = E.step(P, inp, migration_fn=mfn, natural_growth=d['natural_growth'])
         if rec.rescale is not None:
             res['rescale'].append(float(np.mean(np.abs(np.log(np.maximum(rec.rescale, 1e-12))))))
         if res['group_tfr_2025'] is None:
@@ -605,17 +607,17 @@ def simulate(ctx, p, scenario_cfg, hier, draw_idx, start_year=2020, end_year=303
 
 # ------------------------------------------------------------------------------ hindcast
 def hindcast(ctx, p, start_year, start_shares, years=10, hier=None, draw_idx=None, scenario_cfg=None,
-             migration=True, return_state=False):
+             migration=True, return_state=False, path=None):
     """Historical run from observed shares at start_year for `years` with WPP estimates.
     Without `hier` there is no switching. Returns (predicted shares, initial state), plus the final
-    state when return_state is True."""
+    state when return_state is True. With `path` (a set of years), returns instead a dict
+    {year: predicted shares} for those years."""
     cfg = scenario_cfg or {'switching': {'dev_link_until': 3030}, 'migration': {
         'multiplier_knots': [[1900, 1.0], [3100, 1.0]]}, 'fertility': {}}
     P0 = initial_population(ctx, p, start_year, start_shares)
     P = P0.copy()
     dem = Demography(ctx, p)
     fert = Fertility(ctx, p, cfg)
-    fert.gap0 = fert.gap0                     # within-country gaps as in the forecast
     inten = default_intensity(p)
     mig = MigrationPlan(ctx, p, cfg) if migration else None
     if mig is not None and ctx.stock_df is not None:
@@ -624,6 +626,7 @@ def hindcast(ctx, p, start_year, start_shares, years=10, hier=None, draw_idx=Non
         mig.mobility = ctx.mobility_from(S, sy)
         mig.omega0 = 1.0 if S is None else p['omega']
     sw = SwitchPlan(ctx, p, hier, draw_idx, cfg, every=1) if hier is not None else None
+    out = {}
     for year in range(start_year + 5, start_year + years + 1, 5):
         d = dem.period(year)
         s_, so, sb = E.life_tables(d['e0'], d['q5'])
@@ -634,6 +637,10 @@ def hindcast(ctx, p, start_year, start_shares, years=10, hier=None, draw_idx=Non
             inp['T'] = sw.matrices(year, z, E.shares(P))
         mfn = (lambda Q, y=year, dd=d: mig.realise(y, dd, Q)) if mig is not None else None
         P, _ = E.step(P, inp, migration_fn=mfn, natural_growth=d['natural_growth'])
+        if path is not None and year in path:
+            out[year] = E.shares(P)
+    if path is not None:
+        return out
     if return_state:
         return E.shares(P), P0, P
     return E.shares(P), P0

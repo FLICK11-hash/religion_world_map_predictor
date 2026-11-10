@@ -1,20 +1,20 @@
 """Download the optional datasets into data/raw/extra/.
 
-Run from the step folder (Windows PowerShell):
-    .\\.venv\\Scripts\\python.exe run.py fetch              # official sources, mirrors as fallback
-    .\\.venv\\Scripts\\python.exe run.py fetch --mirrors    # GitHub mirrors only (git must be installed)
-    .\\.venv\\Scripts\\python.exe run.py fetch --convert-only C:\\path\\to\\mirrors  # already-cloned mirrors
+    python run.py fetch                       official sources, GitHub mirrors as fallback
+    python run.py fetch --mirrors             GitHub mirrors only (git must be installed)
+    python run.py fetch --convert-only DIR    convert mirrors already cloned under DIR
 
-What it fetches (all optional; Step 7 runs without them and says so in its reports):
+What it fetches (all optional; the model runs without them and says so in its reports):
   UN DESA International Migrant Stock 2024, destination x origin (xlsx, CC BY 3.0 IGO)
   UN WPP 2024 population by 5-year age group and sex (csv.gz, CC BY 3.0 IGO), condensed to
       WPP2024_age5_condensed.csv.gz (years divisible by 5, ages 0-4 ... 80+, total and female)
   UNHCR refugee population statistics by origin and asylum (CC BY 4.0)
-  World Bank WDI: GDP per capita PPP and urban share (CC BY 4.0), for covariate tests
   Pew Research Center 2015 country projections 2010-2050 (for comparison only; Pew terms of use)
+A file the model reads is only ever produced by a converter, so when an official download
+succeeds but cannot be converted here (the Pew 2015 workbook), the GitHub mirror that supplies
+the converted form is used as well.
 Needs manual download (free Pew account; see docs/DATA.md):
   Pew 'Religious Composition of the World's Migrants, 1990-2020' -> data/raw/extra/pew_migrants_religion.csv
-  Pew 2024 Global Attitudes microdata (switching) -> tabulate to switching_lifetime_observed.csv
 Every downloaded file's SHA-256 is written to data/raw/extra/manifest.json.
 """
 from __future__ import annotations
@@ -48,10 +48,6 @@ OFFICIAL = {
     'unhcr': dict(url='https://api.unhcr.org/population/v1/population/?yearFrom=1951&yearTo=2025'
                       '&coo_all=true&coa_all=true&download=true',
                   file='unhcr_population_api.zip', note='zip with the data CSV and footnotes'),
-    'wdi_gdp': dict(url='https://api.worldbank.org/v2/country/all/indicator/NY.GDP.PCAP.PP.KD?downloadformat=csv',
-                    file='wdi_gdp_pc_ppp.zip', note=''),
-    'wdi_urban': dict(url='https://api.worldbank.org/v2/country/all/indicator/SP.URB.TOTL.IN.ZS?downloadformat=csv',
-                      file='wdi_urban.zip', note=''),
     'pew2015': dict(url='https://assets.pewresearch.org/wp-content/uploads/sites/11/2015/04/'
                         'Religious_Composition_by_Country_2010-2050.xlsx',
                     file='pew2015_religious_composition_2010_2050.xlsx', note='comparison only'),
@@ -60,11 +56,12 @@ MIRRORS = {
     'ims2024': ('https://github.com/tigi/2026-migrant-stock', ['undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx']),
     'wpp_age5': ('https://github.com/open-numbers/ddf--unpop--wpp_population', ['population_age5']),
     'unhcr': ('https://github.com/rfordatascience/tidytuesday', ['data/2023/2023-08-22']),
-    'wdi': ('https://github.com/open-numbers/ddf--open_numbers--world_development_indicators', [
-        'datapoints/ddf--datapoints--ny_gdp_pcap_pp_kd--by--geo--time.csv',
-        'datapoints/ddf--datapoints--sp_urb_totl_in_zs--by--geo--time.csv']),
     'pew2015': ('https://github.com/datasets/world-religion-projections', ['rounded_population.csv']),
 }
+# The file the model reads for each dataset (religion_forecast.datasets).
+CONVERTED = {'ims2024': 'undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx',
+             'wpp_age5': 'WPP2024_age5_condensed.csv.gz', 'unhcr': 'unhcr_population.csv',
+             'pew2015': 'pew2015_rounded_population.csv'}
 AGE_LABELS = [f'{5 * i}-{5 * i + 4}' for i in range(16)] + ['80+']
 
 
@@ -116,7 +113,7 @@ def condense_wpp_official(src, dst):
     lo = df.AgeGrp.astype(str).str.extract(r'(\d+)')[0].astype(int)
     df['AgeGrp'] = [AGE_LABELS[min(v // 5, 16)] for v in lo]
     out = df.groupby(['ISO3_code', 'Time', 'AgeGrp'], as_index=False)[['PopTotal', 'PopFemale']].sum()
-    out.to_csv(dst, index=False, compression='gzip')
+    out.to_csv(dst, index=False, lineterminator='\n', compression={'method': 'gzip', 'mtime': 0})
     return len(out)
 
 
@@ -137,7 +134,7 @@ def condense_wpp_open_numbers(folder, dst):
         rows.append(pd.DataFrame({'PopTotal': tot, 'PopFemale': fem}).reset_index())
     out = pd.concat(rows).rename(columns={'time': 'Time'})
     out = out.groupby(['ISO3_code', 'Time', 'AgeGrp'], as_index=False)[['PopTotal', 'PopFemale']].sum()
-    out.to_csv(dst, index=False, compression='gzip')
+    out.to_csv(dst, index=False, lineterminator='\n', compression={'method': 'gzip', 'mtime': 0})
     return len(out)
 
 
@@ -146,7 +143,7 @@ def unhcr_from_tidytuesday(src, dst):
     out = pd.DataFrame({'year': d.year, 'origin_iso3': d.coo_iso, 'asylum_iso3': d.coa_iso,
                         'refugees': pd.to_numeric(d.refugees, errors='coerce'),
                         'asylum_seekers': pd.to_numeric(d.asylum_seekers, errors='coerce')})
-    out.to_csv(dst, index=False)
+    out.to_csv(dst, index=False, lineterminator='\n')
     return len(out)
 
 
@@ -161,20 +158,7 @@ def unhcr_from_api_zip(src, dst):
     out = pd.DataFrame({'year': d['Year'], 'origin_iso3': d['Country of origin (ISO)'],
                         'asylum_iso3': d['Country of asylum (ISO)'],
                         'refugees': num("Refugees under UNHCR's mandate"), 'asylum_seekers': num('Asylum-seekers')})
-    out.to_csv(dst, index=False)
-    return len(out)
-
-
-def wdi_from_open_numbers(files, dst):
-    frames = []
-    for f in files:
-        d = pd.read_csv(f)
-        val = [c for c in d.columns if c not in ('geo', 'time')][0]
-        frames.append(d.rename(columns={val: {'ny_gdp_pcap_pp_kd': 'gdp_pc_ppp', 'sp_urb_totl_in_zs': 'urban_pct'}.get(val, val)})
-                      .set_index(['geo', 'time']))
-    out = pd.concat(frames, axis=1).reset_index().rename(columns={'geo': 'iso3', 'time': 'year'})
-    out['iso3'] = out.iso3.str.upper()
-    out.to_csv(dst, index=False)
+    out.to_csv(dst, index=False, lineterminator='\n')
     return len(out)
 
 
@@ -196,11 +180,6 @@ def from_folder(mirror_root, manifest):
     if tt:
         n = unhcr_from_tidytuesday(tt[0], RAW7 / 'unhcr_population.csv')
         manifest['unhcr_population.csv'] = dict(source=f'tidytuesday 2023-08-22 ({tt[0]})', rows=n)
-    wdi = found('ddf--datapoints--ny_gdp_pcap_pp_kd--by--geo--time.csv') + \
-        found('ddf--datapoints--sp_urb_totl_in_zs--by--geo--time.csv')
-    if wdi:
-        n = wdi_from_open_numbers(wdi, RAW7 / 'wdi_covariates.csv')
-        manifest['wdi_covariates.csv'] = dict(source='open-numbers WDI', rows=n)
     pew = [p for p in found('rounded_population.csv') if 'religion' in str(p)]
     if pew:
         shutil.copy2(pew[0], RAW7 / 'pew2015_rounded_population.csv')
@@ -236,8 +215,10 @@ def main(argv=None):
                                       RAW7 / 'WPP2024_age5_condensed.csv.gz')
             if (RAW7 / 'unhcr_population_api.zip').exists():
                 unhcr_from_api_zip(RAW7 / 'unhcr_population_api.zip', RAW7 / 'unhcr_population.csv')
+        # A mirror is needed when the official download failed, or when it succeeded but nothing
+        # here converts it into the file the model reads.
         todo = list(MIRRORS) if args.mirrors else [k for k in MIRRORS if k in failed or
-                                                   (k == 'wdi' and {'wdi_gdp', 'wdi_urban'} & set(failed))]
+                                                   not (RAW7 / CONVERTED[k]).exists()]
         if todo:
             where = RAW7 / '_mirrors'
             for key in todo:
