@@ -1,6 +1,6 @@
 {
-  "timestamp_utc": "2026-10-24T23:51:43.533480+00:00",
-  "start_state": "results_step5/headline_country_shares.csv (Pew 2020 start state of Step 5D)",
+  "timestamp_utc": "2026-11-10T11:09:53.402442+00:00",
+  "start_state": "inputs/pew2020_start_state.csv (Pew 2020; no 2010, so no Pew 2010-2020 test window)",
   "inputs": {
     "wpp_indicators": {
       "status": "used",
@@ -8,7 +8,7 @@
     },
     "start_state": {
       "status": "fallback",
-      "detail": "results_step5 2020 start state (201 countries); Pew 2010 unavailable"
+      "detail": "committed Pew 2020 start state (201 countries); Pew 2010 unavailable"
     },
     "wrp": {
       "status": "used",
@@ -43,53 +43,55 @@
       "detail": "64809 rows 2010-2022"
     }
   },
-  "history_test_choices": {
-    "switching_strength_best_all_windows": 0.0,
+  "switching_strength_choice": {
     "switching_strength_scores_popw_tv_pp": {
-      "0.0": 4.381163054211865,
-      "0.5": 4.502920279283002,
-      "1.0": 4.796813488880641
-    },
-    "switching_strength_best_1990_2010": 1.0,
-    "switching_strength_scores_1990_2010_popw_tv_pp": {
-      "0.0": 4.580264460980635,
-      "0.5": 4.488675292831494,
-      "1.0": 4.4870548473696745
-    },
-    "residual": {
-      "alpha": 100.0,
-      "weight": 0.0
-    },
-    "residual_scores_popw_tv_pp": {
-      "alpha=1,weight=1": 6.44774782052862,
-      "alpha=10,weight=1": 6.350382841153776,
-      "alpha=100,weight=0.5": 5.071207580238816,
-      "alpha=100,weight=0": 4.569562116264183,
-      "alpha=100,weight=0.25": 4.704365355075105,
-      "alpha=1,weight=0.5": 5.289441701822897,
-      "alpha=1,weight=0": 4.569562116264183,
-      "alpha=10,weight=0": 4.569562116264183,
-      "alpha=10,weight=0.25": 4.787212871912084,
-      "alpha=10,weight=0.5": 5.257069084833732,
-      "alpha=1,weight=0.25": 4.80072151940592,
-      "alpha=100,weight=1": 5.932945539328639
+      "0.0": 4.3811089972250965,
+      "0.5": 4.557419592022965,
+      "1.0": 4.903409902811957
     }
   },
-  "used_by_forecast": {
-    "switching_strength": "fixed at 1 (config/assumptions.json, switching.strength_range), not taken from the history tests. Over all four windows no switching scores best, because the two earliest folds were fitted on only two or three noisy WRP decades (see switching_fit_by_fold.csv); on 1990-2010, where the fit had four or five decades, full strength scores best; and surveys observe switching directly. The level of switching is uncertain and enters each run through survey_level_weight.",
-    "residual_weight": 0.0,
-    "residual_note": "The forecast runs without the residual learner. If history_test_choices.residual.weight is above 0 (for example with the Pew 2010-2020 window), that is reported, not applied."
+  "projection_uses": {
+    "switching_strength": "1, with the level of switching varied through survey_level_weight; see docs/METHODS.md. The strength chosen on earlier windows is reported in out_of_sample_choices.csv, and the projection setting is scored as switching_1."
   },
   "emigration_selectivity": {
     "model": "affinity",
     "kappa": 0.5,
     "lambda": 0.65,
-    "rmse_pp": 2.213315558805887,
-    "rmse_if_migrants_mirror_origin_pp": 5.928812458194395
+    "rmse_pp": 2.213315558600551,
+    "rmse_if_migrants_mirror_origin_pp": 5.928812458305767
+  },
+  "forecast_error_model": {
+    "b": 0.8500337520858434,
+    "beta": 0.34215686325182393,
+    "eps": 0.0001,
+    "base_horizon": 10,
+    "neighbours": 15,
+    "mean_u": [
+      0.10067042902339762,
+      0.22872044820241083,
+      0.11147230023289853,
+      0.07089241271346551,
+      -0.04334768294594451,
+      0.3738560123846731,
+      0.8780584378898023,
+      0.22481087993899238
+    ],
+    "mean_abs_standardised_error": {
+      "10": 0.48613852285945836,
+      "20": 0.585035150977632,
+      "30": 0.7526399772391807,
+      "40": 0.7672572775695465
+    },
+    "cells": {
+      "10": 558,
+      "20": 391,
+      "30": 253,
+      "40": 117
+    },
+    "excluded": null
   },
   "notes": [
-    "history_test_choices are the options with the lowest mean population-weighted error over the test windows; the per-window choices in out_of_sample_choices.csv use earlier windows only.",
-    "WPP 2024 estimates are used for each historical window (retrospective, not real-time).",
-    "WRP and Pew classify some populations differently (notably folk religion vs unaffiliated in China); windows never mix sources."
+    "WPP 2024 estimates are used inside each historical window (retrospective, not real-time).",
+    "The World Religion Project and Pew classify some populations differently (notably folk religion and the unaffiliated in China); windows never mix sources."
   ]
 }

@@ -13,6 +13,7 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - world_population_by_scenario.csv
 - parameter_provenance.csv
 - migration_corridors_reference.csv
+- migration_corridor_concentration.csv
 - world_share_shift_share.csv
 - adherents_by_country.csv
 - fertility_evidence.csv
@@ -20,15 +21,20 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - benchmark_vs_pew2015.csv
 - benchmark_pew2015_skill.csv
 - run_outcomes.csv
+- predictive_sensitivity_centring.csv
 - projection_report.json
 - validation_summary.csv
 - validation_by_window.csv
+- validation_by_country.csv
+- inference.csv
 - data_ablations_summary.csv
 - switching_fit_by_fold.csv
 - out_of_sample_choices.csv
+- forecast_error_model.json
+- forecast_error_record.csv
+- predictive_calibration.csv
+- predictive_calibration_world.csv
 - migration_foreign_born_check.csv
-- interval_calibration.csv
-- interval_calibration_windows.csv
 - migration_foreign_born_by_country.csv
 - migration_corridor_check.csv
 - validation_report.json
@@ -39,6 +45,6 @@ Start with `comparison_report.md`. `run_stamp.json` records the commit the run w
 - country_target_years_reference_with_bands.csv
 - components_country_2020_2100_reference.csv
 - comparison_report.md
-- figures/ (56 SVG figures, open figures/index.html)
+- figures/ (57 SVG figures, open figures/index.html)
 - integrity_checks.txt
 - run_stamp.json
