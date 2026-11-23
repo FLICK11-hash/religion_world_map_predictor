@@ -386,7 +386,8 @@ hyperparameters, on 120 runs, the weight given to the survey level of switching 
 fitted level is the most influential assumption for the Christian world share (standardised rank
 coefficient −0.70 in 2050, −0.51 in 2100); a placebo drawn the same way reaches 0.15. For the
 Muslim share in 2050 the most influential is the strength of the within-country age tilt between
-religions (+0.69), whose inputs, Pew's 2010 median ages by religion, are [to be verified]. The
+religions (+0.69), whose inputs are Pew's (2012) median ages by religion; the run used 28 and 30
+years for folk and other religions where Pew gives 33 and 32 [rerun with the corrected values]. The
 convergence half-life of within-country fertility gaps matters by 2100 (+0.41). The estimation
 uncertainty of the switching hyperparameters is close to the placebo's level: it matters less than
 the choice between the two levels of switching. By 2100 no single assumption explains most of the
@@ -457,7 +458,7 @@ be a poor guide; the weight between the survey and the fitted level is the most 
 assumption. Religion-specific fertility is measured for few countries; the religion of migrants is
 calibrated to aggregate figures, only one of which describes the emigrants of one country, so the
 minority effect in emigration is bounded by assumption; and the within-country age tilt between
-religions rests on median ages still to be verified. The model has no intermarriage, no religion-specific mortality,
+religions rests on global median ages by religion. The model has no intermarriage, no religion-specific mortality,
 no sub-national variation and no shock process for conflict or persecution. Beyond 2100 every input
 is an assumption, and those horizons are reported as exploratory only.
 
@@ -471,7 +472,8 @@ the code, with checksums of the exact files used recorded in `config/data_manife
 
 ## Use of AI tools
 
-Most of the code and documentation for this study was written with an AI coding assistant under the author's direction. The author specified the questions, reviewed the methods
+Most of the code and documentation for this study was written with an AI coding assistant under
+the author's direction. The author specified the questions, reviewed the methods
 and results, and takes responsibility for the content. Every reported number is produced by the
 code from documented inputs and can be regenerated with `python run.py all`. [Adapt to the target
 journal's policy.]

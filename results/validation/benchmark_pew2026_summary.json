@@ -1,0 +1,45 @@
+{
+  "year": 2050,
+  "countries": 200,
+  "population_weighted_tv_pp": 3.19,
+  "median_country_tv_pp": 4.12,
+  "largest_religion_agrees": 197,
+  "largest_religion_differs": [
+    "CAN",
+    "MNG",
+    "SGP"
+  ],
+  "pew_share_inside_model_90pct_interval": {
+    "Christianity": 0.955,
+    "Islam": 1.0,
+    "Hinduism": 0.995,
+    "Buddhism": 0.985,
+    "Judaism": 0.935,
+    "Unaffiliated": 0.98
+  },
+  "pew_share_inside_overall": 0.975,
+  "largest_tv_countries_pp": {
+    "MDA": 23.0,
+    "GEO": 23.0,
+    "BLZ": 21.0,
+    "SLV": 21.0,
+    "MNG": 17.3,
+    "CRI": 17.3,
+    "LCA": 15.9,
+    "NIC": 15.5
+  },
+  "world_largest_gap_pp": {
+    "Christianity": 2.0,
+    "Islam": 0.6,
+    "Hinduism": 0.2,
+    "Buddhism": 0.0,
+    "Judaism": 0.1,
+    "Unaffiliated": 2.4,
+    "Other7": 0.0
+  },
+  "pew_2010_2020_no_change_error": {
+    "countries": 201,
+    "population_weighted_tv_pp": 3.35,
+    "note": "seven groups; the error of a no-change forecast of Pew's 2020 estimates from Pew's 2010 estimates"
+  }
+}

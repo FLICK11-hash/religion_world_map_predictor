@@ -20,11 +20,16 @@ source URL, the SHA-256 of the exact file the committed results used, and its li
 | UN World Population Prospects 2024, demographic indicators (medium) | `data/raw/WPP2024_Demographic_Indicators_Medium.csv.gz` | national TFR, life expectancy, under-5 mortality, mean age at childbearing, female share, population, net migration 1950-2100; also the development index used by switching | 237 countries and areas, 1950-2100 | CC BY 3.0 IGO; direct download |
 | World Religion Project, national (Correlates of War) | `data/raw/WRP_national.csv` | historical shares 1945-2010 for the backtests and the net-change evidence | 200 states, 5-year steps; 90 country-years fail the population check and are dropped | free; direct download |
 | Natural Earth admin-0, 1:50m | `data/raw/ne_50m_admin_0_countries.zip` | distances, land borders, continents and every map | present-day borders | public domain |
-| Pew Research Center, religious composition 2010 and 2020 (June 2025) | `data/raw/pew_2010_2020.xlsx` → `data/processed/pew_harmonized.csv` | the 2020 start state and the Pew 2010-2020 backtest window | 201 countries, 7 groups | free Pew account; Pew terms of use. DOI 10.58094/vhrw-k516 |
+| Pew Research Center, Global Religious Futures Dataset: Estimates and Projections for 2010-2070 (November 2026), or the June 2025 estimates for 2010 and 2020 | `data/raw/pew_grf_2010_2070.xlsx` (or its original file name), or `data/raw/pew_2010_2020.xlsx` → `data/processed/pew_harmonized.csv` | the 2020 start state and the Pew 2010-2020 backtest window; Pew's 2030-2070 projections only for the comparison in `scripts/benchmark_pew2026.py` | 201 countries, 7 groups | free Pew account; Pew terms of use. 2025 dataset DOI 10.58094/vhrw-k516 |
 
 `python scripts/prepare_raw_data.py` fetches the first three and writes a SHA-256 manifest. The Pew
 workbook is behind a free account and must be downloaded by hand; `python scripts/prepare_pew_panel.py`
-then builds the harmonised panel.
+then builds the harmonised panel. Either Pew workbook works: both have an `Unrounded counts` sheet
+with the same columns, and only the 2010 and 2020 estimates enter the panel. The 2020 figures in the
+November 2026 dataset are identical, country by country, to those in `inputs/pew2020_start_state.csv`.
+Pew's projections for 2030-2070 never enter the model; they are written to
+`data/processed/pew_projections_2030_2070.csv` and compared with the projection by
+`scripts/benchmark_pew2026.py`.
 
 **Without `data/processed/pew_harmonized.csv`** the model starts from the committed
 `inputs/pew2020_start_state.csv`: the same Pew 2020 composition, harmonised by the same script

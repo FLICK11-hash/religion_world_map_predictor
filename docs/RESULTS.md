@@ -234,9 +234,9 @@ reading in brackets). A placebo, drawn like a parameter but used nowhere, reache
 `survey_weight`, how far switching follows Pew's survey level rather than the level fitted to
 historical net change, is the most influential assumption for the Christian and unaffiliated
 shares. For the Muslim share in 2050 the most influential is `psi`, the fraction of the global
-median-age gap between religions applied inside countries; its inputs, Pew's 2010 median ages by
-religion, are marked unverified in `config/assumptions.json` and must be checked before the result
-is cited. `Hf`, how fast within-country fertility gaps converge, matters by 2100. The estimation
+median-age gap between religions applied inside countries; its inputs are Pew's (2012) median ages by
+religion, now checked; the committed run used 28 and 30 years for folk and other religions where Pew
+gives 33 and 32, corrected in `config/assumptions.json` for the next run. `Hf`, how fast within-country fertility gaps converge, matters by 2100. The estimation
 uncertainty of the switching hyperparameters (`delta`, `beta_d`, `tau_u`) is at or just above the
 noise floor: it matters less than the choice between the two levels of switching. The bound on the
 minority effect (`selectivity_cap`) matters little for world shares (at most 0.21, for Judaism).
@@ -282,7 +282,7 @@ Pew Research Center's 2015 report projected the same quantity to 2050. Change in
 | Folk/Traditional | −0.1 | −0.8 | +0.7 | −4.2 |
 | Hinduism | −0.4 | −0.3 | −0.1 | −0.2 |
 
-The two independently built models agree on the size of every group's change within 1.3 pp over
+The two separately built models agree on the size of every group's change within 1.3 pp over
 thirty years, and on its direction for six of the eight groups; the exceptions are Christianity
 and Judaism (changes under 0.02 pp). They disagree far more about where 2020 started: Pew's 2015
 estimate of 2020 differs from Pew's later data, used here, by up to 8.6 pp (the unaffiliated),
@@ -290,3 +290,27 @@ mostly because China is classified differently. Scored country by country, Pew's
 of 2020 misses Pew's later measurement by 10.7 pp population-weighted, barely better than freezing
 2010 (10.9), and China is 69% of that (`benchmark_pew2015_skill.csv`). No projection can be scored
 more precisely than its measurements agree.
+
+## 11. Against Pew Research Center's 2026 projections
+
+Pew's newest projections (Hackett et al. 2026) start from the same 2020 estimates as this model:
+the 2020 shares in Pew's Global Religious Futures dataset are identical, country by country, to
+`inputs/pew2020_start_state.csv`. Pew holds recently observed switching, fertility differences and
+migration constant and publishes no probabilistic intervals. `scripts/benchmark_pew2026.py`
+compares the two projections (`benchmark_pew2026_world.csv`, `benchmark_pew2026_countries_2050.csv`,
+`benchmark_pew2026_summary.json`); it is a check of agreement, not of accuracy.
+
+- **World, 2030-2070.** Every one of Pew's world shares, for every group with an interval and every
+  decade, lies inside this model's 90% predictive interval (30 of 30). The largest gaps are in the
+  groups switching moves: 2.0 pp for Christianity and 2.4 pp for the unaffiliated by 2070, against
+  0.6 pp for Islam. Both projections put Muslims ahead of Christians by 2035.
+- **Countries, 2050.** The largest religion agrees in 197 of 200 countries; the exceptions are Canada
+  (Christianity here, unaffiliated in Pew), Mongolia and Singapore (unaffiliated here, Buddhist in
+  Pew). 97.5% of Pew's 1,200 country-by-group shares lie inside this model's 90% predictive
+  intervals. The population-weighted total-variation distance between the two is 3.2 pp. The largest
+  differences are in Moldova and Georgia (23 pp) and Belize and El Salvador (21 pp), where this
+  model projects much more disaffiliation than Pew does.
+- **Pew's own decade.** A no-change forecast of Pew's 2020 estimates from its 2010 estimates errs by
+  3.35 pp population-weighted (seven groups, 201 countries), against 4.41 pp for World Religion
+  Project decades in eight groups. The 2010-2020 decade enters the history tests once Pew's dataset
+  is prepared and the pipeline is re-run.

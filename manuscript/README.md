@@ -37,13 +37,13 @@ decomposition.
 
 ## Before submission
 
-1. Re-run with the Pew 2010-2020 workbook prepared (`scripts/prepare_pew_panel.py`), so the start
+1. Re-run with Pew's Global Religious Futures dataset prepared (`scripts/prepare_pew_panel.py`), so the start
    state is Pew's own data for both years and the 2010-2020 decade enters the tests. The committed
    run used the 2020-only fallback.
-2. Verify every reference against the original, and above all the Pew 2010 median ages by
-   religion in `config/assumptions.json` (`age_structure.pew_global_median_age_2010`, marked
-   unverified): the age-tilt parameter they feed is the most influential input for the Muslim
-   world share in 2050.
+2. Re-run so that the corrected Pew (2012) median ages by religion take effect
+   (`age_structure.pew_global_median_age_2010` in `config/assumptions.json`; folk and other
+   religions were corrected from 28 and 30 to 33 and 32): the age-tilt parameter they feed is the
+   most influential input for the Muslim world share in 2050.
 3. Choose a licence, tag a release and archive it (Zenodo) for a DOI to cite in the data and code
    availability statement.
 4. Check the target journal's policy on AI-assisted work and adapt the statement.

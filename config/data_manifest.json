@@ -94,12 +94,12 @@
   ],
   "not_on_disk_manual": [
     {
-      "path": "data/raw/pew_2010_2020.xlsx",
-      "stage": "the preferred 2010 and 2020 start state, via scripts/prepare_pew_panel.py -> data/processed/pew_harmonized.csv",
-      "source": "Pew Research Center, Dataset of global religious composition estimates for 2010 and 2020",
+      "path": "data/raw/pew_grf_2010_2070.xlsx (or the original file name, or data/raw/pew_2010_2020.xlsx)",
+      "stage": "the preferred 2010 and 2020 start state, via scripts/prepare_pew_panel.py -> data/processed/pew_harmonized.csv; Pew projections for 2030-2070 go only to data/processed/pew_projections_2030_2070.csv for scripts/benchmark_pew2026.py",
+      "source": "Pew Research Center, Global Religious Futures Dataset: Estimates and Projections for 2010-2070 (November 2026); the June 2025 'Dataset of global religious composition estimates for 2010 and 2020' also works",
       "url": "https://www.pewresearch.org/dataset/dataset-of-global-religious-composition-estimates-for-2010-and-2020/",
       "access": "free Pew account; not redistributable here, so it is not committed",
-      "consequence_if_absent": "the package falls back to the committed inputs/pew2020_start_state.csv (Pew 2020 only), and the Pew 2010-2020 test window cannot run. Prepare it with scripts/prepare_pew_panel.py when the workbook is present."
+      "consequence_if_absent": "the package falls back to the committed inputs/pew2020_start_state.csv (identical to Pew 2020), and the Pew 2010-2020 test window cannot run. Prepare it with scripts/prepare_pew_panel.py when the workbook is present."
     },
     {
       "path": "data/raw/extra/pew_migrants_religion.csv",

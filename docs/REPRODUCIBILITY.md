@@ -10,12 +10,13 @@ pip install -r requirements-lock.txt   # the exact versions everything was verif
 
 pip install -e '.[prepare]'           # prepare_raw_data.py imports geopandas, even to download CSVs
 python scripts/prepare_raw_data.py   # downloads WRP, WPP 2024 and Natural Earth
-# download data/raw/pew_2010_2020.xlsx by hand (free Pew account), then:
+# download Pew's Global Religious Futures dataset by hand (free Pew account) into data/raw/, then:
 python scripts/prepare_pew_panel.py  # writes data/processed/pew_harmonized.csv
 
 python run.py fetch               # the optional datasets, once
 python scripts/verify_data.py     # compare data/ against the committed checksums
 python run.py all                 # every stage below, in order
+python scripts/benchmark_pew2026.py  # optional: compare the run with Pew's 2026 projections
 ```
 
 `python run.py all` takes about 35 minutes on four cores (the committed run: backtest 4 minutes,
@@ -117,6 +118,6 @@ data/  outputs/         generated, git-ignored
 ## Known gap in this environment
 
 The committed run was produced without `data/processed/pew_harmonized.csv`, because the Pew
-workbook needs an account. It therefore starts from `inputs/pew2020_start_state.csv`, the same Pew
+workbook needs an account and the run environment could not download the other raw data. It therefore starts from `inputs/pew2020_start_state.csv`, the same Pew
 2020 data, and omits the Pew 2010-2020 backtest window. Supplying the workbook and re-running will change
 the numbers slightly and add that window. Every report states which start state it used.

@@ -8,6 +8,15 @@ Originally step2_clean_merge.py. Builds data/processed/pew_harmonized.csv, the
 package falls back to inputs/pew2020_start_state.csv; see
 docs/DATA.md.
 
+The Pew input is either workbook below, saved in data/raw/ (free Pew account):
+  * Global Religious Futures Dataset: Estimates and Projections for 2010-2070
+    (November 2026), under its original file name or as pew_grf_2010_2070.xlsx;
+  * the June 2025 dataset of estimates for 2010 and 2020, as pew_2010_2020.xlsx.
+Both have an 'Unrounded counts' sheet with the same columns. Only the 2010 and
+2020 estimates enter the panel. Pew's projections for 2030-2070, when present,
+are written separately to data/processed/pew_projections_2030_2070.csv for the
+comparison in scripts/benchmark_pew2026.py and never enter the model.
+
 Requires: pandas, geopandas, requests, openpyxl, pycountry.
 Downloads an auxiliary (time-aware, imperfect) COW->ISO crosswalk from GitHub.
 All raw inputs remain unchanged. Outputs are written to data/processed/.
@@ -31,6 +40,10 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "processed"
 CROSSWALK_URL = "https://raw.githubusercontent.com/leops95/cow2iso/master/cow2iso.csv"
+PEW_FILES = ["pew_grf_2010_2070.xlsx",
+             "Global Religious Futures Dataset_Estimates and Projections for 2010-2070.xlsx",
+             "pew_2010_2020.xlsx"]
+PEW_ESTIMATE_YEARS = (2010, 2020)
 
 RELIGIONS = ["Christianity", "Islam", "Hinduism", "Buddhism", "Judaism",
              "Folk_Traditional", "Other", "Unaffiliated"]
@@ -79,10 +92,16 @@ def historical_entity(cow_id: int, year: int) -> tuple[str, str] | None:
     return None
 
 
+def pew_file() -> Path | None:
+    """The first Pew workbook found in data/raw/, in the order of PEW_FILES."""
+    return next((RAW / n for n in PEW_FILES if (RAW / n).is_file()), None)
+
+
 def must_exist() -> None:
-    names = ["WRP_national.csv", "pew_2010_2020.xlsx",
-             "WPP2024_Demographic_Indicators_Medium.csv.gz", "ne_50m_admin_0_countries.zip"]
+    names = ["WRP_national.csv", "WPP2024_Demographic_Indicators_Medium.csv.gz", "ne_50m_admin_0_countries.zip"]
     absent = [n for n in names if not (RAW / n).is_file()]
+    if pew_file() is None:
+        absent.append(" or ".join(PEW_FILES))
     if absent:
         raise FileNotFoundError(f"Missing input files in {RAW}: {absent}. Run scripts/prepare_raw_data.py first.")
     OUT.mkdir(parents=True, exist_ok=True)
@@ -213,12 +232,32 @@ def wrp_data(lookup) -> pd.DataFrame:
     return out
 
 
-def pew_data() -> pd.DataFrame:
-    pew = pd.read_excel(RAW / "pew_2010_2020.xlsx", sheet_name="Unrounded counts")
+def read_pew_counts() -> pd.DataFrame:
+    """Country rows (Level 1) of Pew's 'Unrounded counts' sheet, all years present."""
+    pew = pd.read_excel(pew_file(), sheet_name="Unrounded counts")
     expected = {"Country", "Year", "Countrycode", "Level", "Population"} | set(PEW_COUNTS.values())
     if not expected.issubset(pew.columns):
         raise KeyError(f"Unexpected Pew worksheet columns. Missing {expected-set(pew.columns)}")
-    pew = pew.loc[clean_num(pew["Level"]).eq(1)].copy()  # excludes WORLD and regions
+    return pew.loc[clean_num(pew["Level"]).eq(1)].copy()  # excludes WORLD and regions
+
+
+def pew_projections(pew_all: pd.DataFrame) -> pd.DataFrame:
+    """Pew's own projections (years after 2020) in seven groups, for benchmarking only."""
+    proj = pew_all.loc[clean_num(pew_all["Year"]).gt(max(PEW_ESTIMATE_YEARS))].copy()
+    if proj.empty:
+        return pd.DataFrame()
+    out = pd.DataFrame({"country_name": proj["Country"].astype(str),
+                        "year": clean_num(proj["Year"]).astype(int),
+                        "population": clean_num(proj["Population"])}, index=proj.index)
+    out["country_id"] = [country_from_pew(row)[0] for _, row in proj.iterrows()]
+    for religion, original_col in PEW_COUNTS.items():
+        out[f"share_{religion}"] = clean_num(proj[original_col]) / out["population"]
+    return out.reset_index(drop=True)
+
+
+def pew_data(pew_all: pd.DataFrame) -> pd.DataFrame:
+    # Estimates only: Pew's 2030-2070 figures are projections and must never enter the panel.
+    pew = pew_all.loc[clean_num(pew_all["Year"]).isin(PEW_ESTIMATE_YEARS)].copy()
     out = pd.DataFrame({
         "country_name": pew["Country"].astype(str),
         "year": clean_num(pew["Year"]).astype(int),
@@ -318,7 +357,13 @@ def main() -> None:
     must_exist()
     lookup = build_cow_mapper(get_cow_crosswalk())
     wrp = wrp_data(lookup)
-    pew = pew_folk_split(pew_data(), wrp)
+    pew_all = read_pew_counts()
+    print(f"[PEW] {pew_file().name}: years {sorted(clean_num(pew_all['Year']).dropna().astype(int).unique())}")
+    pew = pew_folk_split(pew_data(pew_all), wrp)
+    projections = pew_projections(pew_all)
+    if not projections.empty:
+        projections.to_csv(OUT / "pew_projections_2030_2070.csv", index=False)
+        print(f"[PEW] projections for {sorted(projections.year.unique())} written for benchmarking only")
     wpp = load_un()
     world = load_map()
 

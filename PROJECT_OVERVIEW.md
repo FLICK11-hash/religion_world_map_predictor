@@ -49,8 +49,8 @@ United Kingdom 85%, Germany 78%, the United States 42%. `docs/RESULTS.md` and
 Help is most useful in four areas:
 
 - **Data that needs an account or a person.**
-  - Pew's 2010-2020 workbook would add a test decade: run `scripts/prepare_pew_panel.py`, then
-    `python run.py all`.
+  - Pew's Global Religious Futures dataset (in hand, not redistributable) adds a test decade: put it in
+    `data/raw/`, run `scripts/prepare_pew_panel.py`, then `python run.py all`.
   - Pew's file of migrants by country of origin would let the minority effect on emigration be
     estimated rather than bounded by assumption.
   - DHS fertility by religion for sub-Saharan Africa.

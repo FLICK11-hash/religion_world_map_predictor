@@ -8,7 +8,7 @@ which ranks above secondary reporting.
 
 | File | What it holds | How the model uses it |
 |---|---|---|
-| `pew2020_start_state.csv` | religious composition of every country in 2020 (Pew 2025), in eight groups | the starting population when Pew's 2010-2020 workbook has not been prepared |
+| `pew2020_start_state.csv` | religious composition of every country in 2020 (Pew 2025), in eight groups | the starting population when Pew's country dataset has not been prepared; identical to Pew's 2020 figures |
 | `switching_lifetime_observed.csv` | 67 survey cells of lifetime switching: the share of adults raised in one religion who now identify with another, in 33 countries | evidence for the switching model (`religion_forecast/switching.py`) |
 | `switching_global_targets.csv` | Pew's 2025 figures for adults 18-54 in 117 countries: people raised in a religion who have left it, per 100 | defines the "survey level" of switching that every run mixes with the level fitted to history |
 | `fertility_by_religion.csv` | fertility by religious group, with the reference fertility the same source reports | within-country fertility differences between religions, from the most local figure available |

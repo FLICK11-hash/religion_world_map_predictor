@@ -159,9 +159,10 @@ ceiling, post-2100 migration and the fade of switching. The 2200, 2500 and 3026 
 a stated set of assumptions implies; they are labelled exploratory everywhere and carry no
 predictive interval. Within the horizon, the main assumptions are the fertility damping factors,
 the switching strength, the bound on the minority effect in emigration, the age patterns of
-switching and migration, the generation intensities and `α`. The Pew 2010 median ages by religion
-used for the within-country age tilt are marked unverified in `config/assumptions.json` and must
-be checked against the report before citation: the tilt's strength `psi` is the most influential
+switching and migration, the generation intensities and `α`. The Pew (2012) median ages by religion
+used for the within-country age tilt have been checked against the published figures; the
+committed run predates the correction of two of them (folk and other religions, 28 and 30 years
+instead of 33 and 32), which the next run applies. The tilt's strength `psi` is the most influential
 parameter for the Muslim world share in 2050 (standardised rank coefficient +0.69, against a
 placebo noise floor of 0.15).
 

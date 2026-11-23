@@ -207,11 +207,14 @@ def inspect_natural_earth(path: Path) -> None:
 def inspect_pew(data_dir: Path) -> bool:
     files = sorted(p for p in data_dir.iterdir() if p.is_file() and
                    p.suffix.lower() in {".xlsx", ".xls", ".csv"} and
-                   ("pew" in p.name.lower() or "religious_composition" in p.name.lower()))
+                   ("pew" in p.name.lower() or "religious_composition" in p.name.lower()
+                    or "religious futures" in p.name.lower()))
     if not files:
-        print("\n[MANUAL] Pew dataset not found. Sign in at:")
-        print("https://www.pewresearch.org/dataset/dataset-of-global-religious-composition-estimates-for-2010-and-2020/")
-        print("Save the downloaded workbook as: data/raw/pew_2010_2020.xlsx")
+        print("\n[MANUAL] Pew dataset not found. With a free Pew account, download either")
+        print("  'Global Religious Futures Dataset: Estimates and Projections for 2010-2070' (November 2026),")
+        print("  keeping its file name or saving it as data/raw/pew_grf_2010_2070.xlsx, or the June 2025 dataset")
+        print("  https://www.pewresearch.org/dataset/dataset-of-global-religious-composition-estimates-for-2010-and-2020/")
+        print("  saved as data/raw/pew_2010_2020.xlsx.")
         return False
     for path in files:
         print(f"\n{'=' * 72}\nPEW — {path.name}\n{'=' * 72}")

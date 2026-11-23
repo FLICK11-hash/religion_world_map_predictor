@@ -386,4 +386,5 @@ WPP's national demography; predictive intervals are reported to 2100 and not bey
 - **Assumption:** the fertility damping factors `phi` and `phi_region`; the bound `c` on the
   minority effect; the age patterns of switching and migration; generation intensities; the survey
   overdispersion `α`; everything after 2100; the scenario settings; switching strength 1.
-- **Unverified:** Pew's global median ages by religion.
+- **Checked after the committed run:** Pew's (2012) median ages by religion; the two values corrected in
+  `config/assumptions.json` (folk and other religions) take effect at the next run.

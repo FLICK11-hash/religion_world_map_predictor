@@ -75,8 +75,8 @@
   },
   "age_structure": {
     "pew_global_median_age_2010": {
-      "status": "unverified",
-      "source": "Pew (2015) median age by religion, 2010; entered from memory in an earlier version of the project and not yet checked against the report; verify before citing.",
+      "status": "verified",
+      "source": "Pew Research Center (2012), The Global Religious Landscape, median age by religion in 2010 (world 28; Muslims 23, Hindus 26, Christians 30, other religions 32, folk religions 33, unaffiliated 34, Buddhists 34, Jews 36). Checked against the published figures in November 2026; folk and other religions were corrected from 28 and 30.",
       "world": 28,
       "by_group": {
         "Christianity": 30,
@@ -84,8 +84,8 @@
         "Hinduism": 26,
         "Buddhism": 34,
         "Judaism": 36,
-        "Folk_Traditional": 28,
-        "Other": 30,
+        "Folk_Traditional": 33,
+        "Other": 32,
         "Unaffiliated": 34
       }
     },

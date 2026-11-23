@@ -149,8 +149,10 @@ python run.py all --quick                          # the whole pipeline in about
 python run.py all                                  # the full run, about 35 minutes on 4 cores; rewrites results/
 ```
 
-The Pew 2010-2020 workbook needs a free Pew account and is not in the committed run. With it in
-`data/raw/`, run `python scripts/prepare_pew_panel.py` before `python run.py all`. Every stage, the
+Pew's country data for 2010 and 2020 (the Global Religious Futures dataset, free Pew account) is not
+in the committed run. With it in `data/raw/`, run `python scripts/prepare_pew_panel.py` before
+`python run.py all`; this adds the 2010-2020 test decade. `python scripts/benchmark_pew2026.py` then
+compares the run with Pew's own 2026 projections. Every stage, the
 code layout and the reproducibility checklist are in
 [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md); every dataset is described in
 [`docs/DATA.md`](docs/DATA.md).
