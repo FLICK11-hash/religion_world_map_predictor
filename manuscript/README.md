@@ -4,6 +4,11 @@
 in `../results/`, and every figure is one of the SVG files in `../results/figures/`, which the code
 regenerates (`python run.py all`). If the run changes, the numbers below change with it.
 
+Classification: arXiv `stat.AP` (Statistics: Applications); MSC 2020 62P25, 91D20, 62M20; JEL C53,
+J11, Z12. Keywords: cohort-component projection, religious switching, international migration,
+empirical Bayes, forecast evaluation, predictive intervals, interval score, shift-share
+decomposition.
+
 | Figure | File | Shows |
 |---|---|---|
 | 1 | `results/figures/world_projection_2100.svg` | world shares 2020-2100 with parameter and predictive intervals |
@@ -18,17 +23,17 @@ regenerates (`python run.py all`). If the run changes, the numbers below change 
 
 | Number | Source file |
 |---|---|
-| history-test errors | `results/validation_summary.csv`, `results/validation_by_window.csv` |
-| country-level differences from persistence | `results/inference.csv` |
-| error model (b, beta) and its record | `results/forecast_error_model.json`, `results/forecast_error_record.csv` |
-| interval coverage and scores | `results/predictive_calibration.csv`, `results/predictive_calibration_world.csv` |
-| world shares and intervals | `results/global_share_by_scenario.csv` |
-| shift-share | `results/world_share_shift_share.csv` |
-| mechanism contributions | `results/ablation_effects.csv` |
-| sensitivity | `results/sensitivity_coefficients.csv` |
-| switching fit | `results/projection_report.json` (`switching_fit`), `results/switching_check_vs_pew.csv` |
-| estimator simulation study | `results/estimator_recovery.csv`, `results/estimator_recovery_runs.csv` |
-| country changes | `results/dominant_change.csv` |
+| history-test errors | `results/validation/validation_summary.csv`, `results/validation/validation_by_window.csv` |
+| country-level differences from persistence | `results/validation/inference.csv` |
+| error model (b, beta) and its record | `results/validation/forecast_error_model.json`, `results/validation/forecast_error_record.csv` |
+| interval coverage and scores | `results/validation/predictive_calibration.csv`, `results/validation/predictive_calibration_world.csv` |
+| world shares and intervals | `results/projection/global_share_by_scenario.csv` |
+| shift-share | `results/projection/world_share_shift_share.csv` |
+| mechanism contributions | `results/experiments/ablation_effects.csv` |
+| sensitivity | `results/experiments/sensitivity_coefficients.csv` |
+| switching fit | `results/projection/projection_report.json` (`switching_fit`), `results/projection/switching_check_vs_pew.csv` |
+| estimator simulation study | `results/validation/estimator_recovery.csv`, `results/validation/estimator_recovery_runs.csv` |
+| country changes | `results/projection/dominant_change.csv` |
 
 ## Before submission
 

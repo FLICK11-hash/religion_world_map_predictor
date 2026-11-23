@@ -15,7 +15,7 @@ python scripts/prepare_pew_panel.py  # writes data/processed/pew_harmonized.csv
 
 python run.py fetch               # the optional datasets, once
 python scripts/verify_data.py     # compare data/ against the committed checksums
-python run.py all                 # test, backtest, project, recovery, experiments, checks, figures, report
+python run.py all                 # every stage below, in order
 ```
 
 `python run.py all` takes about 35 minutes on four cores (the committed run: backtest 4 minutes,
@@ -36,6 +36,48 @@ python run.py experiments --only ablation  # ablation | sensitivity | sorting
 python run.py checks                       # exit code 0 = every check passed
 python run.py figures                      # --png also draws the matplotlib maps
 python run.py report --export              # writes results/
+```
+
+## Pipeline stages
+
+| Stage | What it does | Writes |
+|---|---|---|
+| `fetch` | downloads the optional datasets, once | `data/raw/extra/` |
+| `test` | unit and integration tests | – |
+| `backtest` | history tests, country-level inference, the forecast-error record and its calibration, migration checks | `data/validation/` |
+| `project` | the scenario × Monte Carlo projection with predictive intervals to 2100 | `data/projections/` |
+| `recovery` | simulation study: does the switching estimator recover known hyperparameters under the real design | `data/validation/` |
+| `experiments` | mechanism ablations, global sensitivity, migrant sorting | `data/experiments/` |
+| `checks` | integrity checks; exit code 0 means every check passed | – |
+| `figures` | maps and charts as SVG, `--png` for matplotlib versions | `outputs/figures/` |
+| `report` | the run report, and `results/` with `--export` | `outputs/`, `results/` |
+
+`results/` keeps the files of each stage in its own folder: `validation/`, `projection/` and
+`experiments/`, next to the run report, the figures and the run stamp.
+
+## Code layout
+
+```
+religion_forecast/      the package
+  engine.py               the cohort-component step (numpy only, reads no files)
+  switching.py            lifetime matrices, the hierarchical model and its estimation
+  migration.py            origin-destination flows that conserve people exactly
+  model.py                run parameters, scenarios, the initial state, simulate, hindcast
+  calibration.py          the evidence switching and the religion of migrants are fitted to
+  errors.py               the forecast-error record, error model and predictive draws
+  recovery.py             simulation study of the switching estimator
+  projection.py tables.py the Monte Carlo projection and its output tables
+  backtest.py             history tests, inference, calibration of the intervals
+  experiments.py          ablations, global sensitivity, migrant sorting
+  report.py checks.py     the run report and integrity checks
+  figures/                maps and charts
+  datasets.py sources.py fetch.py config.py cli.py   input loading, paths and the command line
+run.py                  entry point; the same commands install as `religion-forecast`
+config/                 assumptions.json (every non-data number) and data_manifest.json
+inputs/                 published figures transcribed with citations, one evidence grade per row
+scripts/                prepare_raw_data.py, prepare_pew_panel.py, verify_data.py
+tests/                  unit and integration tests
+data/  outputs/         generated, git-ignored
 ```
 
 ## Checklist

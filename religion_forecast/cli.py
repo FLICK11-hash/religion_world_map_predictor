@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Single entry point for the religious-composition projection.
 
-    python run.py all                 the whole pipeline (about an hour), then results/ is rewritten
+    python run.py all                 the whole pipeline (about 35 minutes on four cores), then results/ is rewritten
     python run.py all --quick         fewer Monte Carlo runs (about fifteen minutes); results/ is
                                       left alone, so committed results are never replaced by a check
     python run.py <stage> [options]   one stage; `python run.py <stage> --help` for its options

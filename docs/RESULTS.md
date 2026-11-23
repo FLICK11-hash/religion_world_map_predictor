@@ -2,7 +2,8 @@
 
 From the committed run in `results/`: reference scenario `stabilising`, 40 Monte Carlo runs per
 scenario, seed 2026, start state `inputs/pew2020_start_state.csv` (Pew 2020; the Pew 2010-2020
-decade is not available in this run). Every number here is in a file in `results/`; the run report
+decade is not available in this run). Every number here is in a file in `results/` (in its
+`validation/`, `projection/` or `experiments/` folder); the run report
 `results/comparison_report.md` has the full tables. Shares are percent of the population;
 differences are percentage points (pp).
 

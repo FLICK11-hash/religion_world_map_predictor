@@ -50,27 +50,62 @@ SMALL_V = ['validation_summary.csv', 'validation_by_window.csv', 'validation_by_
            'estimator_recovery.csv', 'estimator_recovery_runs.csv']
 
 
+# results/ is grouped by the stage that produced each file, mirroring data/
+GROUPS = {'validation': 'history tests, interval calibration, migration checks and the estimator study',
+          'projection': 'the scenario projections to 3026, with predictive intervals to 2100',
+          'experiments': 'mechanism ablations, global sensitivity and the migrant-sorting experiment'}
+
+
+def results_readme():
+    """The README written into results/: what each folder answers, and where to start."""
+    return (
+        '# Results of one run\n\n'
+        'Small copies of one complete run, written by `python run.py report --export`, so the numbers can be '
+        'checked without running anything. The full outputs stay in `data/`, which is git-ignored.\n\n'
+        '## Where to start\n\n'
+        '- `comparison_report.md`: the run report, every table in one page.\n'
+        '- `figures/index.html`: every map and chart (download the folder and open the page; hover over a '
+        'country for its values).\n'
+        '- `run_stamp.json`: the commit the run was made at and whether the integrity checks passed; '
+        '`integrity_checks.txt` is their output.\n\n'
+        '## Folders\n\n'
+        '| Folder | Contents | Start with |\n|---|---|---|\n'
+        '| `validation/` | ' + GROUPS['validation'] + ' | `inference.csv`, `predictive_calibration.csv`, '
+        '`estimator_recovery.csv` |\n'
+        '| `projection/` | ' + GROUPS['projection'] + ' | `global_share_by_scenario.csv`, '
+        '`country_target_years_reference_with_bands.csv`, `dominant_change.csv` |\n'
+        '| `experiments/` | ' + GROUPS['experiments'] + ' | `ablation_effects.csv`, '
+        '`sensitivity_coefficients.csv` |\n\n'
+        'Shares are fractions of the population (0.25 = 25%). Columns named `q05`/`q95` are the spread of the '
+        'Monte Carlo runs (parameter uncertainty only); `pi05`/`pi95` are the 90% predictive intervals, which '
+        'add the forecast errors the model made on 1970-2010 and are given to 2100. `docs/RESULTS.md` explains '
+        'every table.\n')
+
+
 def export_results():
     import shutil
     EXPORT.mkdir(exist_ok=True)
     made = []
     for old in EXPORT.glob('*'):
         shutil.rmtree(old) if old.is_dir() else old.unlink()
+    out = {g: EXPORT / g for g in GROUPS}
+    for d in out.values():
+        d.mkdir()
     for name in SMALL:
         if (F / name).exists():
             if name == 'global_share_by_scenario.csv':
-                pd.read_csv(F / name).round(5).to_csv(EXPORT / name, index=False)
+                pd.read_csv(F / name).round(5).to_csv(out['projection'] / name, index=False)
             else:
-                shutil.copy2(F / name, EXPORT / name)
-            made.append(name)
+                shutil.copy2(F / name, out['projection'] / name)
+            made.append(f'projection/{name}')
     for name in SMALL_V:
         if (V / name).exists():
-            shutil.copy2(V / name, EXPORT / name)
-            made.append(name)
+            shutil.copy2(V / name, out['validation'] / name)
+            made.append(f'validation/{name}')
     for name in SMALL_X:
         if (X / name).exists():
-            shutil.copy2(X / name, EXPORT / name)
-            made.append(name)
+            shutil.copy2(X / name, out['experiments'] / name)
+            made.append(f'experiments/{name}')
     ref = json.loads((F / 'projection_report.json').read_text()).get('reference_scenario', 'stabilising') \
         if (F / 'projection_report.json').exists() else 'stabilising'
     if (F / 'country_year_by_scenario.csv').exists():
@@ -79,16 +114,18 @@ def export_results():
         keep = ['scenario', 'country_id', 'year', 'mean_population', 'most_likely_dominant',
                 'dominant_agreement_fraction', 'diversity_gini_simpson_mean', 'foreign_born_share_mean']
         keep += [c for c in ct.columns if c.startswith('mean_') and c != 'mean_population']
-        ct[keep].round(4).to_csv(EXPORT / 'country_target_years_by_scenario.csv', index=False)
-        ct[ct.scenario.eq(ref)].round(4).to_csv(EXPORT / 'country_target_years_reference_with_bands.csv', index=False)
-        made += ['country_target_years_by_scenario.csv', 'country_target_years_reference_with_bands.csv']
+        ct[keep].round(4).to_csv(out['projection'] / 'country_target_years_by_scenario.csv', index=False)
+        ct[ct.scenario.eq(ref)].round(4).to_csv(out['projection'] / 'country_target_years_reference_with_bands.csv',
+                                                index=False)
+        made += ['projection/country_target_years_by_scenario.csv',
+                 'projection/country_target_years_reference_with_bands.csv']
     if (F / 'components_country_period.csv').exists():
         cp = pd.read_csv(F / 'components_country_period.csv')
         cp = cp[cp.scenario.eq(ref) & cp.period.isin(['2020-2050', '2050-2100'])]
         cp = cp.groupby(['scenario', 'country_id', 'religion'], as_index=False).sum(numeric_only=True)
         cp.insert(1, 'period', '2020-2100')
-        cp.round(3).to_csv(EXPORT / 'components_country_2020_2100_reference.csv', index=False)
-        made.append('components_country_2020_2100_reference.csv')
+        cp.round(3).to_csv(out['projection'] / 'components_country_2020_2100_reference.csv', index=False)
+        made.append('projection/components_country_2020_2100_reference.csv')
     if OUT.exists():
         shutil.copy2(OUT, EXPORT / 'comparison_report.md')
         made.append('comparison_report.md')
@@ -126,13 +163,7 @@ def export_results():
     stamp['exported_utc'] = datetime.now(UTC).isoformat()
     (EXPORT / 'run_stamp.json').write_text(json.dumps(stamp, indent=2), encoding='utf8')
     made.append('run_stamp.json')
-    (EXPORT / 'README.md').write_text(
-        '# Results of one run\n\nSmall copies of one complete run, written by `run.py report --export`, so a '
-        'reader can check the numbers without re-running anything. The full outputs stay in data/ and are '
-        'git-ignored.\n\nStart with `comparison_report.md`. `run_stamp.json` records the commit the run was made '
-        'at and whether the integrity checks passed; `integrity_checks.txt` is their captured output. Open '
-        '`figures/index.html` to browse every figure.\n\n' + '\n'.join(f'- {m}' for m in made) + '\n',
-        encoding='utf8')
+    (EXPORT / 'README.md').write_text(results_readme(), encoding='utf8')
     print(f'Exported {len(made)} files to {EXPORT}')
 
 

@@ -1,52 +1,19 @@
 # Results of one run
 
-Small copies of one complete run, written by `run.py report --export`, so a reader can check the numbers without re-running anything. The full outputs stay in data/ and are git-ignored.
+Small copies of one complete run, written by `python run.py report --export`, so the numbers can be checked without running anything. The full outputs stay in `data/`, which is git-ignored.
 
-Start with `comparison_report.md`. `run_stamp.json` records the commit the run was made at and whether the integrity checks passed; `integrity_checks.txt` is their captured output. Open `figures/index.html` to browse every figure.
+## Where to start
 
-- global_share_by_scenario.csv
-- components_world_period.csv
-- dominant_change.csv
-- uncertainty_model_vs_scenario.csv
-- switching_check_vs_pew.csv
-- switching_rates_2020.csv
-- world_population_by_scenario.csv
-- parameter_provenance.csv
-- migration_corridors_reference.csv
-- migration_corridor_concentration.csv
-- world_share_shift_share.csv
-- adherents_by_country.csv
-- fertility_evidence.csv
-- group_fertility_2020_2025.csv
-- benchmark_vs_pew2015.csv
-- benchmark_pew2015_skill.csv
-- run_outcomes.csv
-- predictive_sensitivity_centring.csv
-- projection_report.json
-- validation_summary.csv
-- validation_by_window.csv
-- validation_by_country.csv
-- inference.csv
-- data_ablations_summary.csv
-- switching_fit_by_fold.csv
-- out_of_sample_choices.csv
-- forecast_error_model.json
-- forecast_error_record.csv
-- predictive_calibration.csv
-- predictive_calibration_world.csv
-- migration_foreign_born_check.csv
-- migration_foreign_born_by_country.csv
-- migration_corridor_check.csv
-- validation_report.json
-- estimator_recovery.csv
-- estimator_recovery_runs.csv
-- ablation_effects.csv
-- sensitivity_coefficients.csv
-- migrant_sorting_effect.csv
-- country_target_years_by_scenario.csv
-- country_target_years_reference_with_bands.csv
-- components_country_2020_2100_reference.csv
-- comparison_report.md
-- figures/ (57 SVG figures, open figures/index.html)
-- integrity_checks.txt
-- run_stamp.json
+- `comparison_report.md`: the run report, every table in one page.
+- `figures/index.html`: every map and chart (download the folder and open the page; hover over a country for its values).
+- `run_stamp.json`: the commit the run was made at and whether the integrity checks passed; `integrity_checks.txt` is their output.
+
+## Folders
+
+| Folder | Contents | Start with |
+|---|---|---|
+| `validation/` | history tests, interval calibration, migration checks and the estimator study | `inference.csv`, `predictive_calibration.csv`, `estimator_recovery.csv` |
+| `projection/` | the scenario projections to 3026, with predictive intervals to 2100 | `global_share_by_scenario.csv`, `country_target_years_reference_with_bands.csv`, `dominant_change.csv` |
+| `experiments/` | mechanism ablations, global sensitivity and the migrant-sorting experiment | `ablation_effects.csv`, `sensitivity_coefficients.csv` |
+
+Shares are fractions of the population (0.25 = 25%). Columns named `q05`/`q95` are the spread of the Monte Carlo runs (parameter uncertainty only); `pi05`/`pi95` are the 90% predictive intervals, which add the forecast errors the model made on 1970-2010 and are given to 2100. `docs/RESULTS.md` explains every table.
