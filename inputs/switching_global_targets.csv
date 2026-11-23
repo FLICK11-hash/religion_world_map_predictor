@@ -1,4 +1,5 @@
-# Published global switching figures used as CHECKS of the fitted switching model (not fitted to).
+# Published global switching figures that define the survey level of switching: every projection run mixes the
+# level fitted to history with this one (religion_forecast.calibration.calibrate_survey_level).
 # Pew 2025: adults ages 18-54 in 117 countries and territories (92% of the 2010 world population), 7 groups.
 scope,religion,measure,value,url,evidence_type
 world_18_54,Christianity,left_per_100_raised,17.1,https://www.pewresearch.org/short-reads/2025/06/26/globally-1-in-10-adults-under-55-have-left-their-childhood-religion/,pew_page_text (search excerpt; check against the report)

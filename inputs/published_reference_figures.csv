@@ -1,4 +1,4 @@
-# Published Pew figures used to check Step 7 inputs and outputs (not fitted to).
+# Published Pew figures for checking inputs and outputs by hand (not fitted to, and not read by the code).
 scope,measure,Christianity,Islam,Unaffiliated,Hinduism,url,evidence_type,Buddhism,Judaism,other
 world,share_2010_pct,30.6,23.9,23.3,14.9,https://www.pewresearch.org/short-reads/2025/06/10/islam-was-the-worlds-fastest-growing-religion-from-2010-to-2020/,pew_page_text (search excerpt; check against the report),,,
 world,share_2020_pct,28.8,25.6,24.2,14.9,https://www.pewresearch.org/religion/2025/06/09/how-the-global-religious-landscape-changed-from-2010-to-2020/,pew_page_text (search excerpt; check against the report),4.1,,

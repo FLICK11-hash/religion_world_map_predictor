@@ -1,5 +1,5 @@
 # Published religious composition of international migrant STOCKS (Pew 2024, built on UN migrant stock 2020).
-# Used to estimate how selective emigration is by religion (step7_estimate.calibrate_selectivity).
+# Used to fit who migrates where by religion (religion_forecast.calibration.calibrate_affinity).
 # Pew groups: other = folk + other religions in this project.
 scope,Christianity,Islam,Unaffiliated,Hinduism,Buddhism,other,Judaism,url,evidence_type
 world_migrants_2020,47.0,29.0,13.0,5.0,4.0,2.0,1.0,https://www.pewresearch.org/religion/2024/08/19/the-religious-composition-of-the-worlds-migrants/,pew_page_text (search excerpt; check against the report)

@@ -281,7 +281,7 @@
       "note": "Weight of geography versus existing migrant networks in new flows, when bilateral stocks exist. 1.0 = gravity only (used without the UN table)."
     },
     "gravity": {
-      "status": "assumption (Step 5D/5E values)",
+      "status": "assumption",
       "gamma": 1.5,
       "b_adj": 2.0,
       "b_cont": 0.5

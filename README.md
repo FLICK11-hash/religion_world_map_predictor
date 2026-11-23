@@ -1,5 +1,7 @@
 # Projecting the religious composition of countries
 
+[![tests](https://github.com/FLICK11-hash/religion_world_map_predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/FLICK11-hash/religion_world_map_predictor/actions/workflows/tests.yml)
+
 **A probabilistic cohort-component model of every country's religions to 2100, and an honest test
 of how well it can forecast.** Applied statistics and statistical demography (arXiv `stat.AP`).
 
@@ -12,7 +14,7 @@ that caused it. The model is tested on the decades 1970-2010 with everything fit
 data, and its uncertainty intervals are built from the errors it made there.
 
 **New here?** Read [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) first, a short overview for
-collaborators. The paper draft is [`manuscript/manuscript.md`](manuscript/manuscript.md), and the
+collaborators, and [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to set up and make changes. The paper draft is [`manuscript/manuscript.md`](manuscript/manuscript.md), and the
 team's files are in the
 [shared Google Drive folder](https://drive.google.com/drive/folders/1sqJtRGLf7Vcu7QMQzK11AN-7bmgUzlXe?usp=drive_link).
 
@@ -159,9 +161,9 @@ code layout and the reproducibility checklist are in
 |---|---|
 | `religion_forecast/` | the model and its evaluation (Python package) |
 | `results/` | one complete committed run: report, figures and tables |
-| `manuscript/` | the paper draft and its figures |
+| `manuscript/` | the paper draft and its figures, including PNG versions of every map above |
 | `docs/` | methods, results, limitations, data, reproducibility |
-| `config/`, `inputs/` | every assumption, and the published figures the model uses, with sources |
+| `config/`, `inputs/` | every assumption, and the published figures the model uses, with sources ([`inputs/README.md`](inputs/README.md)) |
 | `scripts/`, `tests/` | data preparation and the test suite |
 | `previous_grad_assignment/` | the two simpler programs from the course exercise the project began as |
 

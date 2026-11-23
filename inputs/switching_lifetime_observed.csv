@@ -1,5 +1,5 @@
 # Lifetime religious switching observed in surveys: percent of adults RAISED in `raised` who CURRENTLY identify with `current`.
-# These are lifetime (childhood -> now) shares, not annual rates; step7_switching converts them to age-specific rates.
+# These are lifetime (childhood -> now) shares, not annual rates; religion_forecast.switching converts them to age-specific rates.
 # n_raised is an effective sample size used to weight each cell (capped at 500), not the survey n.
 # Rows with evidence_type secondary_news are Pew figures reported by a news outlet (weight 80, or 40 for band midpoints).
 # Rows with evidence_type pew_page_text were read from Pew page text surfaced by web search; check them against the
