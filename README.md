@@ -3,7 +3,7 @@
 **A probabilistic cohort-component model of every country's religions to 2100, and an honest test
 of how well it can forecast.** Applied statistics and statistical demography (arXiv `stat.AP`).
 
-![Largest religion in each country in 2100, reference scenario](results/figures/dominant_2100.svg)
+![World religious composition 2020-2100 with 90% predictive intervals](manuscript/figures/world_projection_2100.png)
 
 The model follows the population of 200 countries by religion (8 groups), migrant generation and
 age, and moves it forward in five-year steps through births, deaths, religious switching and
@@ -34,6 +34,95 @@ team's files are in the
 These are projections under stated assumptions, conditional on the UN's population projections.
 The maps for 2200, 2500 and 3026 are exploratory. [`docs/RESULTS.md`](docs/RESULTS.md) has the
 tables and [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) what they do and do not support.
+
+## The projected maps
+
+Each map shows the largest religion in every country in one year, under the reference scenario
+(`stabilising`). The colour is the most frequent result across the 40 Monte Carlo runs, so it
+reflects parameter uncertainty only; how likely a change really is, once the model's past forecast
+errors are included, is in [`results/figures/prob_dominant_change_2100.svg`](results/figures/prob_dominant_change_2100.svg)
+and `results/projection/dominant_change.csv`. Grey means no estimate.
+
+World shares in the same scenario (percent of world population; 2050 and 2100 with their 90%
+predictive intervals in [`docs/RESULTS.md`](docs/RESULTS.md)):
+
+| Religion | 2020 | 2050 | 2100 | 2200 | 2500 | 3026 |
+|---|---|---|---|---|---|---|
+| Islam | 25.6 | 31.7 | 39.1 | 43.5 | 43.8 | 42.2 |
+| Christianity | 28.8 | 27.8 | 25.7 | 21.9 | 19.7 | 18.0 |
+| Unaffiliated | 24.2 | 20.7 | 19.5 | 23.7 | 29.3 | 33.8 |
+| Hinduism | 14.9 | 14.5 | 12.0 | 8.6 | 5.2 | 3.9 |
+| Buddhism | 4.1 | 3.0 | 1.7 | 0.8 | 0.4 | 0.3 |
+| Folk/Traditional | 1.4 | 1.3 | 1.1 | 0.9 | 0.9 | 1.1 |
+| Other | 0.8 | 0.7 | 0.5 | 0.4 | 0.3 | 0.4 |
+| Judaism | 0.2 | 0.2 | 0.3 | 0.3 | 0.3 | 0.4 |
+
+Number of countries (of 200) in which each religion is the largest:
+
+| Largest religion | 2020 | 2050 | 2100 | 2200 | 2500 | 3026 |
+|---|---|---|---|---|---|---|
+| Christianity | 122 | 118 | 94 | 50 | 28 | 16 |
+| Islam | 54 | 54 | 56 | 62 | 76 | 95 |
+| Unaffiliated | 11 | 17 | 40 | 81 | 93 | 87 |
+| Buddhism | 8 | 6 | 6 | 3 | 1 | 0 |
+| Hinduism | 3 | 3 | 3 | 3 | 2 | 2 |
+| Judaism | 1 | 1 | 1 | 1 | 0 | 0 |
+| Folk/Traditional | 1 | 1 | 0 | 0 | 0 | 0 |
+
+### 2050
+
+![Largest religion by country, 2050](results/figures/dominant_2050.svg)
+
+Thirty years out, the map is almost the one of 2020: the largest religion changes in only 6
+countries. In the United Kingdom, France, Australia and Belgium people with no religion overtake
+Christians, and in Singapore and Mongolia they overtake Buddhists. The world already looks different
+in its totals: the Muslim share rises from 25.6% to 31.7%, four fifths of it because the populations
+of Muslim-majority countries grow faster.
+
+### 2100
+
+![Largest religion by country, 2100](results/figures/dominant_2100.svg)
+
+By 2100 the largest religion has changed in 31 countries, 26 of them from Christianity to no
+religion, among them Russia, Germany, the United Kingdom, France, Italy, Spain, Argentina, Canada,
+Australia and Chile, and Taiwan joins them from folk religion. North Macedonia and Cyprus change from
+Christianity to Islam. Islam becomes the largest religion in the world (39.1%, 90% interval
+36.7-42.4%), ahead of Christianity (25.7%, 22.6-28.8%). Once past forecast errors are included, 26
+countries have a better-than-even chance of changing (France 89%, United Kingdom 85%, Germany 78%,
+United States 42%). This is the last year with predictive intervals: beyond 2100 there are no UN
+population projections and every input becomes a stated assumption.
+
+### 2200 (exploratory)
+
+![Largest religion by country, 2200](results/figures/dominant_2200.svg)
+
+If switching continues at the assumed pace and slows only gradually, people with no religion become
+the largest group in much of the Americas and Europe, including the United States, Brazil and
+Mexico, and the unaffiliated lead in 81 countries against 50 for Christianity. Islam becomes the
+largest religion in 62 countries, adding Ethiopia, Benin, Sweden, Malta and Montenegro. Islam
+reaches 43.5% of the world.
+
+### 2500 (exploratory)
+
+![Largest religion by country, 2500](results/figures/dominant_2500.svg)
+
+The map now reflects the long-run assumptions more than any current trend: fertility converging
+across countries, switching fading towards a floor, and migration continuing at 2100 rates. Islam
+is the largest religion in 76 countries, including Russia, Italy, Greece and much of East Africa
+(Ethiopia, Tanzania, Mozambique); the unaffiliated lead in 93. Christianity remains the largest in
+28 countries, mostly in central and southern Africa and the Pacific.
+
+### 3026 (exploratory)
+
+![Largest religion by country, 3026](results/figures/dominant_3026.svg)
+
+A thousand years from today, under the same assumptions, the world divides between two groups:
+Islam is the largest religion in 95 countries and the unaffiliated in 87, with 42% and 34% of the
+world's population. Christianity remains the largest in 16 countries, among them the Philippines,
+Kenya, Angola, Zambia and Zimbabwe, and Hinduism in India and Nepal. This map shows what a fixed
+set of long-run assumptions implies after a millennium, not what will happen: the eight scenarios
+disagree by up to 64 percentage points on the world Muslim and unaffiliated shares by then
+([`results/figures/world_composition_long_run.svg`](results/figures/world_composition_long_run.svg)).
 
 ## See the results without running anything
 
