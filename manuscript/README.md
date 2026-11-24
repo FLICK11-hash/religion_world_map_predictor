@@ -1,6 +1,6 @@
 # Manuscript
 
-`manuscript.md` is the working draft of the paper (revision 10, for Demographic Research), converted
+`manuscript.md` is the working draft of the paper (revision 11, for Demographic Research), converted
 from the version in the team's Google Drive folder; it omits the authors' email addresses. Every
 number in it comes from the committed run in `../results/`, and every figure is a PNG in `figures/`
 rendered from the SVG files in `../results/figures/`, which the code regenerates (`python run.py all`).
