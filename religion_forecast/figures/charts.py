@@ -178,9 +178,10 @@ def fig_world_projection(F, out):
     ref, runs, nsc = rep['reference_scenario'], rep['runs_per_scenario'], wt.scenario.nunique()
     wt = wt[wt.year.le(2100)]
     cal_file = config.VALIDATION / 'predictive_calibration.csv'
-    cover = ''
+    cover, period = '', 'past decades'
     if cal_file.exists():
         c = _main_scheme(pd.read_csv(cal_file))
+        period = _record_periods(c)
         c = c[c.method.eq('error-calibrated') & c.nominal.eq(0.9)].groupby('horizon').coverage_observed_above_zero.mean()
         if len(c):
             cover = (f'which covered {100 * c.min():.0f}-{100 * c.max():.0f}% of held-out observed shares at nominal 90% '
@@ -189,7 +190,7 @@ def fig_world_projection(F, out):
                 f'Share of world population. Reference scenario ({ref}): mean of {runs} runs, the 5-95% spread of the '
                 f'runs, and the 90% predictive interval. Grey line: the range of all {nsc} scenario means.',
                 'The run spread is parameter uncertainty. The predictive interval adds the forecast errors the model made '
-                'on 1970-2010 (resampled by decade, scaled by horizon; religion_forecast/errors.py),\n'
+                f'on {period} (resampled by decade, scaled by horizon; religion_forecast/errors.py),\n'
                 + cover + ' Both are conditional on WPP 2024 national demography. Each panel has its own scale.')
     cv.legend(30, 92, [('Reference mean', ACCENT), ('90% predictive interval', '#c9dcf5'),
                        ('5-95% of runs', '#7ea9e8'), ('Range of scenario means', INK3)])
@@ -297,12 +298,14 @@ def fig_validation(V, out):
              'switching_1': '+ switching, full strength (as projected)',
              'switching_selected': '+ switching, strength chosen on earlier decades'}
     scopes = list(dict.fromkeys(inf.scope))
+    n_dec = int(inf.windows.max()) if 'windows' in inf else 4
     cv = Canvas(1180, 200 + 262 * len(scopes), 'Forecast skill on historical decades, relative to assuming no change',
                 'Population-weighted mean difference in total-variation error from persistence, over every country and '
                 'test decade (percentage points). Left of zero is better. Line: 95% interval.',
                 'Intervals from 4,000 bootstrap resamples of countries. Countries in the same decade share common shocks, '
                 'which this interval does not capture; the decade-level sign-flip p-value on the right is the\n'
-                'conservative test (with four decades it cannot fall below 0.125). Source: data/validation/inference.csv')
+                f'conservative test (with {n_dec} decades it cannot fall below {2 / 2 ** n_dec:.4g}). '
+                'Source: data/validation/inference.csv')
     for si, scope in enumerate(scopes):
         sub = inf[inf.scope.eq(scope)].set_index('model').reindex(order).dropna(subset=['mean_difference_pp'])
         lo = min(-0.3, float(sub.ci95_low_pp.min()) * 1.1)
@@ -310,7 +313,7 @@ def fig_validation(V, out):
         Y = 168 + si * 262
         n_cw = int(sub.country_windows.max())
         p = Panel(cv, 330, Y, 600, 170, (lo, hi), (-0.6, len(sub) - 0.4),
-                  title=f'{scope} ({n_cw} country-decades)')
+                  title=f"{'All decades' if scope == 'all windows' else scope} ({n_cw} country-decades)")
         p.grid_x(nice_ticks(lo, hi, 6), fmt='{:+.1f}')
         p.vline(0.0, colour=INK2, dash='4 3')
         p.axis_line()
@@ -337,6 +340,31 @@ def _main_scheme(cal):
     return cal[cal.scheme.eq(MAIN_SCHEME)] if 'scheme' in cal else cal
 
 
+def _record_periods(cal):
+    """'World Religion Project 1970-2010 and Pew 2010-2020': the periods of the error record."""
+    if 'window' not in cal:
+        return 'past decades'
+    names = {'WRP': 'World Religion Project', 'Pew': 'Pew'}
+    w = cal.window.str.extract(r'^(\S+) (\d{4})-(\d{4})$').dropna().astype({1: int, 2: int})
+    parts = [f"{names.get(src, src)} {int(g[1].min())}-{int(g[2].max())}" for src, g in w.groupby(0)]
+    parts.sort(key=lambda t: not t.startswith('World'))
+    return ' and '.join(parts) if parts else 'past decades'
+
+
+def _observed_years(cal):
+    """'World Religion Project 1980-2010, Pew 2020': the years whose shares the calibration scores."""
+    if 'window' not in cal:
+        return 'World Religion Project'
+    names = {'WRP': 'World Religion Project', 'Pew': 'Pew'}
+    ends = cal.window.str.extract(r'^(\S+) \d{4}-(\d{4})$').dropna().astype({1: int})
+    parts = []
+    for src, yrs in ends.groupby(0)[1]:
+        lo, hi = int(yrs.min()), int(yrs.max())
+        parts.append(f"{names.get(src, src)} {lo}" + (f"-{hi}" if hi > lo else ''))
+    order = {'World': 0, 'Pew': 1}
+    return ', '.join(sorted(parts, key=lambda t: order.get(t.split()[0], 2)))
+
+
 def fig_interval_calibration(V, out):
     """Do the intervals contain the truth as often as they claim? Parameter-only against
     error-calibrated, out of sample, with the growth of error with horizon."""
@@ -351,7 +379,7 @@ def fig_interval_calibration(V, out):
                 'Left: share of held-out observations inside the interval against its nominal level. Middle: interval '
                 'score (lower is better). Right: how forecast error grows with horizon.',
                 'Out of sample: for each forecast the error model is re-estimated from history entries that share no years with '
-                'it; observations are country x religion shares of the World Religion Project above zero, 1980-2010.\n'
+                f'it; observations are country x religion shares above zero ({_observed_years(cal)}).\n'
                 'Left: vertical strokes span the horizons. Parameter-only intervals are the spread of the model\'s Monte Carlo '
                 'runs. Source: data/validation/predictive_calibration.csv, forecast_error_model.json')
     methods = [('model draws (parameter uncertainty)', BAD, 'Parameter uncertainty only'),

@@ -367,9 +367,10 @@ Excluding the overlapping entries matters: an earlier leave-one-origin-out desig
 points optimistic for countries and more for world totals. A *real-time* variant uses only
 entries that ended by the forecast's origin. Coverage is reported over all cells, over cells
 observed above zero (a group recorded at zero is inside any interval reaching zero, which the
-clipping makes common), and by forecast share. With four decades, no 40-year forecast has a
-non-overlapping entry left, so calibration is checked to 30 years; where a refit has no horizon
-beyond ten years, `β` falls back to 0.5 (random-walk growth).
+clipping makes common), and by forecast share. With Pew's 2010-2020 decade in the record, the
+one 40-year forecast (1970-2010) has a single non-overlapping entry, so calibration at 40 years
+rests on one decade; where a refit has no horizon beyond ten years, `β` falls back to 0.5
+(random-walk growth).
 
 The growth law is extrapolated beyond the validated horizons, and the intervals are conditional on
 WPP's national demography; predictive intervals are reported to 2100 and not beyond.
@@ -386,5 +387,5 @@ WPP's national demography; predictive intervals are reported to 2100 and not bey
 - **Assumption:** the fertility damping factors `phi` and `phi_region`; the bound `c` on the
   minority effect; the age patterns of switching and migration; generation intensities; the survey
   overdispersion `α`; everything after 2100; the scenario settings; switching strength 1.
-- **Checked after the committed run:** Pew's (2012) median ages by religion; the two values corrected in
-  `config/assumptions.json` (folk and other religions) take effect at the next run.
+- **Checked against the source:** Pew's (2012) median ages by religion, all eight as published
+  (folk and other religions corrected to 33 and 32 years before the committed run).

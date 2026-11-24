@@ -4,15 +4,16 @@ Written against the committed run in `results/`. Every number comes from a file 
 
 ## 1. No version of the model beats assuming nothing changes
 
-Scored on four World Religion Project decades, 1970-2010, with everything fitted only on earlier
-decades, no mechanistic variant can be distinguished from persistence, and the best of them is
-at most about 2% better. Country by country, over 558 country-decades, the
-population-weighted difference in total-variation error from persistence is
-−0.03 pp for births and deaths alone (95% interval −0.10 to +0.06) and
-+0.72 pp with full-strength switching (−0.19 to +1.70). A naive trend, the last decade's change
-repeated, is clearly worse (+1.86 pp, +1.21 to +2.41), and so is the demographic forecast plus the
-last decade's unexplained change (+1.71 pp). The decade-level sign-flip test agrees, though with
-four decades it cannot fall below p = 0.125.
+Scored on five decades, the four World Religion Project decades 1970-2010 and Pew's 2010-2020,
+with everything fitted only on earlier decades, no mechanistic variant can be distinguished from
+persistence, and the best of them is at most about 2% better. Country by country, over 758
+country-decades, the population-weighted difference in total-variation error from persistence is
+−0.02 pp for births and deaths alone (95% interval −0.06 to +0.06) and +0.26 pp with full-strength
+switching (−0.30 to +0.82). Full-strength switching is the best variant in Pew's decade (−0.24 pp,
+−0.70 to +0.16) and worse in the World Religion Project decades, in neither case distinguishably. A
+naive trend, the last decade's change repeated, is clearly worse (+1.61 pp, +0.80 to +2.34), and so
+is the demographic forecast plus the last decade's unexplained change (+1.52 pp). The decade-level
+sign-flip test agrees, though with five decades it cannot fall below p = 0.0625.
 
 Two cautions. The country bootstrap treats countries as independent within a decade, and they
 share common shocks, so its intervals are too narrow and the conclusion "indistinguishable" holds
@@ -34,30 +35,33 @@ The Monte Carlo bands (`q05`, `q95`) contain the observed share about a quarter 
 nominal 90% (23-25% of shares observed above zero, at every horizon). They describe parameter
 uncertainty only. The predictive intervals (`pi05`, `pi95`) add the forecast errors the model
 actually made. Validated so that the error model never shares calendar years with the forecast it
-is scored on, they cover 86-88% of shares observed above zero at nominal 90% for horizons of 10 to
-30 years (87% pooled; 86% in the stricter real-time variant), with interval scores less than half
-as large as the parameter-only bands'.
+is scored on, they cover 85-88% of shares observed above zero at nominal 90% for horizons of 10 to
+30 years and 78% at 40 years (87% pooled; 85-89% in the stricter real-time variant, which reaches
+30 years), with interval scores about half as large as the parameter-only bands'.
 
 What that does and does not establish:
 
 - **The intervals are a few points too narrow.** An earlier validation, which left out only the
   origin being tested and so kept the decades a forecast was scored on in the error model's pool,
-  reported 89-92%. The honest figure is lower. No correction is applied, because any correction
-  estimated on four decades would have to be validated on the same four decades.
-- **Calibration is shown to 30 years.** With four decades, every 40-year forecast overlaps every
-  other entry of the record, so it cannot be validated out of sample. The error growth law
-  `(h/10)^β` is extrapolated from there to 80 years (2100). Beyond 2100 no predictive interval is
-  given.
-- **World totals are coarser.** Common shocks are resampled from four decades (fewer when the
-  scored decades are left out), and the world-level intervals covered 85% of 72 held-out world
-  shares (75% at 30 years, and 75% of 48 in real time).
+  reports 88-91%. The honest figure is lower. No correction is applied, because any correction
+  estimated on five decades would have to be validated on the same five decades.
+- **Calibration at 40 years rests on one decade.** The only 40-year forecast, 1970-2010, can be
+  validated only against an error model refitted on Pew's 2010-2020 decade, the one entry that does
+  not overlap it, with the growth exponent set to a random walk's; it covers 78%. The error growth
+  law `(h/10)^β` is extrapolated from there to 80 years (2100). Beyond 2100 no predictive interval
+  is given.
+- **World totals are coarser.** Common shocks are resampled from five decades (fewer when the
+  scored decades are left out), and the world-level intervals covered 78% of 88 held-out world
+  shares (56% at 30 years, and 77% of 56 in real time).
 - **Zeros flatter small shares.** A quarter of the record's cells are groups recorded at exactly
   zero; they fall inside any interval reaching zero, which the clipping of shares at zero makes
-  common. Coverage over all cells (87.6-90.1%) is therefore higher than over cells above zero,
-  which is the figure quoted.
-- **The record is the World Religion Project's.** Its errors include its own measurement noise and
-  category changes between rounds, which is appropriate if the future will be measured as noisily,
-  and conservative if Pew's later rounds are more consistent.
+  common. Coverage over all cells (88.1-90.0% at 10-30 years) is therefore higher than over cells
+  above zero, which is the figure quoted.
+- **The record is mostly the World Religion Project's.** Four of its five decades are; their errors
+  include that source's measurement noise and category changes between rounds, which is appropriate
+  if the future will be measured as noisily, and conservative if Pew's later rounds are more
+  consistent. Persistence errs by 3.44 pp in Pew's decade against 4.41 pp in the World Religion
+  Project's, which suggests errors of a similar order, somewhat smaller in Pew's data.
 - **The intervals carry the record's direction.** In 1970-2010 the unaffiliated share was observed
   below the forecast in every decade, mostly in post-communist and East Asian countries, and the
   intervals inherit that: the predictive median of the world unaffiliated share in 2100 (17.8%) lies
@@ -82,20 +86,21 @@ What that does and does not establish:
 Surveys and historical net change both inform switching. An earlier version of this project
 reported that they disagree strongly (11.7 against 17.1 Christians leaving per 100 raised); most of
 that disagreement was an error in the survey likelihood, since corrected. The two levels now stand
-at 12.8 against 17.1 for Christians, and every run draws a weight between them; that weight is the
-most influential single assumption for the Christian and unaffiliated world shares (section 8 of
-`RESULTS.md`).
+at 13.3 against 17.1 for Christians, and every run draws a weight between them; that weight is the
+most influential single assumption for the Christian world share and for the number of countries
+whose largest religion changes (section 8 of `RESULTS.md`).
 
-The estimator itself has been checked by simulation under the real design: its 90% Laplace
-intervals cover the true hyperparameters in 85-95% of 20 replications, and it estimates the
-overall level δ about half a standard error too low (bias −0.08 ± 0.04), so the history-fitted level
-is, if anything, slightly conservative. Twenty replications pin coverage down only to about ±8
-points. In 4 of the 20, one country's importance sample had fewer than ten effective draws, which
-adds Monte Carlo noise there without biasing the estimator.
+The estimator itself has been checked by simulation under the real design. Its 90% Laplace
+intervals cover the true δ and β_d in 90% and 100% of 20 replications, and it estimates the overall
+level δ about 0.4 standard errors too low (bias −0.05 ± 0.03), so the history-fitted level is, if
+anything, slightly conservative. It underestimates the country spread τ_u (section 8), which fails
+integrity check 9c. Twenty replications pin coverage down only to about ±7 points. In 2 of the 20, one country's importance sample had fewer than ten effective draws, which adds Monte Carlo noise there.
 
-The history tests do not favour switching: full-strength switching, fitted to net change, is no
-better than persistence out of sample (+0.72 pp, not significant). Fitted to net change alone, the
-model puts the country spread at the upper end of its prior range in every fold, and with it forecasts worse, because the extra spread
+The history tests do not settle switching: full-strength switching, fitted to net change, is no
+better than persistence out of sample over the five decades (+0.26 pp, not significant); it is worse
+in the World Religion Project decades and better, though not significantly, in Pew's 2010-2020.
+Fitted to net change alone, the model puts the country spread at the upper end of its prior range
+in every World Religion Project fold, and with it forecasts worse there, because the extra spread
 reproduces country trends in the historical residuals that do not continue. The projection uses
 switching at full strength because surveys observe it directly; that is a judgement, and the
 history tests cannot settle it.
@@ -152,7 +157,22 @@ country reports that could not be reached from the build environment.
   stocks, but there is no shock process.
 - **Religiosity as distinct from affiliation.** The model tracks identification only.
 
-## 8. What is assumed rather than estimated
+## 8. The switching estimator underestimates the spread between countries
+
+The simulation study (`results/validation/estimator_recovery.csv`, 20 replications under the real
+design) recovers the level of disaffiliation δ and the development gradient β_d well (90% and 100%
+coverage of nominal 90% intervals), but estimates the country spread τ_u too low: bias −0.11 on the
+log scale, about one Laplace standard error, and 65% coverage. Integrity check 9c, which requires at
+least 70% coverage and a bias no larger than the standard error, fails for this parameter in the
+committed run, and the failure is recorded rather than the check relaxed. The fitted differences
+between countries in switching are therefore about 10% too small. This narrows the parameter spread
+of the runs; the predictive intervals come from the record's errors and are affected much less, and
+in the sensitivity analysis τ_u reaches at most 0.12 for the Christian, Muslim and unaffiliated world
+shares. A better estimator of τ_u
+(for example a profile or bias-corrected likelihood, or a full hierarchical posterior) is an open
+item.
+
+## 9. What is assumed rather than estimated
 
 Everything after 2100: the long-run fertility level and its convergence, the life-expectancy
 ceiling, post-2100 migration and the fade of switching. The 2200, 2500 and 3026 results show what
@@ -160,13 +180,12 @@ a stated set of assumptions implies; they are labelled exploratory everywhere an
 predictive interval. Within the horizon, the main assumptions are the fertility damping factors,
 the switching strength, the bound on the minority effect in emigration, the age patterns of
 switching and migration, the generation intensities and `α`. The Pew (2012) median ages by religion
-used for the within-country age tilt have been checked against the published figures; the
-committed run predates the correction of two of them (folk and other religions, 28 and 30 years
-instead of 33 and 32), which the next run applies. The tilt's strength `psi` is the most influential
-parameter for the Muslim world share in 2050 (standardised rank coefficient +0.69, against a
-placebo noise floor of 0.15).
+used for the within-country age tilt have been checked against the published figures, and the
+committed run uses the published values for all eight groups. The tilt's strength `psi` is the most
+influential parameter for the Muslim world share in 2050 (standardised rank coefficient +0.73,
+against a placebo noise floor of 0.12).
 
-## 9. Known artefacts
+## 10. Known artefacts
 
 - Five French overseas departments have no Natural Earth geometry of their own and borrow a
   neighbour's coordinates for distance calculations.

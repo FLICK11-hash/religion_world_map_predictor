@@ -115,9 +115,13 @@ data/  outputs/         generated, git-ignored
 - The matplotlib figures depend on the installed matplotlib and geopandas versions. The SVG
   figures, which the results use, are produced by the package itself and do not.
 
-## Known gap in this environment
+## The committed run
 
-The committed run was produced without `data/processed/pew_harmonized.csv`, because the Pew
-workbook needs an account and the run environment could not download the other raw data. It therefore starts from `inputs/pew2020_start_state.csv`, the same Pew
-2020 data, and omits the Pew 2010-2020 backtest window. Supplying the workbook and re-running will change
-the numbers slightly and add that window. Every report states which start state it used.
+The committed run was produced on a local machine with every core dataset and Pew's Global
+Religious Futures dataset (`data/processed/pew_harmonized.csv`), so it starts from Pew's 2020
+estimates and includes the Pew 2010-2020 test decade. `results/run_stamp.json` records the commit it
+was run from. One integrity check fails (9c, the estimator recovery of τ_u; see
+`docs/LIMITATIONS.md`), so `python run.py all` stopped after the checks; the figures and the report
+were then produced with `python run.py figures` and `python run.py report --export`, which keep the
+failure in `results/integrity_checks.txt` and `results/run_stamp.json`. The comparison with Pew's
+2026 projections was written afterwards with `python scripts/benchmark_pew2026.py`.

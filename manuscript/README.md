@@ -1,8 +1,10 @@
 # Manuscript
 
-`manuscript.md` is the working draft of the paper. Every number in it comes from the committed run
-in `../results/`, and every figure is one of the SVG files in `../results/figures/`, which the code
-regenerates (`python run.py all`). If the run changes, the numbers below change with it.
+`manuscript.md` is the working draft of the paper (revision 10, for Demographic Research), converted
+from the version in the team's Google Drive folder; it omits the authors' email addresses. Every
+number in it comes from the committed run in `../results/`, and every figure is a PNG in `figures/`
+rendered from the SVG files in `../results/figures/`, which the code regenerates (`python run.py all`).
+If the run changes, the numbers change with it.
 
 Classification: arXiv `stat.AP` (Statistics: Applications); MSC 2020 62P25, 91D20, 62M20; JEL C53,
 J11, Z12. Keywords: cohort-component projection, religious switching, international migration,
@@ -11,15 +13,15 @@ decomposition.
 
 | Figure | File | Shows |
 |---|---|---|
-| 1 | `results/figures/world_projection_2100.svg` | world shares 2020-2100 with parameter and predictive intervals |
-| 2 | `results/figures/validation_skill.svg` | history-test skill relative to persistence, country-level intervals |
-| 3 | `results/figures/interval_calibration.svg` | coverage, interval score and error growth of the intervals |
+| 1 | `results/figures/validation_skill.svg` | history-test skill relative to persistence, country-level intervals |
+| 2 | `results/figures/interval_calibration.svg` | coverage, interval score and error growth of the intervals |
+| 3 | `results/figures/world_projection_2100.svg` | world shares 2020-2100 with parameter and predictive intervals |
 | 4 | `results/figures/shift_share.svg` | change in world share within countries against population weighting |
 | 5 | `results/figures/mechanism_ablation.svg` | what switching, fertility differences and migration contribute |
 | 6 | `results/figures/prob_dominant_change_2100.svg` | predictive probability that a country's largest religion changes by 2100 |
-| S1 | `results/figures/sensitivity.svg` | which parameters move the results |
-| S2 | `results/figures/scenario_comparison.svg` | world shares in 2100 under every scenario |
-| S3 | `results/figures/world_composition_long_run.svg` | exploratory horizons to 3026 |
+| 7 | `results/figures/dominant_2100.svg` | largest religion by country in 2100 |
+| A1-A4 | `results/figures/dominant_2050.svg`, `dominant_2200.svg`, `dominant_2500.svg`, `dominant_3026.svg` | largest religion in 2050 and the exploratory years |
+| A5 | `results/figures/sensitivity.svg` | which parameters move the results |
 
 | Number | Source file |
 |---|---|
@@ -37,16 +39,14 @@ decomposition.
 
 ## Before submission
 
-1. Re-run with Pew's Global Religious Futures dataset prepared (`scripts/prepare_pew_panel.py`), so the start
-   state is Pew's own data for both years and the 2010-2020 decade enters the tests. The committed
-   run used the 2020-only fallback.
-2. Re-run so that the corrected Pew (2012) median ages by religion take effect
-   (`age_structure.pew_global_median_age_2010` in `config/assumptions.json`; folk and other
-   religions were corrected from 28 and 30 to 33 and 32): the age-tilt parameter they feed is the
-   most influential input for the Muslim world share in 2050.
-3. Choose a licence, tag a release and archive it (Zenodo) for a DOI to cite in the data and code
+Done: the committed run includes Pew's 2010-2020 decade (Global Religious Futures dataset, via
+`scripts/prepare_pew_panel.py`) and the corrected Pew (2012) median ages by religion.
+
+1. Decide what to do about the failed estimator check (9c: the country spread τ_u is estimated about
+   10% too low, 65% coverage). The draft reports it; improving the estimator would need a new run.
+2. Choose a licence, tag a release and archive it (Zenodo) for a DOI to cite in the data and code
    availability statement.
-4. Check the target journal's policy on AI-assisted work and adapt the statement.
-5. Decide whether to report a calibrated correction of the predictive intervals. They are a few
-   points too narrow out of sample; any correction estimated on the four decades would have to be
-   validated on the same decades, so the draft reports the shortfall instead.
+3. Check the target journal's policy on AI-assisted work and adapt the statement.
+4. Decide whether to report a calibrated correction of the predictive intervals. They are a few
+   points too narrow out of sample (more at 40 years); any correction estimated on the five decades
+   would have to be validated on the same decades, so the draft reports the shortfall instead.
