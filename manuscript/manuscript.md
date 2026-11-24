@@ -6,7 +6,7 @@ University of Chicago, Chicago, IL, United States
 
 Corresponding author: Conrad Flick, ORCID 0009-0001-9508-9444.
 
-*Revised draft (revision 10), 24 November 2026, prepared for submission to Demographic Research as a Research Article. Every number comes from the committed run in the project repository (github.com/FLICK11-hash/religion_world_map_predictor). Items in \[square brackets\] must be completed before submission.*
+*Revised draft (revision 10), 23 November 2026, prepared for submission to Demographic Research as a Research Article. Every number comes from the committed run in the project repository (github.com/FLICK11-hash/religion_world_map_predictor). Items in \[square brackets\] must be completed before submission.*
 
 ## Abstract
 
