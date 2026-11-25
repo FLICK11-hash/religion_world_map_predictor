@@ -1,5 +1,6 @@
 {
-  "git_commit": "8b26927df6ba90a6f0dac6516786fa3c8ebe411a",
+  "git_commit": "a5a41100d5a887dabdc2a08d4fd7211c3c790e54",
+  "git_commit_note": "The history was rewritten on 2026-11-25 to change commit authorship; the run was made from 8b26927, whose files are identical to a5a4110.",
   "working_tree": "clean",
   "integrity_checks": "1 failed",
   "exported_utc": "2026-11-24T00:17:32.151551+00:00"
